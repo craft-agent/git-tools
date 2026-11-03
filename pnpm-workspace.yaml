@@ -1,0 +1,2 @@
+minimumReleaseAgeExclude:
+  - "@craftsamo/repo-kit@1.1.0"

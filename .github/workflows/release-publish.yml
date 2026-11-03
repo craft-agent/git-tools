@@ -1,0 +1,23 @@
+name: Publish release
+
+on:
+  # From the Actions tab: set the version on main to the draft's with a
+  # commit, then publish the draft on that commit, so the tag names a commit
+  # that carries its version. Consumers pin that tag.
+  workflow_dispatch:
+  # A release published on the Releases page tags the commit the draft
+  # targeted; the version on main follows afterwards.
+  release:
+    types: [published]
+
+permissions: {}
+
+jobs:
+  # The version bump is pushed with the release deploy key, which
+  # `repo-kit setup github` creates and lets bypass the protection of main.
+  publish:
+    permissions:
+      contents: write
+    uses: craftsamo/repo-kit/.github/workflows/release-publish.yml@v1
+    secrets:
+      RELEASE_DEPLOY_KEY: ${{ secrets.RELEASE_DEPLOY_KEY }}
