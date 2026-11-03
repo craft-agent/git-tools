@@ -1,7 +1,7 @@
 {
   "name": "@craftsamo/agent-git",
   "version": "0.0.0",
-  "description": "Git tools for coding agents: state, commits, history rewrites, worktrees, stacks and publishing.",
+  "description": "Git tools for coding agents: state, commits, history rewrites and stacked branches, worktrees and pushing.",
   "author": "craftsamo",
   "license": "MIT",
   "repository": {
