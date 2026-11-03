@@ -1,9 +1,10 @@
 # agent-git
 
 Git tools for coding agents: the state of a working tree, commits, history
-rewrites, worktrees, stacks and publishing. Built on
-[agent-github](https://github.com/craftsamo/agent-github)'s tool contract and
-delivered through the same entry points, so the tools read and behave alike.
+rewrites and stacked branches, worktrees and pushing, against any git remote.
+Built on [agent-github](https://github.com/craftsamo/agent-github)'s tool
+contract and delivered through the same entry points, so the tools read and
+behave alike. Pull requests and native stacks on GitHub are agent-github's.
 
 | Harness      | Delivery                                |
 | ------------ | --------------------------------------- |
@@ -14,8 +15,10 @@ delivered through the same entry points, so the tools read and behave alike.
 | Grok Build   | plugin: MCP server and skills (planned) |
 | Antigravity  | plugin: MCP server and skills (planned) |
 
-The tools need `git`; those that publish to GitHub also need the
-[GitHub CLI](https://cli.github.com/), authenticated as you.
+The tools need `git`. Where `origin` is on GitHub, a few safety checks also
+read it through the [GitHub CLI](https://cli.github.com/), authenticated as
+you. [`docs/conventions.md`](docs/conventions.md) describes how the tools are
+named and how they behave.
 
 ## Layout
 

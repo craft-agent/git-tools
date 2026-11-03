@@ -1,8 +1,9 @@
 # Security policy
 
 agent-git gives coding agents tools that read and change git repositories,
-and publish them to GitHub, as the person running them. A flaw in it can let an agent do
-more than that person agreed to, so please report one privately.
+and push them to their remotes, as the person running them. A flaw in it can
+let an agent do more than that person agreed to, so please report one
+privately.
 
 ## Supported versions
 
@@ -22,9 +23,9 @@ A useful report says:
 
 ## What agent-git trusts
 
-- **The tools run as you.** Every tool runs git, and reaches GitHub through
-  `gh`, as the person running the agent, and can do no more than that account
-  may.
+- **The tools run as you.** Every tool runs git, and a safety check may read
+  GitHub through `gh`, as the person running the agent, and can do no more
+  than that account may. No tool writes to GitHub.
 - **The harness decides what runs.** A tool that writes is marked as one, and
   asks for confirmation where the harness offers a way to ask; the harness's
   own approval settings decide whether a call runs.
