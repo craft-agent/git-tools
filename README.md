@@ -1,10 +1,10 @@
-# agent-git
+# git-tools
 
 Git tools for coding agents: the state of a working tree, commits, history
 rewrites and stacked branches, worktrees and pushing, against any git remote.
-Built on [agent-github](https://github.com/craftsamo/agent-github)'s tool
+Built on [github-tools](https://github.com/craft-agent/github-tools)' tool
 contract and delivered through the same entry points, so the tools read and
-behave alike. Pull requests and native stacks on GitHub are agent-github's.
+behave alike. Pull requests and native stacks on GitHub are github-tools'.
 
 | Harness      | Delivery                                |
 | ------------ | --------------------------------------- |
@@ -23,7 +23,7 @@ named and how they behave.
 ## Layout
 
 - `src/core/` — the tools, free of any harness (planned).
-- The entry points come from agent-github (planned).
+- The entry points come from github-tools (planned).
 
 ## License
 

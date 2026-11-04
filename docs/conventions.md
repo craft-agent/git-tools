@@ -1,14 +1,14 @@
 # Tool conventions
 
-The git tools follow agent-github's
-[tool conventions](https://github.com/craftsamo/agent-github/blob/6d7ef6e7fe0d1bc9bf8ba0ca825b545aa3143dda/docs/conventions.md),
+The git tools follow github-tools'
+[tool conventions](https://github.com/craft-agent/github-tools/blob/6d7ef6e7fe0d1bc9bf8ba0ca825b545aa3143dda/docs/conventions.md),
 and this file records only where git differs. Each rule carries the reason it
 was chosen; the discussion behind them is on
-[#3](https://github.com/craftsamo/agent-git/issues/3).
+[#3](https://github.com/craft-agent/git-tools/issues/3).
 
 ## What holds as it is
 
-Everything agent-github's conventions say that this file does not change:
+Everything github-tools' conventions say that this file does not change:
 one read tool per domain with a `method`, one write tool per operation,
 snake_case, flat list arguments, plain-object results, the five write classes
 and the annotations each sets, the harness confirming writes, `read_only`,
@@ -18,11 +18,11 @@ follows.
 ## Scope
 
 - **git only, with any remote.** No tool writes to GitHub. Pull requests,
-  native stacks and reads of GitHub belong to agent-github, so this package
+  native stacks and reads of GitHub belong to github-tools, so this package
   works the same against any git host.
 - **One exception: safety reads.** Where a git rule needs a fact only GitHub
   has — whether a branch is protected against force pushes, whether a
-  squash-merged branch landed — it reads that through agent-github's
+  squash-merged branch landed — it reads that through github-tools'
   functions, and only when `origin` is on GitHub. Elsewhere the rule falls
   back to what git alone can prove, and refuses or keeps rather than guesses.
 
@@ -30,7 +30,7 @@ follows.
 
 - **Tool IDs are `git_<domain>_<verb>`.** git's commands are verbs (`add`,
   `commit`, `rebase`, `push`), unlike `gh`'s noun groups, so the domain is the
-  object git acts on and the verb is git's command name. agent-github's own
+  object git acts on and the verb is git's command name. github-tools' own
   verbs (`read`, `ensure`, …) fill in where git has none.
 - **Five domains, one toolset each**:
 
@@ -114,7 +114,7 @@ follows.
 
 ## Settings
 
-Beside agent-github's settings, under this package's names:
+Beside github-tools' settings, under this package's names:
 
 - **`worktree_root`**: where task worktrees go.
 - **The published-text rules**: words a pushed commit subject or branch name
@@ -124,7 +124,7 @@ Both have neutral defaults, set when their domains are reviewed (#8, #9).
 
 ## The git runner
 
-- **Every git call goes through one runner**, shaped like agent-github's
+- **Every git call goes through one runner**, shaped like github-tools'
   `gh` runner.
 - **An allowlisted environment**: the same variables the `gh` runner passes
   (search path, home, SSH agent, proxies, `gh`'s authentication, so
@@ -164,5 +164,5 @@ Both have neutral defaults, set when their domains are reviewed (#8, #9).
 - **Real repositories in a temporary directory**, with a local bare
   repository as the remote. git itself is the fixture: a fake would only
   restate what the tests assume.
-- **GitHub reads go through agent-github's fake `gh`.** No test reaches the
+- **GitHub reads go through github-tools' fake `gh`.** No test reaches the
   network.

@@ -1,6 +1,6 @@
 # Security policy
 
-agent-git gives coding agents tools that read and change git repositories,
+git-tools gives coding agents tools that read and change git repositories,
 and push them to their remotes, as the person running them. A flaw in it can
 let an agent do more than that person agreed to, so please report one
 privately.
@@ -12,7 +12,9 @@ fix by moving to the new tag.
 
 ## Reporting a vulnerability
 
-Report it through [GitHub Security Advisories](https://github.com/craftsamo/agent-git/security/advisories/new). Do not open a public issue or pull request for it. agent-git has no bug bounty.
+Report it through
+[GitHub Security Advisories](https://github.com/craft-agent/git-tools/security/advisories/new).
+Do not open a public issue or pull request for it. git-tools has no bug bounty.
 
 A useful report says:
 
@@ -21,7 +23,7 @@ A useful report says:
 - the version (the release tag the consumer pins)
 - the steps to reproduce it against the latest release
 
-## What agent-git trusts
+## What git-tools trusts
 
 - **The tools run as you.** Every tool runs git, and a safety check may read
   GitHub through `gh`, as the person running the agent, and can do no more

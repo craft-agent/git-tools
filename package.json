@@ -1,15 +1,15 @@
 {
-  "name": "@craftsamo/agent-git",
+  "name": "@craftsamo/git-tools",
   "version": "0.0.0",
   "description": "Git tools for coding agents: state, commits, history rewrites and stacked branches, worktrees and pushing.",
   "author": "craftsamo",
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/craftsamo/agent-git.git"
+    "url": "git+https://github.com/craft-agent/git-tools.git"
   },
-  "homepage": "https://github.com/craftsamo/agent-git#readme",
-  "bugs": "https://github.com/craftsamo/agent-git/issues",
+  "homepage": "https://github.com/craft-agent/git-tools#readme",
+  "bugs": "https://github.com/craft-agent/git-tools/issues",
   "type": "module",
   "scripts": {
     "test": "bun test --pass-with-no-tests --timeout 30000",
