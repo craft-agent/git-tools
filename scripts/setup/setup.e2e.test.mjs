@@ -20,6 +20,9 @@ const LEFTOVERS = [
   "example-notes",
 ]
 
+/** The file the setup writes after the renames, which names the starter on purpose. */
+const STARTER_REFERENCE = "opencode.jsonc"
+
 let workspace
 let template
 
@@ -68,7 +71,8 @@ const read = (dir, file) => readFileSync(join(dir, file), "utf8")
 const readJson = (dir, file) => JSON.parse(read(dir, file))
 
 function expectNoLeftovers(dir, leftovers = LEFTOVERS) {
-  const hits = walk(dir).flatMap((path) => {
+  const files = walk(dir).filter((path) => relative(dir, path) !== STARTER_REFERENCE)
+  const hits = files.flatMap((path) => {
     const text = readFileSync(path, "utf8")
     return leftovers
       .filter((leftover) => text.includes(leftover))
@@ -118,6 +122,7 @@ describe("the setup on a clone of the starter", () => {
     expect(read(dir, ".claude-plugin/marketplace.json")).toContain('"name": "acme"')
     expect(read(dir, "LICENSE")).toContain("Copyright (c) 2026 acme")
     expect(read(dir, "README.md")).not.toContain("Using this starter")
+    expect(read(dir, STARTER_REFERENCE)).toContain('"repository": "craftsamo/agent-tool-starter"')
     expect(readJson(dir, "plugin.json").author).toEqual({ name: "acme", url: "https://github.com/acme" })
     expect(readJson(dir, ".claude-plugin/plugin.json").author).toEqual({ name: "acme", url: "https://github.com/acme" })
     expect(readJson(dir, ".antigravity-plugin/plugin.json").author).toEqual({

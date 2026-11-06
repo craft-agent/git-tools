@@ -52,9 +52,11 @@ renamed in one step.
 The setup removes the example notes tools unless `--keep-example` is given,
 drops `"private": true` so the package can be published, starts its version
 at `0.0.0` whatever the starter's release was, and deletes itself
-and this section. It refuses to run on a working tree with uncommitted
-changes. To take later improvements of the starter, add it as a remote and
-merge its default branch.
+and this section. It also writes `opencode.jsonc`, whose `starter`
+reference lets an agent in OpenCode read this repository beside the
+project; add the project's own references there. It refuses to run on a
+working tree with uncommitted changes. To take later improvements of the
+starter, add it as a remote and merge its default branch.
 
 <!-- /starter -->
 
