@@ -255,6 +255,9 @@ Lists are comma-separated in a flag or a variable. Where each harness reads them
   (with `${CLAUDE_PLUGIN_ROOT}`, the variable both Grok Build and Claude Code
   expand); when working on this repository in Claude Code, decline the project
   MCP server it offers from that file.
+- `opencode.jsonc` — OpenCode's configuration for working on this repository,
+  not part of the package: it references the starter it was made from and
+  github-tools, so an agent can read them beside this code.
 
 How a release is made is in [`RELEASING.md`](RELEASING.md).
 
