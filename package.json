@@ -21,8 +21,30 @@
     "agent-tool-starter": "dist/mcp.js",
     "agent-tool-starter-cli": "dist/cli.js"
   },
+  "files": [
+    "dist",
+    "skills",
+    "plugin.json",
+    "mcp.json",
+    ".mcp.json",
+    ".claude-plugin",
+    ".agents/plugins",
+    ".antigravity-plugin",
+    "mcp_config.json",
+    "plugin.yaml",
+    "__init__.py",
+    "src/hermes/agent_tool_starter_hermes",
+    "!**/__pycache__",
+    "!**/*.pyc"
+  ],
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
   "scripts": {
     "build": "node scripts/build.mjs",
+    "manifests": "node scripts/manifests.mjs",
+    "manifests:check": "node scripts/manifests.mjs --check",
     "test": "bun test --pass-with-no-tests --timeout 30000",
     "format": "prettier --write .",
     "format:check": "prettier --check .",

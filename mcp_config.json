@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "agent-tool-starter": {
+      "command": "node",
+      "args": ["${PLUGIN_ROOT}/dist/mcp.js"]
+    }
+  }
+}
