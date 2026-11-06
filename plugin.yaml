@@ -1,5 +1,5 @@
 name: agent-tool-starter
-version: 0.0.0
+version: 0.1.0
 description: "A starter for tool packages that coding agents call: one implementation delivered to every harness."
 manifest_version: 1
 requires_hermes: ">=0.22"

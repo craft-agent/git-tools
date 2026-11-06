@@ -1,6 +1,6 @@
 {
   "name": "@craftsamo/agent-tool-starter",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "private": true,
   "description": "A starter for tool packages that coding agents call: one implementation delivered to every harness.",
   "author": "craftsamo",
