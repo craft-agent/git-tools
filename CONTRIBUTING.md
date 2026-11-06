@@ -1,10 +1,10 @@
-# Contributing to agent-git
+# Contributing to agent-tool-starter
 
-Thank you for helping. This guide covers how to propose a change, set up the repository, and get a pull request merged. The rules the code itself follows are in [AGENTS.md](AGENTS.md), which AI coding agents read too.
+Thank you for helping. This guide covers how to propose a change to the starter itself, set up the repository, and get a pull request merged. The rules the code itself follows are in [AGENTS.md](AGENTS.md), which AI coding agents read too.
 
 ## Before you start
 
-- Search the [issues](https://github.com/craftsamo/agent-git/issues) and [pull requests](https://github.com/craftsamo/agent-git/pulls?q=is%3Apr) first, closed ones included.
+- Search the [issues](https://github.com/craftsamo/agent-tool-starter/issues) and [pull requests](https://github.com/craftsamo/agent-tool-starter/pulls?q=is%3Apr) first, closed ones included.
 - Open an issue before starting a large change or a new feature, so it can be agreed first.
 - A fix for a bug or a documentation error can go straight to a pull request.
 - Report a vulnerability privately as [SECURITY.md](SECURITY.md) describes, not in an issue or pull request.
@@ -14,8 +14,8 @@ Thank you for helping. This guide covers how to propose a change, set up the rep
 You need Node.js `>=24`.
 
 ```sh
-git clone https://github.com/craftsamo/agent-git.git
-cd agent-git
+git clone https://github.com/craftsamo/agent-tool-starter.git
+cd agent-tool-starter
 corepack enable
 pnpm install
 ```
@@ -33,15 +33,15 @@ pnpm test
 
 Commits follow [Conventional Commits](https://www.conventionalcommits.org/): `type(scope): subject`, in the imperative.
 
-| Type       | For                                              |
-| ---------- | ------------------------------------------------ |
-| `feat`     | A new tool, option, skill or harness integration |
-| `fix`      | Something that did not work as documented        |
-| `docs`     | Documentation only                               |
-| `ci`       | This repository's own CI and release jobs        |
-| `refactor` | Restructuring without a change in behavior       |
-| `test`     | Tests only                                       |
-| `chore`    | Anything else, such as tooling or a version      |
+| Type       | For                                         |
+| ---------- | ------------------------------------------- |
+| `feat`     | A new option, script or harness integration |
+| `fix`      | Something that did not work as documented   |
+| `docs`     | Documentation only                          |
+| `ci`       | This repository's own CI and release jobs   |
+| `refactor` | Restructuring without a change in behavior  |
+| `test`     | Tests only                                  |
+| `chore`    | Anything else, such as tooling or a version |
 
 The scope names the area, such as `core`, `opencode`, `mcp`, `hermes`, `skills` or `ci`. Keep each commit to one change that passes the checks on its own; the body says why, when the subject cannot.
 
