@@ -2,6 +2,7 @@ import { SetupError } from "./errors.mjs"
 import { EXAMPLE_DIRS, EXAMPLE_SKILL_DIR, editForExample } from "./example.mjs"
 import { STARTER, createReplacer, deriveIdentity, isQuotedStringFile, toSnake } from "./identity.mjs"
 import { removeMarkedBlocks } from "./markers.mjs"
+import { OPENCODE_CONFIG, opencodeConfig } from "./opencode-config.mjs"
 import { editPackageJson } from "./package-json.mjs"
 import { SPOT_FILES, editSpots } from "./spots.mjs"
 import { resetVersion } from "./version.mjs"
@@ -102,6 +103,7 @@ export function buildPlan(options, paths, read) {
   if (!options.keepExample && !kept.some((path) => path.startsWith("skills/"))) {
     entries.push({ path: null, newPath: GITKEEP, content: "", count: 0 })
   }
+  entries.push({ path: null, newPath: OPENCODE_CONFIG, content: opencodeConfig(), count: 0 })
   assertNoCollisions(entries, paths)
   return { identity, entries, moves, removedDirs }
 }
