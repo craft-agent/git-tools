@@ -1,0 +1,20 @@
+name: Draft release
+
+on:
+  # The draft follows a main commit only once Tests has passed on it, so it
+  # never describes a state of main that failed its checks.
+  workflow_run:
+    workflows: [Tests]
+    types: [completed]
+    branches: [main]
+
+permissions: {}
+
+jobs:
+  # Writes the next release's notes and version from the labels of the pull
+  # requests merged since the last release (.github/release-notes.json).
+  draft:
+    permissions:
+      contents: write
+      pull-requests: read
+    uses: craftsamo/repo-kit/.github/workflows/release-draft.yml@v1

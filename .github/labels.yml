@@ -1,0 +1,24 @@
+- name: feature
+  description: A new tool, option, skill or harness integration
+  color: 0E8A16
+- name: fix
+  description: Something that did not work as documented
+  color: D73A4A
+- name: breaking
+  description: Callers must change something; raises the major version
+  color: B60205
+- name: documentation
+  description: Only the documentation changes
+  color: 0075CA
+- name: maintenance
+  description: Build, CI, tests or refactoring
+  color: FBCA04
+- name: dependencies
+  description: Updates a dependency
+  color: 0366D6
+- name: skip-changelog
+  description: Leave out of the release notes
+  color: EEEEEE
+- name: question
+  description: Further information is requested
+  color: D876E3

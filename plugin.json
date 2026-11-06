@@ -1,0 +1,13 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "agent-tool-starter",
+  "version": "0.1.0",
+  "description": "A starter for tool packages that coding agents call: one implementation delivered to every harness.",
+  "author": {
+    "name": "craftsamo",
+    "url": "https://github.com/craftsamo"
+  },
+  "homepage": "https://github.com/craftsamo/agent-tool-starter#readme",
+  "repository": "https://github.com/craftsamo/agent-tool-starter",
+  "license": "MIT"
+}

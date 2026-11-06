@@ -1,0 +1,18 @@
+{
+  "name": "agent-tool-starter",
+  "version": "0.1.0",
+  "description": "A starter for tool packages that coding agents call: one implementation delivered to every harness.",
+  "author": {
+    "name": "craftsamo",
+    "url": "https://github.com/craftsamo"
+  },
+  "homepage": "https://github.com/craftsamo/agent-tool-starter#readme",
+  "repository": "https://github.com/craftsamo/agent-tool-starter",
+  "license": "MIT",
+  "mcpServers": {
+    "agent-tool-starter": {
+      "command": "node",
+      "args": ["${CLAUDE_PLUGIN_ROOT}/dist/mcp.js"]
+    }
+  }
+}

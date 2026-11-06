@@ -1,0 +1,17 @@
+name: Sync labels
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: [.github/labels.yml]
+
+permissions: {}
+
+jobs:
+  # Makes the labels the ones .github/labels.yml declares, pruning the rest.
+  labels:
+    permissions:
+      contents: read
+      issues: write
+    uses: craftsamo/repo-kit/.github/workflows/labels-sync.yml@v1

@@ -1,0 +1,22 @@
+name: agent-tool-starter
+version: 0.1.0
+description: "A starter for tool packages that coding agents call: one implementation delivered to every harness."
+manifest_version: 1
+requires_hermes: ">=0.22"
+provides_tools:
+  - example_note_create
+  - example_note_read
+provides_hooks:
+  - pre_tool_call
+config_schema:
+  toolsets:
+    description: 'The toolsets that are on: a list of toolset names, or "all". Defaults to the package''s default toolsets.'
+  read_only:
+    type: bool
+    description: Registers no tool that writes. Wins over every other setting.
+  tools:
+    type: list
+    description: Single tools to add by id, whatever their toolset.
+  exclude_tools:
+    type: list
+    description: Single tools to remove by id. Wins over tools and toolsets.

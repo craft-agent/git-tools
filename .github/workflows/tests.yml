@@ -1,0 +1,83 @@
+name: Tests
+
+on:
+  # Every push to main runs, so each main commit gets a Required checks verdict
+  # and Release Drafter, which follows a successful run, sees one.
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# A new push to a pull request cancels its running checks, which no longer
+# match its head. Pushes to main wait instead, so every main commit is checked.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  # Let Corepack download the pinned pnpm without an interactive prompt.
+  COREPACK_ENABLE_DOWNLOAD_PROMPT: 0
+
+jobs:
+  check:
+    name: Check
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - name: Use Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version-file: .node-version
+          package-manager-cache: false
+      # The tools run inside Bun today (OpenCode's plugin host), so their
+      # tests do too.
+      - name: Use Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version-file: .bun-version
+      # The Hermes plugin is Python, standard library only.
+      - name: Use Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+      - name: Enable pnpm
+        run: corepack enable
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Check formatting
+        run: pnpm run format:check
+      - name: Typecheck
+        run: pnpm run typecheck
+      - name: Test
+        run: pnpm test
+      - name: Test the Hermes plugin
+        run: python -m unittest discover -s src/hermes/tests
+      - name: Build
+        run: pnpm run build
+      - name: Check the plugin manifest
+        run: pnpm run manifests:check
+      - name: Smoke test the MCP server, the plugin and the CLI under Node
+        run: pnpm run smoke
+
+  # The one check the protection of main requires (`repo-kit setup github
+  # --required-check`), so jobs can be added or renamed without touching it.
+  required:
+    name: Required checks
+    if: always()
+    needs: [check]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verify required jobs
+        env:
+          CHECK_RESULT: ${{ needs.check.result }}
+        run: |
+          if [[ "$CHECK_RESULT" != "success" ]]; then
+            exit 1
+          fi

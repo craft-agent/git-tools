@@ -1,0 +1,39 @@
+name: Bug report
+description: Something does not work as documented.
+labels: ["fix"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Search the existing issues first, and check that the bug is still there in the latest release. Report a vulnerability privately, as SECURITY.md describes, not here.
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What you expected
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Output or logs
+      description: Remove any secret values first.
+      render: shell
+  - type: input
+    id: versions
+    attributes:
+      label: Versions
+      description: The version of agent-tool-starter, and of anything it runs on.
+    validations:
+      required: true

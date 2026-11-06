@@ -1,0 +1,20 @@
+{
+  "name": "craftsamo",
+  "interface": {
+    "displayName": "craftsamo"
+  },
+  "plugins": [
+    {
+      "name": "agent-tool-starter",
+      "source": {
+        "source": "local",
+        "path": "./"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Developer Tools"
+    }
+  ]
+}
