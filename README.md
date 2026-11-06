@@ -188,25 +188,6 @@ Add the server to the host's MCP configuration. Flags go in `args`:
 
 Each toolset comes with a skill that tells an agent how to use its tools.
 
-<!-- example -->
-
-### Notes (`notes`)
-
-An example toolset: Markdown notes in the working tree's `notes/` folder,
-shown to make every part of the tool contract visible with no outside program.
-
-| Tool                  | What it does                                                | Class |
-| --------------------- | ----------------------------------------------------------- | ----- |
-| `example_note_read`   | `view` one note, or `list` the notes with their sizes       | read  |
-| `example_note_create` | create `notes/<name>.md`; never overwrites an existing note | add   |
-
-The skill is [`example-notes`](skills/example-notes/SKILL.md), shown as
-`agent-tool-starter:example-notes` in Claude Code and
-`agent-tool-starter:notes` in Hermes. A write names the note's absolute path
-as its target, so an "always" answer covers that note only.
-
-<!-- /example -->
-
 ## Adding a tool
 
 1. Write the spec in `src/core/<domain>/<verb>.ts` with `defineTool`: an ID
@@ -224,12 +205,6 @@ as its target, so an "always" answer covers that note only.
    `plugin.yaml`, then describe it under "Tools and skills".
 
 [`docs/conventions.md`](docs/conventions.md) has the rules each step follows.
-
-<!-- example -->
-
-`src/core/example/` is a worked example of all of them.
-
-<!-- /example -->
 
 ## Reads and writes
 
