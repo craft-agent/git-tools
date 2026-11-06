@@ -3,6 +3,7 @@ import { SetupError } from "./errors.mjs"
 import { editForExample } from "./example.mjs"
 import { editPackageJson } from "./package-json.mjs"
 import { editSpots } from "./spots.mjs"
+import { resetVersion } from "./version.mjs"
 
 const OPTIONS = { prefix: "widget", owner: "acme", author: 'A "B"', marketplace: "acme-market", keepExample: false }
 
@@ -47,6 +48,26 @@ describe("editPackageJson", () => {
     expect(() => editPackageJson(source.replace('"build": "b"', '"setup": "node scripts/setup/main.mjs"'))).toThrow(
       SetupError,
     )
+  })
+})
+
+describe("resetVersion", () => {
+  test("starts package.json and the manifests at 0.0.0, keeping nested versions", () => {
+    const json = `{\n  "name": "x",\n  "version": "0.1.0",\n  "engines": { "version": "9" }\n}\n`
+    expect(resetVersion("package.json", json)).toEqual({
+      text: `{\n  "name": "x",\n  "version": "0.0.0",\n  "engines": { "version": "9" }\n}\n`,
+      count: 1,
+    })
+    expect(resetVersion("plugin.yaml", "name: x\nversion: 0.1.0\n")).toEqual({
+      text: "name: x\nversion: 0.0.0\n",
+      count: 1,
+    })
+    expect(resetVersion(".claude-plugin/plugin.json", `{\n  "version": "0.0.0"\n}\n`).count).toBe(0)
+  })
+
+  test("leaves other files alone and refuses a manifest without a version", () => {
+    expect(resetVersion("mcp.json", `{\n  "version": "1"\n}\n`).count).toBe(0)
+    expect(() => resetVersion("plugin.json", "{}\n")).toThrow(SetupError)
   })
 })
 
