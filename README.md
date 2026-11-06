@@ -129,8 +129,41 @@ Add the server to the host's MCP configuration. Flags go in `args`:
 
 ## Tools and skills
 
-Each toolset comes with a skill that tells an agent how to use its tools. The
-starter ships no tools yet.
+Each toolset comes with a skill that tells an agent how to use its tools.
+
+### Notes (`notes`)
+
+An example toolset: Markdown notes in the working tree's `notes/` folder,
+shown to make every part of the tool contract visible with no outside program.
+
+| Tool                  | What it does                                                | Class |
+| --------------------- | ----------------------------------------------------------- | ----- |
+| `example_note_read`   | `view` one note, or `list` the notes with their sizes       | read  |
+| `example_note_create` | create `notes/<name>.md`; never overwrites an existing note | add   |
+
+The skill is [`example-notes`](skills/example-notes/SKILL.md), shown as
+`agent-tool-starter:example-notes` in Claude Code and
+`agent-tool-starter:notes` in Hermes. A write names the note's absolute path
+as its target, so an "always" answer covers that note only.
+
+## Adding a tool
+
+1. Write the spec in `src/core/<domain>/<verb>.ts` with `defineTool`: an ID
+   `<prefix>_<domain>_<verb>`, a title and description, the Zod argument and
+   output schemas, its toolset and write class, and `execute(args, context)`.
+   A write tool also gives `targets(args, context)`: what the call writes to,
+   as a permission rule should name it.
+2. Test it beside the spec (`<verb>.test.ts`), calling it through `invoke` as
+   the entry points do. A tool that runs a program is tested against a fake of
+   that program on `PATH`; no test reaches a real service.
+3. List it in `src/tools.ts`. A new toolset goes into `toolsets` in
+   `src/project.ts` (and `defaultToolsets` when it is on by default).
+4. Add or update the toolset's skill, `skills/<prefix>-<toolset>/SKILL.md`.
+5. Run `pnpm run build && pnpm run manifests` to list the tool in
+   `plugin.yaml`, then describe it in the table above.
+
+[`docs/conventions.md`](docs/conventions.md) has the rules each step follows;
+`src/core/example/` is a worked example of all of them.
 
 ## Reads and writes
 
