@@ -42,14 +42,29 @@ jobs:
         uses: oven-sh/setup-bun@v2
         with:
           bun-version-file: .bun-version
+      # The Hermes plugin is Python, standard library only.
+      - name: Use Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
       - name: Enable pnpm
         run: corepack enable
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
       - name: Check formatting
         run: pnpm run format:check
+      - name: Typecheck
+        run: pnpm run typecheck
       - name: Test
         run: pnpm test
+      - name: Test the Hermes plugin
+        run: python -m unittest discover -s src/hermes/tests
+      - name: Build
+        run: pnpm run build
+      - name: Check the plugin manifest
+        run: pnpm run manifests:check
+      - name: Smoke test the MCP server, the plugin and the CLI under Node
+        run: pnpm run smoke
 
   # The one check the protection of main requires (`repo-kit setup github
   # --required-check`), so jobs can be added or renamed without touching it.
