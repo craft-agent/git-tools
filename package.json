@@ -1,27 +1,69 @@
 {
-  "name": "@craftsamo/agent-git",
+  "name": "@craftsamo/git-tools",
   "version": "0.0.0",
-  "description": "Git tools for coding agents: state, commits, history rewrites and stacked branches, worktrees and pushing.",
+  "description": "Git tools for coding agents: state, commits, rewrites and stacked branches, worktrees and pushing.",
   "author": "craftsamo",
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/craftsamo/agent-git.git"
+    "url": "git+https://github.com/craft-agent/git-tools.git"
   },
-  "homepage": "https://github.com/craftsamo/agent-git#readme",
-  "bugs": "https://github.com/craftsamo/agent-git/issues",
+  "homepage": "https://github.com/craft-agent/git-tools#readme",
+  "bugs": "https://github.com/craft-agent/git-tools/issues",
+  "mcpName": "io.github.craft-agent/git-tools",
   "type": "module",
+  "main": "dist/opencode.js",
+  "exports": {
+    ".": "./dist/opencode.js",
+    "./opencode": "./dist/opencode.js"
+  },
+  "bin": {
+    "git-tools": "dist/mcp.js",
+    "git-tools-cli": "dist/cli.js"
+  },
+  "files": [
+    "dist",
+    "skills",
+    "plugin.json",
+    "mcp.json",
+    ".mcp.json",
+    ".claude-plugin",
+    ".agents/plugins",
+    ".antigravity-plugin",
+    "mcp_config.json",
+    "plugin.yaml",
+    "__init__.py",
+    "src/hermes/git_tools_hermes",
+    "!**/__pycache__",
+    "!**/*.pyc"
+  ],
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
   "scripts": {
+    "build": "node scripts/build.mjs",
+    "manifests": "node scripts/manifests.mjs",
+    "manifests:check": "node scripts/manifests.mjs --check",
+    "smoke": "node scripts/smoke-mcp.mjs && node scripts/smoke-opencode.mjs && node scripts/smoke-cli.mjs",
     "test": "bun test --pass-with-no-tests --timeout 30000",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
+    "typecheck": "tsc -p tsconfig.json && tsc -p tsconfig.core.json",
     "postinstall": "node -e \"const fs=require('fs');if(fs.existsSync('.git')&&fs.existsSync('node_modules/@craftsamo/repo-kit'))require('child_process').execFileSync('repo-kit',['agents','sync'],{stdio:'inherit'})\"",
     "prepare": "node -e \"const fs=require('fs');if(fs.existsSync('.git')&&fs.existsSync('node_modules/husky'))require('child_process').execFileSync('husky',{stdio:'inherit'})\""
   },
   "devDependencies": {
-    "@craftsamo/repo-kit": "^1.1.0",
+    "@craftsamo/repo-kit": "^1.3.0",
+    "@modelcontextprotocol/sdk": "^1.32.2",
+    "@opencode-ai/plugin": "^1.19.5",
+    "@types/bun": "^1.4.4",
+    "@types/node": "^24.19.2",
+    "esbuild": "^0.28.2",
     "husky": "^9.1.7",
-    "prettier": "3.9.10"
+    "prettier": "3.9.10",
+    "typescript": "^7.0.2",
+    "zod": "^4.6.7"
   },
   "engines": {
     "node": ">=24"

@@ -1,0 +1,13 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "references": {
+    "starter": {
+      "repository": "craftsamo/agent-tool-starter",
+      "description": "The template this package was made from: its skeleton, conventions and setup, and later changes to merge from its default branch",
+    },
+    "github-tools": {
+      "repository": "craft-agent/github-tools",
+      "description": "The sibling package for GitHub (pull requests, native stacks, issues), built on the same skeleton; read it for how a tool, its runner and its tests are written",
+    },
+  },
+}

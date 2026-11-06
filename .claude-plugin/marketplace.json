@@ -1,0 +1,17 @@
+{
+  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
+  "name": "craft-agent",
+  "description": "Plugins by Craft Agent.",
+  "owner": {
+    "name": "Craft Agent",
+    "url": "https://github.com/craft-agent"
+  },
+  "plugins": [
+    {
+      "name": "git-tools",
+      "source": "./",
+      "description": "Git tools for coding agents: state, commits, rewrites and stacked branches, worktrees and pushing.",
+      "category": "development"
+    }
+  ]
+}

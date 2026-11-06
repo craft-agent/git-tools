@@ -15,6 +15,6 @@ Closes #
 
 ## Checklist
 
-- [ ] `pnpm run format:check` and `pnpm test` pass
+- [ ] `pnpm run format:check`, `pnpm run typecheck`, `pnpm test`, `python -m unittest discover -s src/hermes/tests`, `pnpm run build`, `pnpm run manifests:check` and `pnpm run smoke` pass
 - [ ] Tests cover the change, or it changes no behavior
 - [ ] The documentation describes any change users see
