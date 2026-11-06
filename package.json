@@ -1,0 +1,31 @@
+{
+  "name": "@craftsamo/agent-tool-starter",
+  "version": "0.0.0",
+  "private": true,
+  "description": "A starter for tool packages that coding agents call: one implementation delivered to every harness.",
+  "author": "craftsamo",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/craftsamo/agent-tool-starter.git"
+  },
+  "homepage": "https://github.com/craftsamo/agent-tool-starter#readme",
+  "bugs": "https://github.com/craftsamo/agent-tool-starter/issues",
+  "type": "module",
+  "scripts": {
+    "test": "bun test --pass-with-no-tests --timeout 30000",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "postinstall": "node -e \"const fs=require('fs');if(fs.existsSync('.git')&&fs.existsSync('node_modules/@craftsamo/repo-kit'))require('child_process').execFileSync('repo-kit',['agents','sync'],{stdio:'inherit'})\"",
+    "prepare": "node -e \"const fs=require('fs');if(fs.existsSync('.git')&&fs.existsSync('node_modules/husky'))require('child_process').execFileSync('husky',{stdio:'inherit'})\""
+  },
+  "devDependencies": {
+    "@craftsamo/repo-kit": "^1.3.0",
+    "husky": "^9.1.7",
+    "prettier": "3.9.10"
+  },
+  "engines": {
+    "node": ">=24"
+  },
+  "packageManager": "pnpm@11.5.3"
+}
