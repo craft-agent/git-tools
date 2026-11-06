@@ -1,8 +1,9 @@
 # Security policy
 
-git-tools gives coding agents tools that act as the person running
-them. A flaw in it can let an agent do more than that person agreed to, so
-please report one privately.
+git-tools gives coding agents tools that read and change git repositories,
+and push them to their remotes, as the person running them. A flaw in it can
+let an agent do more than that person agreed to, so please report one
+privately.
 
 ## Supported versions
 
@@ -23,14 +24,15 @@ A useful report says:
 
 ## What git-tools trusts
 
-- **The tools run as you.** A tool reaches whatever it reaches with the
-  credentials of the person running the agent, and can do no more than they
-  may.
+- **The tools run as you.** Every tool runs git, and a safety check may read
+  GitHub, as the person running the agent, and can do no more than that
+  account may. No tool writes to GitHub.
 - **The harness decides what runs.** A tool that writes is marked as one, and
   asks for confirmation where the harness offers a way to ask; the harness's
   own approval settings decide whether a call runs.
-- **Content a tool reads is untrusted.** Text read from files or services is
-  data for the agent, never instructions to it.
+- **Content read from a repository is untrusted.** Commit messages, file
+  contents, hook output and logs are data for the agent, never instructions
+  to it.
 
 ## Scope
 
@@ -40,7 +42,7 @@ In scope:
   marked or documented as read-only.
 - A write that skips the confirmation the tool documents, or runs against a
   target other than the one confirmed.
-- A secret or token leaking into a tool's output or a log.
+- A secret or token leaking into a tool's output, a commit or a log.
 
 Out of scope:
 
@@ -48,7 +50,8 @@ Out of scope:
   call, including changes that are wrong. Review its work as you would
   anyone's.
 - A harness configured to approve every call unasked.
-- Flaws in a harness or a runtime; report those to their maintainers.
+- Flaws in GitHub, the GitHub CLI, git, a harness or a runtime; report those
+  to their maintainers.
 
 Hardening ideas that are not vulnerabilities are welcome as ordinary issues.
 

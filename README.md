@@ -2,6 +2,13 @@
 
 Git tools for coding agents: state, commits, rewrites and stacked branches, worktrees and pushing.
 
+The tools cover the state of a working tree, commits, history rewrites and
+stacked branches, worktrees and pushing, against any git remote. Pull requests
+and native stacks on GitHub are
+[github-tools](https://github.com/craft-agent/github-tools)'. The tools are
+being built; the delivery below is in place, and the toolsets are listed under
+[Tools and skills](#tools-and-skills) as they land.
+
 | Harness        | Delivery                                       | Pinned by                      |
 | -------------- | ---------------------------------------------- | ------------------------------ |
 | OpenCode V2    | native plugin (npm package, with skills)       | the version in the package     |
@@ -13,7 +20,8 @@ Git tools for coding agents: state, commits, rewrites and stacked branches, work
 | Hermes Agent   | native plugin (Python, calls the command line) | the release commit, as the SHA |
 | other MCP host | MCP server from npm                            | the version in the package     |
 
-The tools need [Node.js](https://nodejs.org/) 24 or later.
+The tools need [Node.js](https://nodejs.org/) 24 or later and `git`. Where
+`origin` is on GitHub, a few safety checks also read it, authenticated as you.
 [`docs/conventions.md`](docs/conventions.md) describes how the tools are named
 and how they behave.
 
@@ -129,6 +137,16 @@ Add the server to the host's MCP configuration. Flags go in `args`:
 ## Tools and skills
 
 Each toolset comes with a skill that tells an agent how to use its tools.
+There is one toolset per domain; `repo`, `commit` and `rebase` are on by
+default, `worktree` and `push` are opt-in. None has shipped yet.
+
+| Toolset    | Covers                                                                   |
+| ---------- | ------------------------------------------------------------------------ |
+| `repo`     | local reads: status, history, where a change came from, conflicts        |
+| `commit`   | staging, the checks before a commit, committing, amending and fixups     |
+| `rebase`   | rebasing, stacked branches rebased together, and the rewrite rule        |
+| `worktree` | creating, listing and removing worktrees                                 |
+| `push`     | pushing one or more branches, against the remote commit each one expects |
 
 ## Adding a tool
 
