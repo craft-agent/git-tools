@@ -131,6 +131,8 @@ Add the server to the host's MCP configuration. Flags go in `args`:
 
 Each toolset comes with a skill that tells an agent how to use its tools.
 
+<!-- example -->
+
 ### Notes (`notes`)
 
 An example toolset: Markdown notes in the working tree's `notes/` folder,
@@ -146,6 +148,8 @@ The skill is [`example-notes`](skills/example-notes/SKILL.md), shown as
 `agent-tool-starter:notes` in Hermes. A write names the note's absolute path
 as its target, so an "always" answer covers that note only.
 
+<!-- /example -->
+
 ## Adding a tool
 
 1. Write the spec in `src/core/<domain>/<verb>.ts` with `defineTool`: an ID
@@ -160,10 +164,15 @@ as its target, so an "always" answer covers that note only.
    `src/project.ts` (and `defaultToolsets` when it is on by default).
 4. Add or update the toolset's skill, `skills/<prefix>-<toolset>/SKILL.md`.
 5. Run `pnpm run build && pnpm run manifests` to list the tool in
-   `plugin.yaml`, then describe it in the table above.
+   `plugin.yaml`, then describe it under "Tools and skills".
 
-[`docs/conventions.md`](docs/conventions.md) has the rules each step follows;
+[`docs/conventions.md`](docs/conventions.md) has the rules each step follows.
+
+<!-- example -->
+
 `src/core/example/` is a worked example of all of them.
+
+<!-- /example -->
 
 ## Reads and writes
 

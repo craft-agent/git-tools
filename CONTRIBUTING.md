@@ -1,6 +1,6 @@
 # Contributing to agent-tool-starter
 
-Thank you for helping. This guide covers how to propose a change to the starter itself, set up the repository, and get a pull request merged. The rules the code itself follows are in [AGENTS.md](AGENTS.md), which AI coding agents read too.
+Thank you for helping. This guide covers how to propose a change, set up the repository, and get a pull request merged. The rules the code itself follows are in [AGENTS.md](AGENTS.md), which AI coding agents read too.
 
 ## Before you start
 
