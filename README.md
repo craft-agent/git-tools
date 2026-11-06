@@ -48,7 +48,8 @@ renamed in one step.
 | `--yes`          |                                 | write without asking                                        |
 
 The setup removes the example notes tools unless `--keep-example` is given,
-drops `"private": true` so the package can be published, and deletes itself
+drops `"private": true` so the package can be published, starts its version
+at `0.0.0` whatever the starter's release was, and deletes itself
 and this section. It refuses to run on a working tree with uncommitted
 changes. To take later improvements of the starter, add it as a remote and
 merge its default branch.

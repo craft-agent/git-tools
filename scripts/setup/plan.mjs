@@ -4,6 +4,7 @@ import { STARTER, createReplacer, deriveIdentity, isQuotedStringFile, toSnake } 
 import { removeMarkedBlocks } from "./markers.mjs"
 import { editPackageJson } from "./package-json.mjs"
 import { SPOT_FILES, editSpots } from "./spots.mjs"
+import { resetVersion } from "./version.mjs"
 
 /** The folder of the setup itself, which it deletes when done. */
 export const SETUP_DIR = "scripts/setup"
@@ -44,6 +45,7 @@ function editText(path, text, options, replace) {
     (current) => (path.endsWith(".md") ? removeMarkedBlocks(current, options, path) : { text: current, count: 0 }),
     (current) => editForExample(path, current, options),
     (current) => (path === "package.json" ? editPackageJson(current) : { text: current, count: 0 }),
+    (current) => resetVersion(path, current),
   ]
   return stages.reduce(
     (result, stage) => {
