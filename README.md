@@ -1,7 +1,59 @@
 # agent-tool-starter
 
-A starter for tool packages that coding agents call: one implementation of the
-tools, delivered to each agent harness in the form that suits it best.
+A starter for tool packages that coding agents call: one implementation delivered to every harness.
+
+<!-- starter -->
+
+## Using this starter
+
+This repository is a GitHub template. A project made from it implements its
+tools once in `src/core/`, and the skeleton delivers them to each harness
+below. Everything that names the package (its npm name, plugin and server
+names, tool prefix, setting variables, Hermes package and manifests) is
+renamed in one step.
+
+1. On GitHub, choose **Use this template** and create the repository, then
+   clone it.
+2. Install, then run the setup once, from the clone:
+
+   ```sh
+   corepack enable
+   pnpm install
+   pnpm run setup -- --prefix <prefix> --description "<one line>" --dry-run
+   pnpm run setup -- --prefix <prefix> --description "<one line>"
+   ```
+
+   The name and owner default to those of the clone's `origin`. The setup
+   shows every change and asks before writing; `--dry-run` writes nothing.
+
+3. Rebuild and check, then commit the result:
+
+   ```sh
+   pnpm install
+   pnpm run build && pnpm run manifests
+   pnpm run typecheck && pnpm test && pnpm run smoke
+   ```
+
+| Option           | Default                         | Meaning                                                     |
+| ---------------- | ------------------------------- | ----------------------------------------------------------- |
+| `--prefix`       | (required)                      | the tool ID prefix, one lowercase word: `git` gives `git_*` |
+| `--description`  | (required)                      | the one-line description of the package and its plugins     |
+| `--name`         | the `origin` repository's name  | the package, plugin, server and program name, in kebab-case |
+| `--owner`        | the `origin` repository's owner | the GitHub owner the URLs and the registry name use         |
+| `--scope`        | `@<owner>`                      | the npm scope                                               |
+| `--marketplace`  | `<owner>`                       | the plugin marketplace name of Claude Code and Codex        |
+| `--author`       | `<owner>`                       | the author in the manifests and the license holder          |
+| `--keep-example` |                                 | keep the example notes tools, renamed to the prefix         |
+| `--dry-run`      |                                 | show the changes without writing                            |
+| `--yes`          |                                 | write without asking                                        |
+
+The setup removes the example notes tools unless `--keep-example` is given,
+drops `"private": true` so the package can be published, and deletes itself
+and this section. It refuses to run on a working tree with uncommitted
+changes. To take later improvements of the starter, add it as a remote and
+merge its default branch.
+
+<!-- /starter -->
 
 | Harness        | Delivery                                       | Pinned by                      |
 | -------------- | ---------------------------------------------- | ------------------------------ |
