@@ -5,24 +5,43 @@ import { editPackageJson } from "./package-json.mjs"
 import { editSpots } from "./spots.mjs"
 import { resetVersion } from "./version.mjs"
 
-const OPTIONS = { prefix: "widget", owner: "acme", author: 'A "B"', marketplace: "acme-market", keepExample: false }
+const OPTIONS = {
+  prefix: "widget",
+  owner: "acme",
+  author: 'A "B"',
+  authorUrl: "https://example.test/author",
+  publisher: "Acme Inc",
+  marketplace: "acme-market",
+  keepExample: false,
+}
 
 describe("editSpots", () => {
-  test("renames the author and owner objects, not the dependency", () => {
+  test("renames author and author-url in plugin manifests", () => {
     const manifest = `{\n  "author": {\n    "name": "craftsamo",\n    "url": "https://github.com/craftsamo"\n  },\n  "dep": "@craftsamo/repo-kit"\n}\n`
     const { text, count } = editSpots("plugin.json", manifest, OPTIONS)
     expect(count).toBe(1)
     expect(JSON.parse(text)).toEqual({
-      author: { name: 'A "B"', url: "https://github.com/acme" },
+      author: { name: 'A "B"', url: "https://example.test/author" },
       dep: "@craftsamo/repo-kit",
     })
   })
 
-  test("renames the marketplace only at its top level and its display name", () => {
+  test("renames owner object, description and marketplace in claude marketplace", () => {
+    const marketplace = `{\n  "name": "craftsamo",\n  "description": "Plugins by craftsamo.",\n  "owner": {\n    "name": "craftsamo",\n    "url": "https://github.com/craftsamo"\n  }\n}\n`
+    const { text, count } = editSpots(".claude-plugin/marketplace.json", marketplace, OPTIONS)
+    expect(count).toBe(3)
+    expect(JSON.parse(text)).toEqual({
+      name: "acme-market",
+      description: "Plugins by Acme Inc.",
+      owner: { name: "Acme Inc", url: "https://github.com/acme" },
+    })
+  })
+
+  test("renames the marketplace name and sets displayName to publisher in agents marketplace", () => {
     const marketplace = `{\n  "name": "craftsamo",\n  "interface": {\n    "displayName": "craftsamo"\n  },\n  "plugins": [{ "name": "x" }]\n}\n`
     const { text } = editSpots(".agents/plugins/marketplace.json", marketplace, OPTIONS)
     expect(JSON.parse(text).name).toBe("acme-market")
-    expect(JSON.parse(text).interface.displayName).toBe("acme-market")
+    expect(JSON.parse(text).interface.displayName).toBe("Acme Inc")
   })
 
   test("writes the license holder raw", () => {
