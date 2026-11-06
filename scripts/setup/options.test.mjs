@@ -44,9 +44,23 @@ describe("parseOrigin", () => {
 
 describe("parseArgs", () => {
   test("takes `--flag value` and `--flag=value`, and the standalone flags", () => {
-    expect(parseArgs(["--prefix", "git", "--description=A = B", "--keep-example", "--dry-run", "--yes"])).toEqual({
+    expect(
+      parseArgs([
+        "--prefix",
+        "git",
+        "--description=A = B",
+        "--author-url",
+        "https://example.test",
+        "--publisher=Pub",
+        "--keep-example",
+        "--dry-run",
+        "--yes",
+      ]),
+    ).toEqual({
       prefix: "git",
       description: "A = B",
+      authorUrl: "https://example.test",
+      publisher: "Pub",
       keepExample: true,
       dryRun: true,
       yes: true,
@@ -68,7 +82,7 @@ describe("parseArgs", () => {
 })
 
 describe("resolveOptions", () => {
-  test("fills the name, owner, scope, marketplace and author from the origin", () => {
+  test("fills the name, owner, scope, marketplace, author and publisher from the origin", () => {
     expect(resolveOptions(REQUIRED, ORIGIN)).toMatchObject({
       name: "widget-tools",
       owner: "Acme",
@@ -76,17 +90,38 @@ describe("resolveOptions", () => {
       scope: "@acme",
       marketplace: "Acme",
       author: "Acme",
+      authorUrl: "https://github.com/Acme",
+      publisher: "Acme",
       keepExample: false,
     })
   })
 
   test("lets the options win, but the URLs keep the origin's repository name", () => {
     const options = resolveOptions(
-      { ...REQUIRED, name: "widgets", owner: "other", scope: "@o", marketplace: "m", author: "A B" },
+      {
+        ...REQUIRED,
+        name: "widgets",
+        owner: "other",
+        scope: "@o",
+        marketplace: "m",
+        author: "A B",
+        authorUrl: "https://example.test/author",
+        publisher: "P Corp",
+      },
       ORIGIN,
     )
     expect(options).toMatchObject({ name: "widgets", repo: "widget-tools", owner: "other", scope: "@o" })
-    expect(options).toMatchObject({ marketplace: "m", author: "A B" })
+    expect(options).toMatchObject({
+      marketplace: "m",
+      author: "A B",
+      authorUrl: "https://example.test/author",
+      publisher: "P Corp",
+    })
+  })
+
+  test("defaults publisher to the author when specified", () => {
+    const options = resolveOptions({ ...REQUIRED, author: "A B" }, ORIGIN)
+    expect(options).toMatchObject({ author: "A B", authorUrl: "https://github.com/Acme", publisher: "A B" })
   })
 
   test("needs --name and --owner when there is no GitHub origin, and names what is missing", () => {
@@ -111,6 +146,13 @@ describe("resolveOptions", () => {
     [{ description: "two\nlines" }, "--description"],
     [{ description: "x".repeat(DESCRIPTION_LIMIT + 1) }, "--description"],
     [{ author: "two\nlines" }, "--author"],
+    [{ authorUrl: "http://example.com" }, "--author-url"],
+    [{ authorUrl: "https://example.com/a\nb" }, "--author-url"],
+    [{ authorUrl: "https://" }, "--author-url"],
+    [{ authorUrl: "ftp://example.com" }, "--author-url"],
+    [{ publisher: "two\nlines" }, "--publisher"],
+    [{ publisher: "" }, "--publisher"],
+    [{ publisher: "   " }, "--publisher"],
   ])("refuses %j", (invalid, option) => {
     expect(usageMessage(() => resolveOptions({ ...REQUIRED, ...invalid }, ORIGIN))).toContain(option)
   })

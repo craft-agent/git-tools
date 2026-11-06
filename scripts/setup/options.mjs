@@ -1,8 +1,18 @@
 import { DESCRIPTION_LIMIT } from "../server-json.mjs"
 import { usageError } from "./errors.mjs"
 
-/** The options that take a value, as written after `--`. */
-const VALUE_OPTIONS = ["prefix", "description", "name", "owner", "scope", "marketplace", "author"]
+/** The options that take a value, mapped to the key they set. */
+const VALUE_OPTIONS = {
+  prefix: "prefix",
+  description: "description",
+  name: "name",
+  owner: "owner",
+  scope: "scope",
+  marketplace: "marketplace",
+  author: "author",
+  "author-url": "authorUrl",
+  publisher: "publisher",
+}
 
 /** The options that stand alone, mapped to the key they set. */
 const FLAG_OPTIONS = { "keep-example": "keepExample", "dry-run": "dryRun", yes: "yes", help: "help" }
@@ -12,6 +22,7 @@ const NAME_PATTERN = /^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/
 const OWNER_PATTERN = /^[A-Za-z0-9](?:[A-Za-z0-9-]{0,38})$/
 const SCOPE_PATTERN = /^@[a-z0-9][a-z0-9._-]*$/
 const MARKETPLACE_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._-]*$/
+const AUTHOR_URL_PATTERN = /^https:\/\/\S+$/
 const ORIGIN_PATTERN =
   /^(?:https?:\/\/(?:[^@/]+@)?|ssh:\/\/(?:[^@/]+@)?|git@)github\.com[/:]([^/]+)\/([^/]+?)(?:\.git)?\/?$/i
 
@@ -27,6 +38,8 @@ Options:
   --scope <@scope>       the npm scope (default: @<owner>)
   --marketplace <name>   the plugin marketplace name (default: <owner>)
   --author <name>        the author in the manifests and the license holder (default: <owner>)
+  --author-url <url>     the author URL in the plugin manifests (default: https://github.com/<owner>)
+  --publisher <name>     the marketplace publisher (default: <author>)
   --keep-example         keep the example notes tools, renamed to the prefix
   --dry-run              show the changes without writing
   --yes                  write without asking
@@ -50,14 +63,14 @@ export function parseArgs(argv) {
     if (Object.hasOwn(FLAG_OPTIONS, key)) {
       if (inline !== undefined) throw usageError(`--${key} takes no value.`)
       parsed[FLAG_OPTIONS[key]] = true
-    } else if (VALUE_OPTIONS.includes(key)) {
+    } else if (Object.hasOwn(VALUE_OPTIONS, key)) {
       let value = inline
       if (value === undefined) {
         value = argv[index + 1]
         if (value === undefined || value.startsWith("--")) throw usageError(`--${key} needs a value.`)
         index++
       }
-      parsed[key] = value
+      parsed[VALUE_OPTIONS[key]] = value
     } else {
       throw usageError(`Unknown option: --${key}`)
     }
@@ -93,6 +106,8 @@ export function resolveOptions(parsed, origin) {
   const owner = parsed.owner ?? origin.owner
   const description = parsed.description.trim()
   const author = parsed.author ?? owner
+  const authorUrl = parsed.authorUrl ?? `https://github.com/${owner}`
+  const publisher = parsed.publisher ?? author
   const scope = parsed.scope ?? `@${owner.toLowerCase()}`
   const marketplace = parsed.marketplace ?? owner
 
@@ -101,6 +116,7 @@ export function resolveOptions(parsed, origin) {
   check(owner, OWNER_PATTERN, "--owner", "a GitHub login")
   check(scope, SCOPE_PATTERN, "--scope", "an npm scope such as @acme")
   check(marketplace, MARKETPLACE_PATTERN, "--marketplace", "letters, digits, dots, hyphens and underscores")
+  check(authorUrl, AUTHOR_URL_PATTERN, "--author-url", "an https:// URL on one line")
   if (/[\r\n]/.test(description)) throw usageError("--description must be one line.")
   if (description.length > DESCRIPTION_LIMIT) {
     throw usageError(
@@ -108,6 +124,7 @@ export function resolveOptions(parsed, origin) {
     )
   }
   if (!author.trim() || /[\r\n]/.test(author)) throw usageError("--author must be one non-empty line.")
+  if (!publisher.trim() || /[\r\n]/.test(publisher)) throw usageError("--publisher must be one non-empty line.")
 
   return {
     prefix: parsed.prefix,
@@ -118,6 +135,8 @@ export function resolveOptions(parsed, origin) {
     scope,
     marketplace,
     author: author.trim(),
+    authorUrl,
+    publisher: publisher.trim(),
     keepExample: parsed.keepExample === true,
     dryRun: parsed.dryRun === true,
     yes: parsed.yes === true,

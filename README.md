@@ -43,6 +43,8 @@ renamed in one step.
 | `--scope`        | `@<owner>`                      | the npm scope                                               |
 | `--marketplace`  | `<owner>`                       | the plugin marketplace name of Claude Code and Codex        |
 | `--author`       | `<owner>`                       | the author in the manifests and the license holder          |
+| `--author-url`   | `https://github.com/<owner>`    | the author URL in the plugin manifests                      |
+| `--publisher`    | `<author>`                      | the marketplace publisher in the plugin catalogs            |
 | `--keep-example` |                                 | keep the example notes tools, renamed to the prefix         |
 | `--dry-run`      |                                 | show the changes without writing                            |
 | `--yes`          |                                 | write without asking                                        |
