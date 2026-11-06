@@ -1,13 +1,13 @@
 /** What makes this package itself; a project made from the starter sets these once (the setup script does). */
 export const PROJECT = {
   /** The plugin, MCP server and program name. */
-  name: "agent-tool-starter",
+  name: "git-tools",
   /** The command line the Hermes plugin calls. */
-  cli: "agent-tool-starter-cli",
+  cli: "git-tools-cli",
   /** Every tool ID starts with `<toolPrefix>_`. */
-  toolPrefix: "example",
+  toolPrefix: "git",
   /** Every setting's environment variable is `<envPrefix>_<SETTING>`. */
-  envPrefix: "AGENT_TOOL_STARTER",
+  envPrefix: "GIT_TOOLS",
   /** The toolsets, in the order `all` lists them. */
   toolsets: [] as readonly string[],
   /** The toolsets on when a setting names none. */

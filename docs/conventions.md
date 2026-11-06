@@ -4,12 +4,6 @@ The rules every tool in this package follows, so tools read alike across
 domains and harnesses. Each rule carries the reason it was chosen; a change
 to a rule changes this file first, with its reason.
 
-<!-- starter -->
-
-A project made from the starter keeps these rules and adds its own below them.
-
-<!-- /starter -->
-
 ## Names
 
 - **Tool IDs are `<prefix>_<domain>_<verb>`**: `<prefix>_note_read` and

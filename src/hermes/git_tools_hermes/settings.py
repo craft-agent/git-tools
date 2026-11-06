@@ -25,7 +25,7 @@ def settings_flags(ctx: PluginContext) -> list[str]:
     """Read ``toolsets``, ``read_only``, ``tools`` and ``exclude_tools`` and return the flags that say the same.
 
     A setting that is absent gives no flag, so the command line's own defaults
-    (and ``AGENT_TOOL_STARTER_*`` variables) apply. A wrong type is refused rather
+    (and ``GIT_TOOLS_*`` variables) apply. A wrong type is refused rather
     than ignored, since ignoring ``read_only`` would loosen what the person asked for.
 
     Raises:

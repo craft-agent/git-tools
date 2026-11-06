@@ -1,16 +1,16 @@
 {
-  "name": "agent-tool-starter",
-  "version": "0.1.0",
-  "description": "A starter for tool packages that coding agents call: one implementation delivered to every harness.",
+  "name": "git-tools",
+  "version": "0.0.0",
+  "description": "Git tools for coding agents: state, commits, rewrites and stacked branches, worktrees and pushing.",
   "author": {
     "name": "craftsamo",
     "url": "https://github.com/craftsamo"
   },
-  "homepage": "https://github.com/craftsamo/agent-tool-starter#readme",
-  "repository": "https://github.com/craftsamo/agent-tool-starter",
+  "homepage": "https://github.com/craft-agent/git-tools#readme",
+  "repository": "https://github.com/craft-agent/git-tools",
   "license": "MIT",
   "mcpServers": {
-    "agent-tool-starter": {
+    "git-tools": {
       "command": "node",
       "args": ["${CLAUDE_PLUGIN_ROOT}/dist/mcp.js"]
     }

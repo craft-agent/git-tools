@@ -1,11 +1,11 @@
 {
-  "name": "craftsamo",
+  "name": "craft-agent",
   "interface": {
-    "displayName": "craftsamo"
+    "displayName": "Craft Agent"
   },
   "plugins": [
     {
-      "name": "agent-tool-starter",
+      "name": "git-tools",
       "source": {
         "source": "local",
         "path": "./"
