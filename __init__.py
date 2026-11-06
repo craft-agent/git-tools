@@ -1,4 +1,4 @@
-"""Loads the plugin package from ``src/hermes/agent_tool_starter_hermes`` for Hermes, which imports this file.
+"""Loads the plugin package from ``src/hermes/git_tools_hermes`` for Hermes, which imports this file.
 
 The package is loaded as ``<this module's name>._impl``, so Hermes, which evicts
 everything under a plugin's module name when it reloads it or loads it for another
@@ -10,7 +10,7 @@ import sys
 from pathlib import Path
 
 _NAME = f"{__name__}._impl"
-_PACKAGE_DIR = Path(__file__).resolve().parent / "src" / "hermes" / "agent_tool_starter_hermes"
+_PACKAGE_DIR = Path(__file__).resolve().parent / "src" / "hermes" / "git_tools_hermes"
 
 
 def _evict() -> None:

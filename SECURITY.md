@@ -1,31 +1,17 @@
 # Security policy
 
-agent-tool-starter gives coding agents tools that act as the person running
+git-tools gives coding agents tools that act as the person running
 them. A flaw in it can let an agent do more than that person agreed to, so
 please report one privately.
-
-<!-- starter -->
-
-As a template, a flaw in its skeleton (the tool contract, the entry points or
-the release jobs) also carries into every project made from it.
-
-<!-- /starter -->
 
 ## Supported versions
 
 Fixes go into the latest release. Consumers pin a release tag, so they get a
 fix by moving to the new tag.
 
-<!-- starter -->
-
-A project made from the starter takes a fix to the skeleton by merging the
-starter's default branch, or by porting the change.
-
-<!-- /starter -->
-
 ## Reporting a vulnerability
 
-Report it through [GitHub Security Advisories](https://github.com/craftsamo/agent-tool-starter/security/advisories/new). Do not open a public issue or pull request for it. agent-tool-starter has no bug bounty.
+Report it through [GitHub Security Advisories](https://github.com/craft-agent/git-tools/security/advisories/new). Do not open a public issue or pull request for it. git-tools has no bug bounty.
 
 A useful report says:
 
@@ -35,7 +21,7 @@ A useful report says:
 - the version (the release tag the consumer pins), or the commit
 - the steps to reproduce it
 
-## What agent-tool-starter trusts
+## What git-tools trusts
 
 - **The tools run as you.** A tool reaches whatever it reaches with the
   credentials of the person running the agent, and can do no more than they

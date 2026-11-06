@@ -14,7 +14,7 @@ from support import IMPL, PACKAGE_PATH, ROOT, copy_plugin, evict, load_root
 
 class RootModuleTest(unittest.TestCase):
     def setUp(self) -> None:
-        self.dir = Path(tempfile.mkdtemp(prefix="agent-tool-starter-root-")).resolve()
+        self.dir = Path(tempfile.mkdtemp(prefix="git-tools-root-")).resolve()
         self.addCleanup(shutil.rmtree, self.dir, True)
 
     def load(self, root: Path, name: str) -> types.ModuleType:
@@ -30,7 +30,7 @@ class RootModuleTest(unittest.TestCase):
         self.assertEqual(impl.__name__, f"{name}.{IMPL}")
         self.assertEqual(Path(impl.__file__).resolve(), (ROOT / PACKAGE_PATH / "__init__.py").resolve())
         self.assertEqual(impl.plugin.__name__, f"{name}.{IMPL}.plugin")
-        self.assertNotIn("agent_tool_starter_hermes", sys.modules)
+        self.assertNotIn("git_tools_hermes", sys.modules)
 
     def test_two_install_paths_each_get_a_package_that_knows_its_own_directory(self) -> None:
         first_dir = copy_plugin(self.dir / "first")

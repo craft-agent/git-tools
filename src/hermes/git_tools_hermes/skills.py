@@ -63,7 +63,7 @@ def read_frontmatter(text: str) -> dict[str, str]:
 
 
 def short_name(name: str) -> str:
-    """A skill's name without its leading prefix: e.g. ``example-things`` is shown as ``agent-tool-starter:things``."""
+    """A skill's name without its leading prefix: e.g. ``example-things`` is shown as ``git-tools:things``."""
     return name.removeprefix(project.SKILL_PREFIX) or name
 
 

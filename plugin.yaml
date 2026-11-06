@@ -1,6 +1,6 @@
-name: agent-tool-starter
+name: git-tools
 version: 0.0.0
-description: "A starter for tool packages that coding agents call: one implementation delivered to every harness."
+description: "Git tools for coding agents: state, commits, rewrites and stacked branches, worktrees and pushing."
 manifest_version: 1
 requires_hermes: ">=0.22"
 provides_tools: []
