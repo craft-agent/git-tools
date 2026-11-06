@@ -12,11 +12,11 @@ A project made from the starter keeps these rules and adds its own below them.
 
 ## Names
 
-- **Tool IDs are `<prefix>_<domain>_<verb>`**: `example_note_read`,
-  `example_note_create`. The prefix is `toolPrefix` in `src/project.ts`; it
-  keeps a name unambiguous where a harness lists every tool in one namespace.
-  When the domain has a well-known command line, follow its word order, so a
-  name maps to a command anyone can look up.
+- **Tool IDs are `<prefix>_<domain>_<verb>`**: `<prefix>_note_read` and
+  `<prefix>_note_create` for a `note` domain. The prefix is `toolPrefix` in
+  `src/project.ts`; it keeps a name unambiguous where a harness lists every
+  tool in one namespace. When the domain has a well-known command line,
+  follow its word order, so a name maps to a command anyone can look up.
 - **The same ID in every entry point.** Permission rules and skills are
   written once, and an ID is a public interface: renaming one is a breaking
   change.
