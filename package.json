@@ -1,17 +1,16 @@
 {
-  "name": "@craftsamo/agent-tool-starter",
-  "version": "0.1.0",
-  "private": true,
-  "description": "A starter for tool packages that coding agents call: one implementation delivered to every harness.",
+  "name": "@craftsamo/git-tools",
+  "version": "0.0.0",
+  "description": "Git tools for coding agents: state, commits, rewrites and stacked branches, worktrees and pushing.",
   "author": "craftsamo",
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/craftsamo/agent-tool-starter.git"
+    "url": "git+https://github.com/craft-agent/git-tools.git"
   },
-  "homepage": "https://github.com/craftsamo/agent-tool-starter#readme",
-  "bugs": "https://github.com/craftsamo/agent-tool-starter/issues",
-  "mcpName": "io.github.craftsamo/agent-tool-starter",
+  "homepage": "https://github.com/craft-agent/git-tools#readme",
+  "bugs": "https://github.com/craft-agent/git-tools/issues",
+  "mcpName": "io.github.craft-agent/git-tools",
   "type": "module",
   "main": "dist/opencode.js",
   "exports": {
@@ -19,8 +18,8 @@
     "./opencode": "./dist/opencode.js"
   },
   "bin": {
-    "agent-tool-starter": "dist/mcp.js",
-    "agent-tool-starter-cli": "dist/cli.js"
+    "git-tools": "dist/mcp.js",
+    "git-tools-cli": "dist/cli.js"
   },
   "files": [
     "dist",
@@ -34,7 +33,7 @@
     "mcp_config.json",
     "plugin.yaml",
     "__init__.py",
-    "src/hermes/agent_tool_starter_hermes",
+    "src/hermes/git_tools_hermes",
     "!**/__pycache__",
     "!**/*.pyc"
   ],
@@ -51,7 +50,6 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "typecheck": "tsc -p tsconfig.json && tsc -p tsconfig.core.json",
-    "setup": "node scripts/setup/main.mjs",
     "postinstall": "node -e \"const fs=require('fs');if(fs.existsSync('.git')&&fs.existsSync('node_modules/@craftsamo/repo-kit'))require('child_process').execFileSync('repo-kit',['agents','sync'],{stdio:'inherit'})\"",
     "prepare": "node -e \"const fs=require('fs');if(fs.existsSync('.git')&&fs.existsSync('node_modules/husky'))require('child_process').execFileSync('husky',{stdio:'inherit'})\""
   },

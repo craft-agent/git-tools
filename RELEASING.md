@@ -4,14 +4,6 @@ Release Drafter keeps a draft release after each successful Tests run on
 `main`. Publishing it ships every delivery: the plugins for the harnesses, the
 npm package and the MCP Registry entry.
 
-<!-- starter -->
-
-The starter itself is `"private": true` in `package.json`, so its releases
-tag the skeleton and publish nothing to npm or the MCP Registry. A project made
-from it drops `private` (the setup script does) and ships as described below.
-
-<!-- /starter -->
-
 ## Flow
 
 Publish releases from the Actions tab: run **Publish release**

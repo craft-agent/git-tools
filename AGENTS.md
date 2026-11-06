@@ -1,13 +1,6 @@
 # AGENTS
 
-<!-- starter -->
-
-agent-tool-starter is a GitHub template repository for tool packages that
-coding agents call; these rules are also those of every project made from it.
-
-<!-- /starter -->
-
-agent-tool-starter is a set of tools for coding agents, implemented once and
+git-tools is a set of tools for coding agents, implemented once and
 delivered to several harnesses (OpenCode, Claude Code, Codex, Grok Build,
 Antigravity, Hermes Agent) from this repository. Releases are GitHub Releases
 tagged `v<version>`; consumers pin a tag or the same npm version.
@@ -36,14 +29,6 @@ tagged `v<version>`; consumers pin a tag or the same npm version.
   descriptions or messages; the project's names reach it only through the
   entry points. It uses `node:*` modules only, never a runtime's own globals,
   so it runs on Node and Bun.
-
-<!-- starter -->
-
-- **The starter knows no domain.** No tool, product or service of a project
-  made from it appears in the skeleton, beyond the example in
-  `src/core/example/`.
-
-<!-- /starter -->
 
 - **Tool IDs are a public interface.** Permission rules and skills key on them
   (`<prefix>_<domain>_<verb>`); renaming one is a breaking change.

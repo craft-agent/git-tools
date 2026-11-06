@@ -1,10 +1,10 @@
-# Contributing to agent-tool-starter
+# Contributing to git-tools
 
 Thank you for helping. This guide covers how to propose a change, set up the repository, and get a pull request merged. The rules the code itself follows are in [AGENTS.md](AGENTS.md), which AI coding agents read too.
 
 ## Before you start
 
-- Search the [issues](https://github.com/craftsamo/agent-tool-starter/issues) and [pull requests](https://github.com/craftsamo/agent-tool-starter/pulls?q=is%3Apr) first, closed ones included.
+- Search the [issues](https://github.com/craft-agent/git-tools/issues) and [pull requests](https://github.com/craft-agent/git-tools/pulls?q=is%3Apr) first, closed ones included.
 - Open an issue before starting a large change or a new feature, so it can be agreed first.
 - A fix for a bug or a documentation error can go straight to a pull request.
 - Report a vulnerability privately as [SECURITY.md](SECURITY.md) describes, not in an issue or pull request.
@@ -14,8 +14,8 @@ Thank you for helping. This guide covers how to propose a change, set up the rep
 You need Node.js `>=24`.
 
 ```sh
-git clone https://github.com/craftsamo/agent-tool-starter.git
-cd agent-tool-starter
+git clone https://github.com/craft-agent/git-tools.git
+cd git-tools
 corepack enable
 pnpm install
 ```

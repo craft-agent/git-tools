@@ -19,7 +19,7 @@ _POSIX = os.name == "posix"
 TERMINATE_GRACE_SECONDS = 2
 
 #: The repository root, where ``plugin.yaml`` sits: this file is
-#: ``<root>/src/hermes/agent_tool_starter_hermes/runtime.py``.
+#: ``<root>/src/hermes/git_tools_hermes/runtime.py``.
 PLUGIN_DIR = Path(__file__).resolve().parents[3]
 
 #: The built command line, relative to ``PLUGIN_DIR``.
