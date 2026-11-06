@@ -11,6 +11,7 @@
   },
   "homepage": "https://github.com/craftsamo/agent-tool-starter#readme",
   "bugs": "https://github.com/craftsamo/agent-tool-starter/issues",
+  "mcpName": "io.github.craftsamo/agent-tool-starter",
   "type": "module",
   "main": "dist/opencode.js",
   "exports": {
