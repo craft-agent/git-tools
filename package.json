@@ -12,7 +12,17 @@
   "homepage": "https://github.com/craftsamo/agent-tool-starter#readme",
   "bugs": "https://github.com/craftsamo/agent-tool-starter/issues",
   "type": "module",
+  "main": "dist/opencode.js",
+  "exports": {
+    ".": "./dist/opencode.js",
+    "./opencode": "./dist/opencode.js"
+  },
+  "bin": {
+    "agent-tool-starter": "dist/mcp.js",
+    "agent-tool-starter-cli": "dist/cli.js"
+  },
   "scripts": {
+    "build": "node scripts/build.mjs",
     "test": "bun test --pass-with-no-tests --timeout 30000",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
