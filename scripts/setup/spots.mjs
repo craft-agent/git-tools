@@ -1,17 +1,26 @@
 import { SetupError } from "./errors.mjs"
 
 /**
- * `"name": "craftsamo", "url": "https://github.com/craftsamo"` inside an `author` or `owner` object, as the
- * manifests write it.
+ * `"name": "craftsamo", "url": "https://github.com/craftsamo"` inside an `author` object, as the
+ * plugin manifests write it.
  */
-const PERSON_OBJECT = /("(?:author|owner)": \{\s*"name": )"craftsamo"(,\s*"url": )"https:\/\/github\.com\/craftsamo"/g
+const AUTHOR_OBJECT = /("author": \{\s*"name": )"craftsamo"(,\s*"url": )"https:\/\/github\.com\/craftsamo"/g
+
+/**
+ * `"name": "craftsamo", "url": "https://github.com/craftsamo"` inside an `owner` object, as the
+ * marketplace manifest writes it.
+ */
+const OWNER_OBJECT = /("owner": \{\s*"name": )"craftsamo"(,\s*"url": )"https:\/\/github\.com\/craftsamo"/g
 
 const json = JSON.stringify
 
-/** Replaces the person object of a manifest with the author and the owner's URL. */
-const person = [
-  PERSON_OBJECT,
-  (o, name, url) => `${name}${json(o.author)}${url}${json(`https://github.com/${o.owner}`)}`,
+/** Replaces the author object of a manifest with the author and their URL. */
+const authorPerson = [AUTHOR_OBJECT, (o, name, url) => `${name}${json(o.author)}${url}${json(o.authorUrl)}`]
+
+/** Replaces the owner object of the marketplace with the publisher and the owner's URL. */
+const marketplaceOwner = [
+  OWNER_OBJECT,
+  (o, name, url) => `${name}${json(o.publisher)}${url}${json(`https://github.com/${o.owner}`)}`,
 ]
 
 const marketplaceName = [/^(  "name": )"craftsamo"/gm, (o, key) => `${key}${json(o.marketplace)}`]
@@ -23,17 +32,17 @@ const marketplaceName = [/^(  "name": )"craftsamo"/gm, (o, key) => `${key}${json
  * `craftsamo/repo-kit` workflows, which stay.
  */
 const SPOTS = {
-  "plugin.json": [person],
-  ".claude-plugin/plugin.json": [person],
-  ".antigravity-plugin/plugin.json": [person],
+  "plugin.json": [authorPerson],
+  ".claude-plugin/plugin.json": [authorPerson],
+  ".antigravity-plugin/plugin.json": [authorPerson],
   ".claude-plugin/marketplace.json": [
-    person,
+    marketplaceOwner,
     marketplaceName,
-    [/"Plugins by craftsamo\."/g, (o) => json(`Plugins by ${o.author}.`)],
+    [/"Plugins by craftsamo\."/g, (o) => json(`Plugins by ${o.publisher}.`)],
   ],
   ".agents/plugins/marketplace.json": [
     marketplaceName,
-    [/^(    "displayName": )"craftsamo"/gm, (o, key) => `${key}${json(o.marketplace)}`],
+    [/^(    "displayName": )"craftsamo"/gm, (o, key) => `${key}${json(o.publisher)}`],
   ],
   "package.json": [[/^(  "author": )"craftsamo"/gm, (o, key) => `${key}${json(o.author)}`]],
   LICENSE: [[/(Copyright \(c\) \d{4} )CraftSamo/g, (o, key) => `${key}${o.author}`]],

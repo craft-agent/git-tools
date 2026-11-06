@@ -43,15 +43,20 @@ renamed in one step.
 | `--scope`        | `@<owner>`                      | the npm scope                                               |
 | `--marketplace`  | `<owner>`                       | the plugin marketplace name of Claude Code and Codex        |
 | `--author`       | `<owner>`                       | the author in the manifests and the license holder          |
+| `--author-url`   | `https://github.com/<owner>`    | the author URL in the plugin manifests                      |
+| `--publisher`    | `<author>`                      | the marketplace publisher in the plugin catalogs            |
 | `--keep-example` |                                 | keep the example notes tools, renamed to the prefix         |
 | `--dry-run`      |                                 | show the changes without writing                            |
 | `--yes`          |                                 | write without asking                                        |
 
 The setup removes the example notes tools unless `--keep-example` is given,
-drops `"private": true` so the package can be published, and deletes itself
-and this section. It refuses to run on a working tree with uncommitted
-changes. To take later improvements of the starter, add it as a remote and
-merge its default branch.
+drops `"private": true` so the package can be published, starts its version
+at `0.0.0` whatever the starter's release was, and deletes itself
+and this section. It also writes `opencode.jsonc`, whose `starter`
+reference lets an agent in OpenCode read this repository beside the
+project; add the project's own references there. It refuses to run on a
+working tree with uncommitted changes. To take later improvements of the
+starter, add it as a remote and merge its default branch.
 
 <!-- /starter -->
 

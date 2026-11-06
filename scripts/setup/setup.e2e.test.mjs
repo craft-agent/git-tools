@@ -20,6 +20,9 @@ const LEFTOVERS = [
   "example-notes",
 ]
 
+/** The file the setup writes after the renames, which names the starter on purpose. */
+const STARTER_REFERENCE = "opencode.jsonc"
+
 let workspace
 let template
 
@@ -68,7 +71,8 @@ const read = (dir, file) => readFileSync(join(dir, file), "utf8")
 const readJson = (dir, file) => JSON.parse(read(dir, file))
 
 function expectNoLeftovers(dir, leftovers = LEFTOVERS) {
-  const hits = walk(dir).flatMap((path) => {
+  const files = walk(dir).filter((path) => relative(dir, path) !== STARTER_REFERENCE)
+  const hits = files.flatMap((path) => {
     const text = readFileSync(path, "utf8")
     return leftovers
       .filter((leftover) => text.includes(leftover))
@@ -97,6 +101,9 @@ describe("the setup on a clone of the starter", () => {
     expectNoLeftovers(dir)
     const pkg = readJson(dir, "package.json")
     expect(pkg).toMatchObject({ name: "@acme/widget-tools", mcpName: "io.github.acme/widget-tools", author: "acme" })
+    expect(pkg.version).toBe("0.0.0")
+    expect(read(dir, "plugin.yaml")).toContain("\nversion: 0.0.0\n")
+    expect(readJson(dir, ".claude-plugin/plugin.json").version).toBe("0.0.0")
     expect(pkg.description).toBe("Widget tools for agents.")
     expect(pkg).not.toHaveProperty("private")
     expect(pkg.scripts).not.toHaveProperty("setup")
@@ -115,6 +122,19 @@ describe("the setup on a clone of the starter", () => {
     expect(read(dir, ".claude-plugin/marketplace.json")).toContain('"name": "acme"')
     expect(read(dir, "LICENSE")).toContain("Copyright (c) 2026 acme")
     expect(read(dir, "README.md")).not.toContain("Using this starter")
+    expect(read(dir, STARTER_REFERENCE)).toContain('"repository": "craftsamo/agent-tool-starter"')
+    expect(readJson(dir, "plugin.json").author).toEqual({ name: "acme", url: "https://github.com/acme" })
+    expect(readJson(dir, ".claude-plugin/plugin.json").author).toEqual({ name: "acme", url: "https://github.com/acme" })
+    expect(readJson(dir, ".antigravity-plugin/plugin.json").author).toEqual({
+      name: "acme",
+      url: "https://github.com/acme",
+    })
+    expect(readJson(dir, ".claude-plugin/marketplace.json").owner).toEqual({
+      name: "acme",
+      url: "https://github.com/acme",
+    })
+    expect(readJson(dir, ".claude-plugin/marketplace.json").description).toBe("Plugins by acme.")
+    expect(readJson(dir, ".agents/plugins/marketplace.json").interface.displayName).toBe("acme")
   })
 
   test("is refused when it runs again on the result", () => {
@@ -130,11 +150,27 @@ describe("the setup on a clone of the starter", () => {
 
   test("keeps the example, renamed to the prefix, with --keep-example", () => {
     const dir = checkout("keep")
-    const result = setup(dir, ...REQUIRED, "--keep-example", "--yes")
+    const result = setup(
+      dir,
+      ...REQUIRED,
+      "--author-url",
+      "https://github.com/someone",
+      "--publisher",
+      "Acme Inc",
+      "--keep-example",
+      "--yes",
+    )
     expect(result.stderr).not.toContain("Error")
     expect(result.status).toBe(0)
 
     expectNoLeftovers(dir)
+    expect(readJson(dir, "plugin.json").author).toEqual({ name: "acme", url: "https://github.com/someone" })
+    expect(readJson(dir, ".claude-plugin/marketplace.json").owner).toEqual({
+      name: "Acme Inc",
+      url: "https://github.com/acme",
+    })
+    expect(readJson(dir, ".claude-plugin/marketplace.json").description).toBe("Plugins by Acme Inc.")
+    expect(readJson(dir, ".agents/plugins/marketplace.json").interface.displayName).toBe("Acme Inc")
     expect(read(dir, "src/core/example/read.ts")).toContain("widget_note_read")
     expect(read(dir, "plugin.yaml")).toContain("  - widget_note_create\n  - widget_note_read\n")
     expect(read(dir, "skills/widget-notes/SKILL.md")).toContain("name: widget-notes")
