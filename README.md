@@ -213,7 +213,11 @@ variable, and an option or setting wins over the variable too.
 Lists are comma-separated in a flag or a variable. Where each harness reads them:
 
 - **OpenCode** takes the plugin `options` shown above, with lists as arrays and
-  `read_only` as a boolean.
+  `read_only` as a boolean, and falls back to the variables. V2 runs plugins in
+  its background service, which keeps the environment it started with: a
+  variable set where `opencode run` starts has no effect until the service is
+  restarted in that environment (`opencode service restart`). V1 runs plugins
+  in its own process.
 - **Hermes** takes `plugins.entries.git-tools.settings` in
   `config.yaml`:
 
@@ -226,13 +230,26 @@ Lists are comma-separated in a flag or a variable. Where each harness reads them
           exclude_tools: []
   ```
 
-- **Claude Code and Antigravity** start the plugin's server without flags and
-  pass it the client's environment, so set the variables in the environment the
-  harness runs in.
-- **Codex and Grok Build** pass no environment to a plugin's MCP server, so the
-  variables have no effect there. To change settings in Codex, add the server
-  under `[mcp_servers]` in Codex's config with flags in `args` (as in
-  [Any other MCP host](#any-other-mcp-host)) instead of using the plugin.
+  The plugin passes its own environment to the command line it runs, so the
+  variables work too. A running gateway keeps the environment it started with;
+  restart it (`hermes gateway restart`) after changing one.
+
+- **Claude Code, Grok Build and Antigravity** start the plugin's server without
+  flags and pass it the client's environment, so set the variables in the
+  environment the harness runs in.
+- **Codex** passes a plugin's MCP server only a few basic variables (such as
+  `PATH` and `HOME`), so the variables have no effect there. To change
+  settings, or to give the server a variable it needs, add the server under
+  `[mcp_servers]` in Codex's `config.toml` instead of using the plugin: flags
+  go in `args`, `env_vars` names the variables to forward from Codex's
+  environment, and `env` sets fixed values.
+
+  ```toml
+  [mcp_servers.git-tools]
+  command = "npx"
+  args = ["-y", "@craftsamo/git-tools@<version>", "--read-only"]
+  env_vars = ["GIT_TOOLS_TOOLSETS"]
+  ```
 
 ## Layout
 
