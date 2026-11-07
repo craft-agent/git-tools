@@ -133,9 +133,11 @@ jobs:
       # A rerun after a later job failed finds the version already published
       # and goes on to the registry job. Only a version that does not exist
       # counts as unpublished; any other failure to read it stops the job.
-      # Right after a manual publish, npm view may still answer E404 for a
-      # minute, so npm publish refusing to overwrite the version also counts
-      # as already published.
+      # npm refusing to overwrite a published version also counts as
+      # published. npm holds a new publish (a manual one, say) as staged while
+      # it validates it: npm view answers E404 and another publish is refused
+      # as staged, so the job waits for npm view to show the version. One
+      # staged for approval stays hidden until a maintainer approves it.
       - name: Publish the package
         run: |
           name="$(node -p 'require("./package.json").name')"
@@ -147,14 +149,27 @@ jobs:
           fi
           grep -q E404 "$errors" || { cat "$errors" >&2; exit 1; }
           publish_errors="$RUNNER_TEMP/publish-errors"
-          if ! npm publish --access public --ignore-scripts 2> "$publish_errors"; then
-            if grep -q "You cannot publish over the previously published versions" "$publish_errors"; then
-              echo "$name@$version is already published; skipping the publish."
-              exit 0
-            fi
+          if npm publish --access public --ignore-scripts 2> "$publish_errors"; then
+            exit 0
+          fi
+          if grep -q "You cannot publish over the previously published versions" "$publish_errors"; then
+            echo "$name@$version is already published; skipping the publish."
+            exit 0
+          fi
+          if ! grep -q "Cannot publish over previously staged version" "$publish_errors"; then
             cat "$publish_errors" >&2
             exit 1
           fi
+          echo "npm holds $name@$version as staged; waiting for npm view to show it."
+          for _ in $(seq 30); do
+            if npm view "$name@$version" version --prefer-online > /dev/null 2>&1; then
+              echo "npm shows $name@$version; it is published."
+              exit 0
+            fi
+            sleep 10
+          done
+          echo "::error::npm still holds $name@$version as staged after five minutes. If it waits for approval, approve it under Staged Packages on npmjs.com or with npm stage approve, then re-run this job."
+          exit 1
 
   mcp-registry:
     name: Publish to the MCP Registry
