@@ -12,8 +12,8 @@ importers:
   .:
     devDependencies:
       '@craftsamo/repo-kit':
-        specifier: ^1.3.0
-        version: 1.3.0
+        specifier: ^1.4.0
+        version: 1.4.0
       '@modelcontextprotocol/sdk':
         specifier: ^1.32.2
         version: 1.32.2(zod@4.6.7)
@@ -48,8 +48,8 @@ packages:
     resolution: {integrity: sha512-oGMAgGoQdBXbZqNG0Ze56CHjDZ1IDYOwGYxYjO5KLSlz5HiNQ9udIXsPZ61VWaHGZ5XW/jyjmr6t2xz2jGVwbQ==}
     engines: {node: '>=18'}
 
-  '@craftsamo/repo-kit@1.3.0':
-    resolution: {integrity: sha512-6mY80IlJfvbzO2S+Et6G2R5xc3ltNR7kfgvqmK+3B+ys1hTpfT1Ki2vlgqkzUPJztkMnE4LpSFvDVvn7NGSNOA==}
+  '@craftsamo/repo-kit@1.4.0':
+    resolution: {integrity: sha512-J5kvck7o9ZPPmqhoS3xgHh0NHlUxXsOs2Kg2U7zxbVEKpNqGESb9ng0FjFn4VztVyJCdxB9E2wFN0E+Ctw1rmg==}
     engines: {node: '>=24'}
     hasBin: true
 
@@ -847,7 +847,7 @@ snapshots:
     dependencies:
       json-schema: 0.4.0
 
-  '@craftsamo/repo-kit@1.3.0': {}
+  '@craftsamo/repo-kit@1.4.0': {}
 
   '@esbuild/aix-ppc64@0.28.2':
     optional: true

@@ -2,6 +2,6 @@ allowBuilds:
   esbuild: false
   msgpackr-extract: false
 minimumReleaseAgeExclude:
-  - "@craftsamo/repo-kit@1.3.0"
+  - "@craftsamo/repo-kit@1.4.0"
 overrides:
   toml: 5.0.1
