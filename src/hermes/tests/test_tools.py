@@ -86,6 +86,25 @@ class HandlerTest(FakeCliCase):
         self.reply("run demo_thing_create", stdout=json.dumps(error) + "\n", code=1)
         self.assertEqual(json.loads(self.handler()({})), {"error": "not_found: No such thing."})
 
+    def test_appends_a_tool_error_s_details_as_json_on_its_own_line(self) -> None:
+        details = {"problems": [{"field": "name", "reason": "空"}]}
+        stdout = (
+            '{"error":{"code":"invalid_argument","message":"The thing has problems.",'
+            '"details":{"problems":[{"field":"name","reason":"空"}]}}}\n'
+        )
+        self.reply("run demo_thing_create", stdout=stdout, code=1)
+        result = json.loads(self.handler()({}))
+        message, details_line = result["error"].split("\n", 1)
+        self.assertEqual(message, "invalid_argument: The thing has problems.")
+        self.assertEqual(json.loads(details_line), details)
+        self.assertEqual(details_line, '{"problems":[{"field":"name","reason":"空"}]}')
+
+    def test_ignores_details_that_are_not_an_object(self) -> None:
+        for details in (["problem"], "problem"):
+            error = {"error": {"code": "not_found", "message": "No such thing.", "details": details}}
+            self.reply("run demo_thing_create", stdout=json.dumps(error) + "\n", code=1)
+            self.assertEqual(json.loads(self.handler()({})), {"error": "not_found: No such thing."})
+
     def test_maps_an_exit_without_a_document_to_its_stderr(self) -> None:
         self.reply("run demo_thing_create", stderr=f"{project.CLI_NAME}: boom\n", code=2)
         self.assertEqual(json.loads(self.handler()({})), {"error": f"{project.CLI_NAME} failed: {project.CLI_NAME}: boom"})
