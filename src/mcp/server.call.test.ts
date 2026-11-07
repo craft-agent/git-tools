@@ -38,6 +38,20 @@ describe("calls", () => {
     expect(result.structuredContent).toBeUndefined()
   })
 
+  test("a ToolError with details yields code, message and details", async () => {
+    const details = { violations: [{ rule: "subject-max", line: 1 }] }
+    const { client } = await connect(
+      [failing("demo_thing_invalid_read", new ToolError("invalid_argument", "Validation failed.", { details }))],
+      settings(),
+    )
+    const result = await call(client, "demo_thing_invalid_read")
+    expect(result.isError).toBe(true)
+    expect(JSON.parse(textOf(result))).toEqual({
+      error: { code: "invalid_argument", message: "Validation failed.", details },
+    })
+    expect(result.structuredContent).toBeUndefined()
+  })
+
   test("an unexpected error tells the client only to see the log, and the log gets the whole error", async () => {
     const failure = new Error("ENOENT: no such file '/Users/secret/project/.env'")
     const { client, logs } = await connect([failing("demo_thing_broken_read", failure)], settings())
