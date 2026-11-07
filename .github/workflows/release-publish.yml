@@ -31,7 +31,7 @@ jobs:
     uses: craftsamo/repo-kit/.github/workflows/release-publish.yml@v1
     with:
       version-files: |
-        plugin.json
+        .codex-plugin/plugin.json
         .claude-plugin/plugin.json
         .antigravity-plugin/plugin.json
         plugin.yaml

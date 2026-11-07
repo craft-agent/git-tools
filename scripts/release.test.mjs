@@ -1,9 +1,10 @@
 import { describe, expect, test } from "bun:test"
 import { spawnSync } from "node:child_process"
-import { mkdtempSync, readFileSync, rmSync } from "node:fs"
+import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { fileURLToPath } from "node:url"
+import { settingVariables } from "../src/entry/settings"
 import { PROJECT } from "../src/project"
 import { PLUGIN_NAME } from "./package-name.mjs"
 import { DESCRIPTION_LIMIT, serverJson } from "./server-json.mjs"
@@ -13,9 +14,11 @@ const ROOT = fileURLToPath(new URL("../", import.meta.url))
 const MCP_ENTRY = "dist/mcp.js"
 const CLI_ENTRY = "dist/cli.js"
 
+/** The legacy manifest Codex loads the plugin from, which names the server relative to the plugin root. */
+const CODEX_MANIFEST = ".codex-plugin/plugin.json"
+
 /** Each MCP configuration and the variable its harness expands to the plugin's install directory. */
 const MCP_CONFIGS = {
-  "mcp.json": "${PLUGIN_ROOT}",
   ".claude-plugin/plugin.json": "${CLAUDE_PLUGIN_ROOT}",
   "mcp_config.json": "${PLUGIN_ROOT}",
   ".mcp.json": "${CLAUDE_PLUGIN_ROOT}",
@@ -77,8 +80,23 @@ describe("MCP configurations", () => {
     })
   })
 
+  test("Codex's legacy manifest launches dist/mcp.js from the plugin root and forwards every setting variable", () => {
+    const manifest = readJson(CODEX_MANIFEST)
+    expect(manifest.mcpServers).toEqual({
+      [SERVER_NAME]: { command: "node", args: [MCP_ENTRY], cwd: ".", env_vars: settingVariables() },
+    })
+    expect(manifest.skills).toBe("./skills")
+  })
+
+  // Codex reads a root plugin.json with an agent-plugins.org $schema first and
+  // then applies the Agent Plugin tool budget to the plugin.
+  test("no root manifest makes Codex load the plugin as an Agent Plugin", () => {
+    expect(existsSync(join(ROOT, "plugin.json"))).toBe(false)
+    expect(existsSync(join(ROOT, "mcp.json"))).toBe(false)
+  })
+
   test("every MCP configuration declares exactly one server and all use the same name", () => {
-    for (const file of Object.keys(MCP_CONFIGS)) {
+    for (const file of [...Object.keys(MCP_CONFIGS), CODEX_MANIFEST]) {
       const servers = Object.keys(readJson(file).mcpServers ?? {})
       expect(servers).toEqual([SERVER_NAME])
     }

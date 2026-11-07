@@ -28,6 +28,11 @@ function envName(name: OptionName, profile: EntryProfile): string {
   return `${profile.envPrefix}_${OPTIONS[name].envSuffix}`
 }
 
+/** The environment variables the settings are read from, in the order the settings are listed. */
+export function settingVariables(profile: EntryProfile = PROJECT_PROFILE): string[] {
+  return (Object.keys(OPTIONS) as OptionName[]).map((name) => envName(name, profile))
+}
+
 function readFlags(argv: string[]): Partial<Record<OptionName, string>> {
   const byFlag = new Map(
     (Object.keys(OPTIONS) as OptionName[]).map((name) => [OPTIONS[name].flag, { name, ...OPTIONS[name] }]),

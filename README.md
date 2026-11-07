@@ -238,8 +238,9 @@ Lists are comma-separated in a flag or a variable. Where each harness reads them
   flags and pass it the client's environment, so set the variables in the
   environment the harness runs in.
 - **Codex** passes a plugin's MCP server only a few basic variables (such as
-  `PATH` and `HOME`), so the variables have no effect there. To change
-  settings, or to give the server a variable it needs, add the server under
+  `PATH` and `HOME`) and those the plugin's manifest names, which are the
+  variables above: set them in the environment Codex runs in. To pass flags,
+  or to give the server another variable it needs, add the server under
   `[mcp_servers]` in Codex's `config.toml` instead of using the plugin: flags
   go in `args`, `env_vars` names the variables to forward from Codex's
   environment, and `env` sets fixed values.
@@ -266,12 +267,14 @@ Lists are comma-separated in a flag or a variable. Where each harness reads them
 - `src/hermes/`, `plugin.yaml` and `__init__.py` — the Hermes plugin.
 - `skills/` — one skill per toolset, `skills/<name>/SKILL.md`, which every
   harness that takes skills loads from the package or plugin root.
-- `plugin.json`, `mcp.json`, `.mcp.json`, `.claude-plugin/`, `.agents/plugins/`,
+- `.claude-plugin/`, `.codex-plugin/`, `.agents/plugins/`, `.mcp.json`,
   `.antigravity-plugin/` and `mcp_config.json` — the plugin manifests of the
-  other harnesses. The root `.mcp.json` is the configuration Grok Build reads
-  (with `${CLAUDE_PLUGIN_ROOT}`, the variable both Grok Build and Claude Code
-  expand); when working on this repository in Claude Code, decline the project
-  MCP server it offers from that file.
+  other harnesses. Codex reads `.codex-plugin/plugin.json`; a root
+  `plugin.json` would make it load the plugin as an Agent Plugin, whose tool
+  budget hides tools past a fixed size. The root `.mcp.json` is the
+  configuration Grok Build reads (with `${CLAUDE_PLUGIN_ROOT}`, the variable
+  both Grok Build and Claude Code expand); when working on this repository in
+  Claude Code, decline the project MCP server it offers from that file.
 - `opencode.jsonc` — OpenCode's configuration for working on this repository,
   not part of the package: it references the starter it was made from and
   github-tools, so an agent can read them beside this code.

@@ -21,6 +21,9 @@ concurrency:
 env:
   # Let Corepack download the pinned pnpm without an interactive prompt.
   COREPACK_ENABLE_DOWNLOAD_PROMPT: 0
+  # The commit of Hermes Agent whose plugin scanner checks the release tree is
+  # pinned; raise it deliberately.
+  HERMES_AGENT_COMMIT: af5c2014a84eb364fb07a9366da4f2df5a61e185
 
 jobs:
   check:
@@ -65,6 +68,29 @@ jobs:
         run: pnpm run manifests:check
       - name: Smoke test the MCP server, the plugin and the CLI under Node
         run: pnpm run smoke
+      # Hermes scans a plugin when it installs it, and a `dangerous` verdict
+      # blocks the install even with `--force`. Its own scanner runs here on
+      # the tree a release tag carries: the repository's files and `dist/`.
+      - name: Check out the Hermes plugin scanner
+        uses: actions/checkout@v7
+        with:
+          repository: NousResearch/hermes-agent
+          ref: ${{ env.HERMES_AGENT_COMMIT }}
+          path: .hermes-agent
+          sparse-checkout: tools
+          persist-credentials: false
+      - name: Test the Hermes install scan
+        env:
+          HERMES_AGENT_DIR: ${{ github.workspace }}/.hermes-agent
+        run: python -m unittest discover -s scripts -p 'test_*.py'
+      - name: Scan the release tree as Hermes does on install
+        run: |
+          set -o pipefail
+          tree="$RUNNER_TEMP/release-tree"
+          mkdir -p "$tree/dist"
+          git archive HEAD | tar -x -C "$tree"
+          cp -R dist/. "$tree/dist/"
+          python scripts/hermes_scan.py --scanner "$GITHUB_WORKSPACE/.hermes-agent" "$tree"
 
   # The one check the protection of main requires (`repo-kit setup github
   # --required-check`), so jobs can be added or renamed without touching it.

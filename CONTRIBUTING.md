@@ -36,6 +36,16 @@ pnpm run smoke
 
 The Hermes plugin needs Python 3.11 or later and no packages. After a change to a tool's ID, run `pnpm run build && pnpm run manifests` to update `plugin.yaml`.
 
+CI also runs Hermes' install scan on the tree a release carries, as [RELEASING.md](RELEASING.md#hermes-install-scan) describes. To run it yourself, check out [Hermes Agent](https://github.com/NousResearch/hermes-agent) at the commit `HERMES_AGENT_COMMIT` names in `.github/workflows/tests.yml`, then scan the tree after `pnpm run build`:
+
+```sh
+tree="$(mktemp -d)"
+git archive HEAD | tar -x -C "$tree"
+cp -R dist "$tree/dist"
+python scripts/hermes_scan.py --scanner <hermes-agent checkout> "$tree"
+HERMES_AGENT_DIR=<hermes-agent checkout> python -m unittest discover -s scripts -p 'test_*.py'
+```
+
 ## Commits
 
 Commits follow [Conventional Commits](https://www.conventionalcommits.org/): `type(scope): subject`, in the imperative.
