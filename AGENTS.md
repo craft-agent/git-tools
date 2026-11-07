@@ -6,9 +6,10 @@ implemented once and delivered to several harnesses (OpenCode, Claude Code,
 Codex, Grok Build, Antigravity, Hermes Agent) from this repository. It works
 against any git remote. It was made from
 [agent-tool-starter](https://github.com/craftsamo/agent-tool-starter), whose
-skeleton it keeps; the starter's later changes are merged from its default
-branch. Releases are GitHub Releases tagged `v<version>`; consumers pin a tag
-or the same npm version.
+skeleton it keeps; the starter's later changes are taken from its default
+branch as git-tools' own commits, never merged, so the history stays one line
+of pull requests. Releases are GitHub Releases tagged `v<version>`; consumers
+pin a tag or the same npm version.
 
 ## Layout
 
