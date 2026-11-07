@@ -3,7 +3,7 @@
   "references": {
     "starter": {
       "repository": "craftsamo/agent-tool-starter",
-      "description": "The template this package was made from: its skeleton, conventions and setup, and later changes to merge from its default branch",
+      "description": "The template this package was made from: its skeleton, conventions and setup, and later changes to take from its default branch as this package's own commits",
     },
     "github-tools": {
       "repository": "craft-agent/github-tools",
