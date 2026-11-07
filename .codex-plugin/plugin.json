@@ -1,5 +1,4 @@
 {
-  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "git-tools",
   "version": "0.0.0",
   "description": "Git tools for coding agents: state, commits, rewrites and stacked branches, worktrees and pushing.",
@@ -9,5 +8,20 @@
   },
   "homepage": "https://github.com/craft-agent/git-tools#readme",
   "repository": "https://github.com/craft-agent/git-tools",
-  "license": "MIT"
+  "license": "MIT",
+  "skills": "./skills",
+  "mcpServers": {
+    "git-tools": {
+      "command": "node",
+      "args": ["dist/mcp.js"],
+      "cwd": ".",
+      "env_vars": [
+        "GIT_TOOLS_TOOLSETS",
+        "GIT_TOOLS_READ_ONLY",
+        "GIT_TOOLS_TOOLS",
+        "GIT_TOOLS_EXCLUDE_TOOLS",
+        "GIT_TOOLS_CONFIRM"
+      ]
+    }
+  }
 }

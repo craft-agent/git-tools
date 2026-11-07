@@ -24,10 +24,9 @@
   "files": [
     "dist",
     "skills",
-    "plugin.json",
-    "mcp.json",
     ".mcp.json",
     ".claude-plugin",
+    ".codex-plugin",
     ".agents/plugins",
     ".antigravity-plugin",
     "mcp_config.json",

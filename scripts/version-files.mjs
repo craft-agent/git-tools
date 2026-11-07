@@ -5,7 +5,7 @@
  * workflow bumps them with package.json; `scripts/manifests.mjs` checks them.
  */
 export const VERSION_FILES = [
-  "plugin.json",
+  ".codex-plugin/plugin.json",
   ".claude-plugin/plugin.json",
   ".antigravity-plugin/plugin.json",
   "plugin.yaml",
