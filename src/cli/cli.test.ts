@@ -2,7 +2,19 @@ import { describe, expect, test } from "bun:test"
 import { annotations, selectTools } from "../core"
 import { PROJECT } from "../project"
 import { EXIT_FAILED, EXIT_OK, EXIT_USAGE, type CliIo } from "./cli"
-import { ADD_ID, ADMIN_ID, BROKEN_ID, MISSING_ID, PROFILE, READ_ID, SLOW_ID, cli, json, specs } from "./testing"
+import {
+  ADD_ID,
+  ADMIN_ID,
+  BROKEN_ID,
+  DETAILED_ID,
+  MISSING_ID,
+  PROFILE,
+  READ_ID,
+  SLOW_ID,
+  cli,
+  json,
+  specs,
+} from "./testing"
 
 describe("list", () => {
   test("describes the tools the settings select, in order", async () => {
@@ -41,8 +53,9 @@ describe("list", () => {
       MISSING_ID,
       BROKEN_ID,
       SLOW_ID,
+      DETAILED_ID,
     ])
-    expect(await ids("--exclude-tools", `${READ_ID},${ADD_ID}`)).toEqual([MISSING_ID, BROKEN_ID, SLOW_ID])
+    expect(await ids("--exclude-tools", `${READ_ID},${ADD_ID}`)).toEqual([MISSING_ID, BROKEN_ID, SLOW_ID, DETAILED_ID])
   })
 
   test("reads the environment behind the flags", async () => {
@@ -94,6 +107,18 @@ describe("run", () => {
     const run = await cli(["run", MISSING_ID, "--cwd", "/x"])
     expect(run.code).toBe(EXIT_FAILED)
     expect(json(run)).toEqual({ error: { code: "not_found", message: "No such thing." } })
+  })
+
+  test("maps a tool failure with details to code, message and details", async () => {
+    const run = await cli(["run", DETAILED_ID, "--cwd", "/x"])
+    expect(run.code).toBe(EXIT_FAILED)
+    expect(json(run)).toEqual({
+      error: {
+        code: "invalid_argument",
+        message: "The thing has problems.",
+        details: { problems: [{ field: "name", reason: "empty" }] },
+      },
+    })
   })
 
   test("rejects arguments the schema does not accept", async () => {

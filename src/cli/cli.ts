@@ -8,8 +8,10 @@ import {
   selectTools,
   ToolError,
   type ErrorCode,
+  type ErrorDetails,
   type ToolSpec,
 } from "../core"
+import { errorBody } from "../entry/errors"
 import { permissionResources } from "../entry/permission"
 import { PROJECT_PROFILE, type EntryProfile } from "../entry/profile"
 import { parseToolSettings } from "../entry/settings"
@@ -112,8 +114,8 @@ function writeJson(io: CliIo, document: unknown): void {
   io.stdout(`${JSON.stringify(document)}\n`)
 }
 
-function writeError(io: CliIo, code: ErrorCode, message: string): number {
-  writeJson(io, { error: { code, message } })
+function writeError(io: CliIo, code: ErrorCode, message: string, details?: Readonly<ErrorDetails>): number {
+  writeJson(io, { error: errorBody(code, message, details) })
   return EXIT_FAILED
 }
 
@@ -140,7 +142,7 @@ async function runTool(command: Extract<Command, { name: "run" }>, io: CliIo): P
     writeJson(io, { result })
     return EXIT_OK
   } catch (error) {
-    if (isToolError(error)) return writeError(io, error.code, error.message)
+    if (isToolError(error)) return writeError(io, error.code, error.message, error.details)
     if (isAbortError(error)) return writeError(io, "internal_error", `${spec.id} was cancelled.`)
     io.stderr(`${PROGRAM}: unexpected error while running ${spec.id}: ${errorDetail(error)}\n`)
     return writeError(io, "internal_error", `Unexpected error while running ${spec.id}; see standard error.`)
@@ -159,7 +161,7 @@ async function targetOf(command: Extract<Command, { name: "target" }>, io: CliIo
     writeJson(io, { resources })
     return EXIT_OK
   } catch (error) {
-    if (isToolError(error)) return writeError(io, error.code, error.message)
+    if (isToolError(error)) return writeError(io, error.code, error.message, error.details)
     if (isAbortError(error)) return writeError(io, "internal_error", "The call was cancelled.")
     io.stderr(`${PROGRAM}: unexpected error while resolving the target: ${errorDetail(error)}\n`)
     return writeError(io, "internal_error", "Unexpected error while resolving the target; see standard error.")
