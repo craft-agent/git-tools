@@ -160,6 +160,12 @@ Every entry point takes the same settings:
   authenticate is passed through, and nothing else, so a stray variable
   cannot redirect a call. Prompts and colors are switched off, so nothing
   waits on a person and output parses the same everywhere.
+- **Every variable the tools read besides the settings is named in
+  `toolVariables` in `src/project.ts`**, whether a tool reads it itself or
+  passes it through to a program. Codex gives a plugin's server only a few
+  basic variables (`PATH`, `HOME` and the like) and those its manifest names,
+  and `pnpm run manifests` writes that list from the settings and
+  `toolVariables`: a variable left out is set everywhere but in Codex.
 - **Every call has a time limit**, and a call that is stopped, by that limit
   or by cancellation, has its child process killed: `SIGTERM`, then `SIGKILL`
   after two seconds. A hung program neither holds a harness forever nor
