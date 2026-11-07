@@ -1,13 +1,16 @@
 import { spawnSync } from "node:child_process"
 import { readFileSync, writeFileSync } from "node:fs"
 import { fileURLToPath } from "node:url"
+import { CODEX_MANIFEST, loadForwardedVariables, renderCodexEnv } from "./codex-env.mjs"
 import { VERSION_FILES } from "./version-files.mjs"
 
 /**
- * Keeps the generated fields of the manifests in step with package.json and the
- * tools the built CLI lists: the top-level `version` of every file in
- * `VERSION_FILES`, and `provides_tools` in `plugin.yaml`. The rest of each file
- * is written by hand. `--check` writes nothing and fails when a file is out of date.
+ * Keeps the generated fields of the manifests in step with package.json, the
+ * tools the built CLI lists and the variables the server reads: the top-level
+ * `version` of every file in `VERSION_FILES`, `provides_tools` in `plugin.yaml`,
+ * and the server's `env_vars` in `.codex-plugin/plugin.json` (the settings'
+ * variables, then `toolVariables`). The rest of each file is written by hand.
+ * `--check` writes nothing and fails when a file is out of date.
  */
 
 const CLI = fileURLToPath(new URL("../dist/cli.js", import.meta.url))
@@ -47,20 +50,23 @@ function renderJson(file, text, version) {
   return updated
 }
 
-function render(file, text, version, toolIds) {
-  return file === YAML_MANIFEST ? renderYaml(text, version, toolIds) : renderJson(file, text, version)
+async function render(file, text, version, toolIds, variables) {
+  if (file === YAML_MANIFEST) return renderYaml(text, version, toolIds)
+  const withVersion = renderJson(file, text, version)
+  return file === CODEX_MANIFEST ? renderCodexEnv(withVersion, variables) : withVersion
 }
 
 try {
   const check = process.argv.includes("--check")
   const { version } = JSON.parse(readFileSync(PACKAGE, "utf8"))
   const toolIds = listedToolIds()
+  const variables = await loadForwardedVariables()
 
   const outOfDate = []
   for (const file of VERSION_FILES) {
     const url = new URL(file, ROOT)
     const current = readFileSync(url, "utf8")
-    const updated = render(file, current, version, toolIds)
+    const updated = await render(file, current, version, toolIds, variables)
     if (updated === current) continue
     outOfDate.push(file)
     if (!check) writeFileSync(url, updated)
