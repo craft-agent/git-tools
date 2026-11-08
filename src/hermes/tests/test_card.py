@@ -14,8 +14,8 @@ BUDGETED = ("telegram", "slack", "discord", "whatsapp", None)
 ALL_SURFACES = ("cli", "tui", *BUDGETED)
 
 
-def described(*facts: tuple[str, str], text: str | None = None) -> object:
-    return card.Description(facts=tuple(facts), text=text)
+def described(*facts: tuple[str, str], headline: str | None = None, text: str | None = None) -> object:
+    return card.Description(headline=headline, facts=tuple(facts), text=None if text is None else ("Text", text))
 
 
 class VisibleTest(unittest.TestCase):
@@ -79,26 +79,50 @@ class VisibleTest(unittest.TestCase):
 
 
 class ParseDescriptionTest(unittest.TestCase):
-    def test_reads_facts_and_text(self) -> None:
+    def test_reads_headline_facts_and_text(self) -> None:
         parsed = card.parse_description(
-            {"facts": [{"label": "Kind", "value": "group"}, {"label": "Size", "value": ""}], "text": "hi"}
+            {
+                "headline": 'Create the note "todo"',
+                "facts": [{"label": "Kind", "value": "group"}, {"label": "Size", "value": ""}],
+                "text": {"label": "Note text", "body": "hi"},
+            }
         )
-        self.assertEqual(parsed, card.Description(facts=(("Kind", "group"), ("Size", "")), text="hi"))
+        self.assertEqual(
+            parsed,
+            card.Description(
+                headline='Create the note "todo"',
+                facts=(("Kind", "group"), ("Size", "")),
+                text=("Note text", "hi"),
+            ),
+        )
 
-    def test_text_is_optional_and_facts_may_be_empty_beside_a_text(self) -> None:
+    def test_headline_and_text_are_optional_and_each_part_can_stand_alone(self) -> None:
+        fact = {"label": "a", "value": "b"}
+        self.assertEqual(card.parse_description({"facts": [fact]}), described(("a", "b")))
+        self.assertEqual(card.parse_description({"headline": "h", "facts": []}), described(headline="h"))
         self.assertEqual(
-            card.parse_description({"facts": [{"label": "a", "value": "b"}]}),
-            card.Description(facts=(("a", "b"),), text=None),
+            card.parse_description({"facts": [], "text": {"label": "Text", "body": "t"}}), described(text="t")
         )
+
+    def test_an_empty_body_drops_the_text(self) -> None:
+        fact = {"label": "a", "value": "b"}
         self.assertEqual(
-            card.parse_description({"facts": [{"label": "a", "value": "b"}], "text": ""}),
-            card.Description(facts=(("a", "b"),), text=None),
+            card.parse_description({"facts": [fact], "text": {"label": "L", "body": ""}}), described(("a", "b"))
         )
-        self.assertEqual(card.parse_description({"facts": [], "text": "t"}), card.Description(facts=(), text="t"))
+        self.assertIsNone(card.parse_description({"facts": [], "text": {"label": "L", "body": ""}}))
+
+    def test_a_bad_headline_is_dropped_alone(self) -> None:
+        for headline in (5, None, "", "  ", [], {"text": "h"}):
+            with self.subTest(headline=headline):
+                parsed = card.parse_description({"headline": headline, "facts": [{"label": "a", "value": "b"}]})
+                self.assertEqual(parsed, described(("a", "b")))
+                self.assertIsNone(card.parse_description({"headline": headline, "facts": []}))
 
     def test_ignores_extra_keys(self) -> None:
         parsed = card.parse_description({"facts": [{"label": "a", "value": "b", "x": 1}], "y": 2})
-        self.assertEqual(parsed, card.Description(facts=(("a", "b"),), text=None))
+        self.assertEqual(parsed, described(("a", "b")))
+        parsed = card.parse_description({"facts": [], "text": {"label": "Text", "body": "t", "x": 1}})
+        self.assertEqual(parsed, described(text="t"))
 
     def test_anything_else_is_none(self) -> None:
         bad = [
@@ -107,9 +131,11 @@ class ParseDescriptionTest(unittest.TestCase):
             "text",
             5,
             {},
+            {"headline": "h"},
             {"facts": "x"},
             {"facts": None},
             {"facts": []},
+            {"facts": [], "text": None},
             {"facts": [], "text": ""},
             {"facts": [1]},
             {"facts": [{"label": "a", "value": "b"}, "x"]},
@@ -119,8 +145,17 @@ class ParseDescriptionTest(unittest.TestCase):
             {"facts": [{"label": "a", "value": 1}]},
             {"facts": [{"label": "a"}]},
             {"facts": [{"value": "v"}]},
-            {"facts": [{"label": "a", "value": "b"}], "text": 5},
+            {"headline": "h", "facts": [{"label": "a", "value": 1}]},
+            {"headline": "h", "facts": [{"label": "a", "value": "b"}], "text": 5},
+            {"facts": [{"label": "a", "value": "b"}], "text": "t"},
             {"facts": [{"label": "a", "value": "b"}], "text": None},
+            {"facts": [{"label": "a", "value": "b"}], "text": []},
+            {"facts": [{"label": "a", "value": "b"}], "text": {"body": "t"}},
+            {"facts": [{"label": "a", "value": "b"}], "text": {"label": "L"}},
+            {"facts": [{"label": " ", "value": "b"}], "text": {"label": "L", "body": "t"}},
+            {"facts": [{"label": "a", "value": "b"}], "text": {"label": " ", "body": "t"}},
+            {"facts": [{"label": "a", "value": "b"}], "text": {"label": 1, "body": "t"}},
+            {"facts": [{"label": "a", "value": "b"}], "text": {"label": "L", "body": 1}},
         ]
         for raw in bad:
             with self.subTest(raw=raw):

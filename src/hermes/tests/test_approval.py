@@ -55,7 +55,10 @@ class ApprovalHookTest(FakeCliCase):
             stdout=json.dumps(
                 {
                     "resources": ["target/one"],
-                    "description": {"facts": [{"label": "Kind", "value": "group_chat"}], "text": "hi @everyone"},
+                    "description": {
+                        "facts": [{"label": "Kind", "value": "group_chat"}],
+                        "text": {"label": "Note", "body": "hi @everyone"},
+                    },
                 }
             ),
         )
@@ -76,7 +79,10 @@ class ApprovalHookTest(FakeCliCase):
             stdout=json.dumps(
                 {
                     "resources": ["target/one"],
-                    "description": {"facts": [{"label": "Kind", "value": "group_chat"}], "text": "hi <@everyone> & all"},
+                    "description": {
+                        "facts": [{"label": "Kind", "value": "group_chat"}],
+                        "text": {"label": "Note", "body": "hi <@everyone> & all"},
+                    },
                 }
             ),
         )
@@ -92,7 +98,12 @@ class ApprovalHookTest(FakeCliCase):
     def test_an_unavailable_surface_still_approves_with_the_strictest_card(self) -> None:
         self.reply(
             "target demo_thing_create",
-            stdout=json.dumps({"resources": ["target/one"], "description": {"facts": [], "text": "hi <@everyone> & all"}}),
+            stdout=json.dumps(
+                {
+                    "resources": ["target/one"],
+                    "description": {"facts": [], "text": {"label": "Note", "body": "hi <@everyone> & all"}},
+                }
+            ),
         )
         for fields in (
             {"side_effect": RuntimeError("unavailable")},
@@ -130,7 +141,9 @@ class ApprovalHookTest(FakeCliCase):
     def test_a_description_with_unresolved_resources_keeps_the_single_use_key(self) -> None:
         self.reply(
             "target demo_widget_update",
-            stdout=json.dumps({"resources": ["*"], "description": {"facts": [], "text": "hi @everyone"}}),
+            stdout=json.dumps(
+                {"resources": ["*"], "description": {"facts": [], "text": {"label": "Note", "body": "hi @everyone"}}}
+            ),
         )
         decision = self.assert_single_use("demo_widget_update", key("demo_widget_update", "*"), args={})
         self.assertEqual(decision["message"], "Update a widget \\(demo\\_widget\\_update\\)\n\nhi \\@everyone")
@@ -149,7 +162,7 @@ class ApprovalHookTest(FakeCliCase):
     def test_invalid_resources_do_not_discard_a_description(self) -> None:
         self.reply(
             "target demo_widget_update",
-            stdout=json.dumps({"resources": [], "description": {"facts": [], "text": "hi"}}),
+            stdout=json.dumps({"resources": [], "description": {"facts": [], "text": {"label": "Note", "body": "hi"}}}),
         )
         decision = self.assert_single_use("demo_widget_update", key("demo_widget_update", "*"), args={})
         self.assertEqual(decision["message"], "Update a widget \\(demo\\_widget\\_update\\)\n\nhi")
@@ -158,7 +171,9 @@ class ApprovalHookTest(FakeCliCase):
         self.reply(
             "target demo_widget_update",
             code=1,
-            stdout=json.dumps({"resources": ["target/one"], "description": {"facts": [], "text": "hi"}}),
+            stdout=json.dumps(
+                {"resources": ["target/one"], "description": {"facts": [], "text": {"label": "Note", "body": "hi"}}}
+            ),
         )
         decision = self.assert_single_use("demo_widget_update", key("demo_widget_update", "*"), args={})
         self.assertEqual(decision["message"], "Update a widget (demo_widget_update)")
@@ -166,7 +181,9 @@ class ApprovalHookTest(FakeCliCase):
     def test_a_card_that_cannot_be_built_still_asks_with_the_line_without_a_description(self) -> None:
         self.reply(
             "target demo_thing_create",
-            stdout=json.dumps({"resources": ["target/one"], "description": {"facts": [], "text": "hi"}}),
+            stdout=json.dumps(
+                {"resources": ["target/one"], "description": {"facts": [], "text": {"label": "Note", "body": "hi"}}}
+            ),
         )
         hook = self.hook()
         with mock.patch.object(approval.card, "build_message", side_effect=RuntimeError("boom")):

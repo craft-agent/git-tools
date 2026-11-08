@@ -142,10 +142,11 @@ def visible(text: str, keep_newlines: bool = False) -> str:
 
 @dataclass(frozen=True)
 class Description:
-    """What a call carries: short ``(label, value)`` facts and an optional free text, as ``describe`` gave them."""
+    """What a call carries: a headline, short ``(label, value)`` facts and a ``(label, body)`` text, as ``describe`` gave them."""
 
+    headline: str | None
     facts: tuple[tuple[str, str], ...]
-    text: str | None
+    text: tuple[str, str] | None
 
 
 def _parse_fact(raw: Any) -> tuple[str, str] | None:
@@ -157,20 +158,43 @@ def _parse_fact(raw: Any) -> tuple[str, str] | None:
     return label, value
 
 
+def _parse_text(raw: Any) -> tuple[str, str] | None:
+    """The ``(label, body)`` of a text, or ``None`` for any other shape; an empty body is a text that says nothing."""
+    if not isinstance(raw, dict):
+        return None
+    label, body = raw.get("label"), raw.get("body")
+    if not isinstance(label, str) or not label.strip() or not isinstance(body, str):
+        return None
+    return label, body
+
+
 def parse_description(raw: Any) -> Description | None:
     """The description the command line printed, or ``None`` for any other shape or for one that says nothing.
 
-    ``{"facts": [{"label": str, "value": str}, ...], "text"?: str}``; extra keys
-    are ignored. Nothing is marked here: ``build_message`` does.
+    ``{"headline"?: str, "facts": [{"label": str, "value": str}, ...], "text"?: {"label": str, "body": str}}``;
+    extra keys are ignored. A headline that is not a non-blank string is
+    dropped alone; a bad fact or a bad text voids the whole description. The
+    command line has already marked every string; ``build_message`` marks
+    again, which changes nothing.
     """
     if not isinstance(raw, dict) or not isinstance(raw.get("facts"), list):
         return None
     parsed = [_parse_fact(item) for item in raw["facts"]]
     facts = tuple(fact for fact in parsed if fact is not None)
-    text = raw.get("text", "")
-    if len(facts) != len(parsed) or not isinstance(text, str) or not (facts or text):
+    if len(facts) != len(parsed):
         return None
-    return Description(facts=facts, text=text or None)
+    headline = raw.get("headline")
+    headline = headline if isinstance(headline, str) and headline.strip() else None
+    text = None
+    if "text" in raw:
+        text = _parse_text(raw["text"])
+        if text is None:
+            return None
+    if text is not None and not text[1]:
+        text = None
+    if headline is None and not facts and text is None:
+        return None
+    return Description(headline=headline, facts=facts, text=text)
 
 
 def _more(count: int) -> list[str]:
@@ -258,5 +282,5 @@ def build_message(header: str, description: Description | None, surface: str | N
     facts = [(visible(label), visible(value)) for label, value in description.facts]
     lines = _fit_facts(target, visible(header), facts)
     if description.text is not None:
-        lines += ["", target.escape(visible(description.text, keep_newlines=True))]
+        lines += ["", target.escape(visible(description.text[1], keep_newlines=True))]
     return "\n".join(lines)
