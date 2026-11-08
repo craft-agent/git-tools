@@ -26,6 +26,8 @@ export type ToolSpec<I extends z.ZodObject<any> = z.ZodObject<any>, O extends z.
   description: string
   toolset: string
   class: WriteClass
+  /** Whether any argument can reach outside the machine (`openWorldHint`); true when absent. */
+  openWorld?: boolean
   /** What the call writes to, as the permission rules of an entry point name it. */
   targets?(args: z.output<I>, ctx: ToolContext): string[] | Promise<string[]>
   input: I
@@ -69,7 +71,7 @@ export type ToolAnnotations = {
   readOnlyHint: boolean
   destructiveHint?: boolean
   idempotentHint: boolean
-  openWorldHint: true
+  openWorldHint: boolean
 }
 
 const CLASS_HINTS = {
@@ -80,9 +82,9 @@ const CLASS_HINTS = {
   administrative: { readOnlyHint: false, destructiveHint: true, idempotentHint: false },
 } as const satisfies Record<WriteClass, Omit<ToolAnnotations, "title" | "openWorldHint">>
 
-/** The MCP annotations of a tool's write class. */
-export function annotations(spec: Pick<ToolSpec, "title" | "class">): ToolAnnotations {
-  return { title: spec.title, ...CLASS_HINTS[spec.class], openWorldHint: true }
+/** The MCP annotations of a tool's write class, and whether it reaches outside the machine. */
+export function annotations(spec: Pick<ToolSpec, "title" | "class" | "openWorld">): ToolAnnotations {
+  return { title: spec.title, ...CLASS_HINTS[spec.class], openWorldHint: spec.openWorld ?? true }
 }
 
 /** The `_meta` an entry point publishes with the tool; only administrative tools carry any. */

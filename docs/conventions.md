@@ -263,9 +263,10 @@ changes a rule above, it says so. The discussion behind them is on
   pushing is `administrative`.
 - **`openWorldHint` is `true` for a tool any of whose arguments can reach
   outside the machine** — a fetch, a push, a safety read of GitHub — and
-  `false` only for one that stays on it. This replaces the rule above that it
-  is `true` for every tool: reading a remote counts, since the hint is about
-  interacting with external entities, not only writing to them.
+  `false` only for one that stays on it, whose spec sets `openWorld: false`.
+  This replaces the rule above that it is `true` for every tool: reading a
+  remote counts, since the hint is about interacting with external entities,
+  not only writing to them.
 
 ### Pinned writes
 

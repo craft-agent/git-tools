@@ -136,6 +136,11 @@ describe("annotations", () => {
       openWorldHint: true,
     })
   })
+
+  test("a tool that stays on the machine", () => {
+    expect(annotations({ ...tool("read"), openWorld: false }).openWorldHint).toBe(false)
+    expect(annotations({ ...tool("read"), openWorld: true }).openWorldHint).toBe(true)
+  })
 })
 
 describe("toolMeta", () => {
