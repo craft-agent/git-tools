@@ -1,5 +1,5 @@
 import { z } from "zod"
-import { ToolError, abortError, defineTool, isWithin, type ToolSpec, type WriteClass } from "../core"
+import { ToolError, abortError, defineTool, isWithin, type ToolSpec, type Translations, type WriteClass } from "../core"
 import type { EntryProfile } from "../entry/profile"
 import { runCli, type CliIo } from "./cli"
 
@@ -127,6 +127,19 @@ export const specs: ToolSpec[] = [
     },
   }),
 ]
+
+/** The plugin's own words in English, as `target` answers without a language. */
+export const ENGLISH_WORDS = { details: "Details", target: "Target", more: "(+{count} more)" }
+
+/** Japanese words for the described fixture's title, headline, fact label and text label. */
+export const TRANSLATIONS: Translations = {
+  ja: {
+    [DESCRIBED_ID]: "ラベル付け",
+    "Label the area {area}": "エリア {area} にラベルを付ける",
+    Area: "エリア",
+    Body: "本文",
+  },
+}
 
 export type Run = { code: number; stdout: string; stderr: string }
 
