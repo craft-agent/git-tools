@@ -133,30 +133,74 @@ Every tool belongs to one class, and the class sets its MCP annotations.
   store as a pattern) is `*`, and `*` is never stored. An "always" answer then
   covers only what it named, never a write somewhere else.
 - **It shows what the call carries, where the tool can say.** Targets are
-  ids, so they cannot tell a person from a group, and the person decides on
-  the text, the file or the kind of target as much as on where it goes. A
-  write tool's `describe` gives short facts (`Label: value`: the kind of
-  chat, a file's size) and an optional free text (the message, the body). A
-  native plugin's prompt reads the line naming the targets, then the facts,
-  then a blank line and the text. An MCP client draws the call's arguments
-  in its own prompt, so the MCP server adds nothing.
-- **Facts come first and fit; the free text comes last.** Some harnesses cut
-  a prompt from its end at a few hundred characters, so the facts are kept
-  within the budget of where the prompt is shown, and the text is what is
-  cut. A description keeps its first eight facts, labels of 40 characters,
-  values of 200 and a text of 2000; anything longer is cut with `…`.
-- **Characters other people wrote are shown, never obeyed.** A chat's name
+  ids, so they cannot tell one kind of target from another, and the person
+  decides on the text, the file or the kind of target as much as on where it
+  goes. A write tool's `describe` says it. An MCP client draws the call's
+  arguments in its own prompt, so the MCP server adds nothing.
+- **Every native plugin's prompt has one shape**, so a person reads every
+  tool's prompt the same way:
+
+  ```text
+  Create the note "todo"
+
+  --- Details ---
+
+  Target: /work/tree/notes/todo.md
+  Size: 42 bytes
+
+  --- Note text ---
+
+  # Todo
+  ```
+
+  The headline says what the call does; the Details name each target on a
+  `Target` line, then the tool's facts; the last section is the text the call
+  carries, under the tool's own label. A section with nothing to show is
+  left out, so a tool without `describe` shows its title and its targets, and
+  one whose targets cannot be told shows its title alone. The harness names
+  the tool beside the prompt, so the prompt does not repeat its id.
+
+- **The tool's words are fixed; what the call carries is data.** A model
+  chooses the arguments and nothing else, and a prompt is only as good as the
+  person's trust in its lines. The headline is the tool's title, or a
+  template the tool picks (`Create the note {name}`) whose values the entry
+  point quotes, so where the tool's words end and the call's data begins is
+  always visible. A value comes from what the tool resolved, never from a
+  model's account of it (the record's real name, not the name the model
+  gave). The text section holds what the call writes, as it is, never a
+  summary of it; a summary the tool can compute is a fact (`Size`, `Lines`).
+- **Facts are short and ordered by what they decide.** A label is a noun of
+  one or two words in the language of the tool's title, and a value carries
+  its unit (`42 bytes`). The fact that changes the person's answer comes
+  first (the kind of target, whether it overwrites); amounts come last. A
+  fact never repeats the headline or a target. `src/core/facts.ts` holds the
+  facts every package can use (`sizeFact`); a package adds its own beside its
+  tools in the same form and lists them in its section below.
+- **The head of the prompt comes first and fits; the text comes last.** Some
+  harnesses cut a prompt from its end at a few hundred characters, so the
+  headline, the targets and the facts are kept within the budget of where the
+  prompt is shown, and the text is what is cut. A headline that would push a
+  target past the cut gives way to the title, since the targets are what an
+  "always" answer stores. A description keeps a
+  headline template of 120 characters with values of 80, its first eight
+  facts with labels of 40 characters and values of 200, and a text label of
+  40 with a text of 2000; anything longer is cut with `…`. Nothing in the text
+  can come before the facts, since the text is the last section.
+- **Characters other people wrote are shown, never obeyed.** A target's name
   or a file's name can hold control, bidi and invisible characters that
   forge a line of the prompt or hide part of a value; each is shown as
-  `<U+XXXX>`. Where the prompt renders markup, every value is escaped, so a
-  name cannot draw a link or a mention. A surface the plugin does not know
-  gets the strictest budget and escaping, so a new one is safe before it is
-  known.
+  `<U+XXXX>`, and a quote inside a headline value as `\"`. Where the prompt
+  renders markup, everything but the plugin's own section lines is escaped,
+  so a name cannot draw a link or a mention. A surface the plugin does not
+  know gets the strictest budget and escaping, so a new one is safe before it
+  is known.
 - **A description never stands between a call and its approval.** A tool
   without `describe`, a `describe` that fails, returns another shape or takes
   longer than 10 s gives the prompt it would have given without one. The
   approval is asked either way, and the targets are never lost with the
   description.
+- **The prompt's own words are English.** The section names and the
+  `Target` label are the plugin's, in English like every tool of the starter.
 - **`confirm: "elicitation"` adds the tool's own form** for administrative
   tools, where the client offers form-mode elicitation. It is for people who
   switch the client's approvals off: the tool states what will happen in plain
