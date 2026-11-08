@@ -9,6 +9,15 @@ export type ErrorCode =
   | "declined"
   | "upstream_error"
   | "internal_error"
+  // git's own; `docs/conventions.md` "Results and errors of git operations"
+  | "not_a_repository"
+  | "dirty_tree"
+  | "operation_in_progress"
+  | "rewrite_refused"
+  | "check_failed"
+  | "git_missing"
+  | "git_too_old"
+  | "git_error"
 
 /** A value that JSON can carry. */
 export type JsonValue = string | number | boolean | null | JsonValue[] | { [key: string]: JsonValue }

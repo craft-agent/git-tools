@@ -1,5 +1,18 @@
 export { ToolError, isAbortError, isToolError, type ErrorCode, type ErrorDetails, type JsonValue } from "./errors"
 export { abortError, exec, type ExecOptions, type ExecResult } from "./exec"
+export {
+  DEFAULT_GIT_TIMEOUT_MS,
+  GIT_PASSED_ENV,
+  MIN_GIT_VERSION,
+  classifyGitFailure,
+  ensureGit,
+  git,
+  gitEnv,
+  gitResult,
+  repositoryRoot,
+  resetGitCheck,
+  type GitOptions,
+} from "./git"
 export { isWithin } from "./paths"
 export { ANY_TARGET, writeTargets } from "./targets"
 export {
