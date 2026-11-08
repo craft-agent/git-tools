@@ -132,6 +132,31 @@ Every tool belongs to one class, and the class sets its MCP annotations.
   without a resolver, and a target holding `*` or `?` (which a harness would
   store as a pattern) is `*`, and `*` is never stored. An "always" answer then
   covers only what it named, never a write somewhere else.
+- **It shows what the call carries, where the tool can say.** Targets are
+  ids, so they cannot tell a person from a group, and the person decides on
+  the text, the file or the kind of target as much as on where it goes. A
+  write tool's `describe` gives short facts (`Label: value`: the kind of
+  chat, a file's size) and an optional free text (the message, the body). A
+  native plugin's prompt reads the line naming the targets, then the facts,
+  then a blank line and the text. An MCP client draws the call's arguments
+  in its own prompt, so the MCP server adds nothing.
+- **Facts come first and fit; the free text comes last.** Some harnesses cut
+  a prompt from its end at a few hundred characters, so the facts are kept
+  within the budget of where the prompt is shown, and the text is what is
+  cut. A description keeps its first eight facts, labels of 40 characters,
+  values of 200 and a text of 2000; anything longer is cut with `…`.
+- **Characters other people wrote are shown, never obeyed.** A chat's name
+  or a file's name can hold control, bidi and invisible characters that
+  forge a line of the prompt or hide part of a value; each is shown as
+  `<U+XXXX>`. Where the prompt renders markup, every value is escaped, so a
+  name cannot draw a link or a mention. A surface the plugin does not know
+  gets the strictest budget and escaping, so a new one is safe before it is
+  known.
+- **A description never stands between a call and its approval.** A tool
+  without `describe`, a `describe` that fails, returns another shape or takes
+  longer than 10 s gives the prompt it would have given without one. The
+  approval is asked either way, and the targets are never lost with the
+  description.
 - **`confirm: "elicitation"` adds the tool's own form** for administrative
   tools, where the client offers form-mode elicitation. It is for people who
   switch the client's approvals off: the tool states what will happen in plain
