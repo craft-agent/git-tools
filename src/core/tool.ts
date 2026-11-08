@@ -9,6 +9,12 @@ export type WriteClass = "read" | "add" | "idempotent" | "overwrite" | "administ
 
 export type ConfirmRequest = { tool: string; message: string }
 
+/** One fact an approval prompt shows of a call, read as `Label: value`. */
+export type CallFact = { label: string; value: string }
+
+/** What a call will do, as an approval prompt shows it: short facts first, then an optional free text. */
+export type CallDescription = { facts: CallFact[]; text?: string }
+
 export type ToolContext = {
   /** The working directory the call runs in. */
   cwd: string
@@ -30,6 +36,8 @@ export type ToolSpec<I extends z.ZodObject<any> = z.ZodObject<any>, O extends z.
   openWorld?: boolean
   /** What the call writes to, as the permission rules of an entry point name it. */
   targets?(args: z.output<I>, ctx: ToolContext): string[] | Promise<string[]>
+  /** What the call will do, for the person approving it: facts such as the kind of target, and the text it carries. */
+  describe?(args: z.output<I>, ctx: ToolContext): CallDescription | Promise<CallDescription>
   input: I
   output: O
   execute(args: z.output<I>, ctx: ToolContext): Promise<z.input<O>>
