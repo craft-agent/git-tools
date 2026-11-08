@@ -53,5 +53,22 @@ class SettingsFlagsTest(unittest.TestCase):
                 self.flags(**config)
 
 
+class LanguageSettingTest(unittest.TestCase):
+    def language(self, **config: Any) -> str | None:
+        return settings.language_setting(StubContext(config))
+
+    def test_a_language_is_read_stripped(self) -> None:
+        self.assertEqual(self.language(language="ja"), "ja")
+        self.assertEqual(self.language(language="  ja-JP \n"), "ja-JP")
+
+    def test_absent_blank_and_non_string_values_are_unset(self) -> None:
+        for config in ({}, {"language": ""}, {"language": " \t"}, {"language": None}, {"language": 3}, {"language": ["ja"]}):
+            with self.subTest(config=config):
+                self.assertIsNone(self.language(**config))
+
+    def test_it_is_no_flag_of_list_or_run(self) -> None:
+        self.assertEqual(settings.settings_flags(StubContext({"language": "ja"})), [])
+
+
 if __name__ == "__main__":
     unittest.main()
