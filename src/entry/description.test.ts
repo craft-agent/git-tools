@@ -1,7 +1,8 @@
 import { describe, expect, test } from "bun:test"
 import { z } from "zod"
 import type { CallDescription, ToolContext, ToolSpec } from "../core"
-import { approvalPrompt, permissionDescription, visible } from "./description"
+import { approvalPrompt, permissionDescription } from "./description"
+import { visible } from "./visible"
 
 const CTX: ToolContext = { cwd: "/work", ownDir: "/own" }
 const input = z.object({ name: z.string().default("x") })
