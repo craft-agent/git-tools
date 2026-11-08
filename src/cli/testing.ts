@@ -30,6 +30,8 @@ export const MISSING_ID = "demo_thing_close"
 export const BROKEN_ID = "demo_thing_reopen"
 export const SLOW_ID = "demo_thing_lock"
 export const DETAILED_ID = "demo_thing_check"
+export const DESCRIBED_ID = "demo_thing_label"
+export const HANGING_DESCRIBE_ID = "demo_thing_pin"
 
 /**
  * The add fixture writes to its `area` (the working directory without one) and
@@ -91,6 +93,34 @@ export const specs: ToolSpec[] = [
     throw new ToolError("invalid_argument", "The thing has problems.", {
       details: { problems: [{ field: "name", reason: "empty" }] },
     })
+  }),
+  defineTool({
+    id: DESCRIBED_ID,
+    title: DESCRIBED_ID,
+    description: DESCRIBED_ID,
+    toolset: "alpha",
+    class: "add",
+    input: writeInput,
+    output,
+    targets: areaTargets,
+    describe: (args) => ({ facts: [{ label: "Area", value: args.area ?? "here" }], text: "Body\u202E line\r\nnext" }),
+    async execute(args, ctx) {
+      return { tool: DESCRIBED_ID, cwd: ctx.cwd, count: args.count, own_dir: ctx.ownDir }
+    },
+  }),
+  defineTool({
+    id: HANGING_DESCRIBE_ID,
+    title: HANGING_DESCRIBE_ID,
+    description: HANGING_DESCRIBE_ID,
+    toolset: "alpha",
+    class: "add",
+    input: writeInput,
+    output,
+    targets: areaTargets,
+    describe: () => new Promise(() => {}),
+    async execute(args, ctx) {
+      return { tool: HANGING_DESCRIBE_ID, cwd: ctx.cwd, count: args.count, own_dir: ctx.ownDir }
+    },
   }),
 ]
 

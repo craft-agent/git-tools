@@ -3,7 +3,7 @@ import { mkdtempSync, realpathSync, rmSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { EXIT_FAILED, EXIT_OK } from "./cli"
-import { ADD_ID, READ_ID, cli, json } from "./testing"
+import { ADD_ID, DESCRIBED_ID, HANGING_DESCRIBE_ID, READ_ID, cli, json } from "./testing"
 
 const cleanups: (() => void)[] = []
 
@@ -18,6 +18,28 @@ function tempDir(): string {
 }
 
 describe("target", () => {
+  test("includes the call's description with hidden characters marked and newlines normalized", async () => {
+    const run = await cli(["target", DESCRIBED_ID, "--cwd", "/x"], '{"area":"north"}')
+    expect(run.code).toBe(EXIT_OK)
+    expect(run.stderr).toBe("")
+    expect(json(run)).toEqual({
+      resources: ["north"],
+      description: { facts: [{ label: "Area", value: "north" }], text: "Body<U+202E> line\nnext" },
+    })
+  })
+
+  test("still answers resources without a description when describing never settles", async () => {
+    const run = await cli(["target", HANGING_DESCRIBE_ID, "--cwd", "/x"], '{"area":"north"}', {
+      describeTimeoutMs: 50,
+    })
+    expect(run).toEqual({ code: EXIT_OK, stdout: '{"resources":["north"]}\n', stderr: "" })
+  })
+
+  test("omits the description and answers * for invalid arguments", async () => {
+    expect(json(await cli(["target", DESCRIBED_ID, "--cwd", "/x"], '{"area":3}'))).toEqual({ resources: ["*"] })
+    expect(json(await cli(["target", DESCRIBED_ID, "--cwd", "/x"], '{"bogus":1}'))).toEqual({ resources: ["*"] })
+  })
+
   test("is the area argument as given, case kept", async () => {
     const run = await cli(["target", ADD_ID, "--cwd", "/x"], JSON.stringify({ area: "North/Hall" }))
     expect(run).toEqual({ code: EXIT_OK, stdout: '{"resources":["North/Hall"]}\n', stderr: "" })
