@@ -1,0 +1,211 @@
+import { describe, expect, test } from "bun:test"
+import { z } from "zod"
+import type { CallDescription, ToolContext, ToolSpec } from "../core"
+import { approvalPrompt, permissionDescription, visible } from "./description"
+
+const CTX: ToolContext = { cwd: "/work", ownDir: "/own" }
+const input = z.object({ name: z.string().default("x") })
+
+type Describer = NonNullable<ToolSpec<typeof input>["describe"]>
+
+function specWith(describer?: Describer) {
+  return { input, describe: describer } as Pick<ToolSpec, "input" | "describe">
+}
+
+const answering = (answer: unknown) => specWith((async () => answer) as unknown as Describer)
+
+describe("visible", () => {
+  test.each([
+    ["\t", "<U+0009>"],
+    ["\n", "<U+000A>"],
+    ["\r", "<U+000D>"],
+    ["\u007f", "<U+007F>"],
+    ["\u0085", "<U+0085>"],
+    ["\u202e", "<U+202E>"],
+    ["\u2066", "<U+2066>"],
+    ["\u200b", "<U+200B>"],
+    ["\u200d", "<U+200D>"],
+    ["\ufeff", "<U+FEFF>"],
+    ["\u00ad", "<U+00AD>"],
+    ["\u2028", "<U+2028>"],
+    ["\u2029", "<U+2029>"],
+    ["\u{e0041}", "<U+E0041>"],
+    ["\u3164", "<U+3164>"],
+    ["\u115f", "<U+115F>"],
+    ["\u1160", "<U+1160>"],
+    ["\uffa0", "<U+FFA0>"],
+    ["\u034f", "<U+034F>"],
+    ["\u17b4", "<U+17B4>"],
+    ["\u180b", "<U+180B>"],
+    ["\ufe0f", "<U+FE0F>"],
+    ["\ufff0", "<U+FFF0>"],
+    ["\u{1bca0}", "<U+1BCA0>"],
+    ["\u{1d173}", "<U+1D173>"],
+    ["\u{e0100}", "<U+E0100>"],
+    ["\ud800", "<U+D800>"],
+  ])("marks %j as %s", (character, mark) => {
+    expect(visible(`a${character}b`)).toBe(`a${mark}b`)
+  })
+
+  test("keeps ordinary spaces, visible text, emoji and combining marks", () => {
+    for (const text of ["a b", "\u00a0", "\u3000", "日本語", "😀", "e\u0301"]) expect(visible(text)).toBe(text)
+  })
+
+  test("pads the hex to four digits and no further", () => {
+    expect(visible("\u0001")).toBe("<U+0001>")
+    expect(visible("\u{e0001}")).toBe("<U+E0001>")
+    expect(visible("\u{e0041}x")).toBe("<U+E0041>x")
+  })
+
+  test("marks a lone surrogate once and keeps a pair", () => {
+    expect(visible("\ud800\ud800")).toBe("<U+D800><U+D800>")
+    expect(visible("\udc00😀")).toBe("<U+DC00>😀")
+  })
+
+  test("keeps \\n, turns \\r\\n into \\n and marks a lone \\r with keepNewlines", () => {
+    expect(visible("a\nb\r\nc\rd\t", { keepNewlines: true })).toBe("a\nb\nc<U+000D>d<U+0009>")
+    expect(visible("a\r\nb")).toBe("a<U+000D><U+000A>b")
+  })
+
+  test("is stable", () => {
+    const text = "a\u202e\r\nb\ud800\u200d\u{e0041}\n"
+    for (const options of [{}, { keepNewlines: true }]) {
+      expect(visible(visible(text, options), options)).toBe(visible(text, options))
+    }
+  })
+})
+
+describe("permissionDescription", () => {
+  test("is undefined for a tool without a describer", async () => {
+    expect(await permissionDescription(specWith(), {}, CTX)).toBeUndefined()
+  })
+
+  test("gives the description with its characters marked, as a fresh object", async () => {
+    const given: CallDescription = {
+      facts: [{ label: "Na\u202eme", value: "a\u200bb" }],
+      text: "line\r\nnext\rend",
+    }
+    const result = await permissionDescription(answering(given), {}, CTX)
+    expect(result).toEqual({
+      facts: [{ label: "Na<U+202E>me", value: "a<U+200B>b" }],
+      text: "line\nnext<U+000D>end",
+    })
+    expect(result).not.toBe(given)
+  })
+
+  test("has no text key when the description has none", async () => {
+    const result = await permissionDescription(answering({ facts: [{ label: "A", value: "b" }] }), {}, CTX)
+    expect(result).toEqual({ facts: [{ label: "A", value: "b" }] })
+    expect(result && "text" in result).toBe(false)
+  })
+
+  test("gives the describer a signal and the rest of the context", async () => {
+    let seen: ToolContext | undefined
+    const spec = specWith((_args, ctx) => {
+      seen = ctx
+      return { facts: [{ label: "A", value: "b" }] }
+    })
+    await permissionDescription(spec, {}, CTX)
+    expect(seen?.cwd).toBe("/work")
+    expect(seen?.ownDir).toBe("/own")
+    expect(seen?.signal).toBeInstanceOf(AbortSignal)
+    expect(seen?.signal?.aborted).toBe(false)
+  })
+
+  test("is undefined when the describer never settles", async () => {
+    const spec = specWith(() => new Promise<CallDescription>(() => {}))
+    expect(await permissionDescription(spec, {}, CTX, 20)).toBeUndefined()
+  })
+
+  test("is undefined when the describer rejects with the abort on our timeout", async () => {
+    let seen: AbortSignal | undefined
+    const spec = specWith(
+      (_args, ctx) =>
+        new Promise<CallDescription>((_resolve, reject) => {
+          seen = ctx.signal
+          ctx.signal?.addEventListener("abort", () => reject(ctx.signal?.reason))
+        }),
+    )
+    expect(await permissionDescription(spec, {}, CTX, 20)).toBeUndefined()
+    expect(seen?.aborted).toBe(true)
+  })
+
+  test("rethrows the cancellation when the caller aborts while describing", async () => {
+    const controller = new AbortController()
+    const reason = new Error("stop")
+    const spec = specWith(() => new Promise<CallDescription>(() => {}))
+    const pending = permissionDescription(spec, {}, { ...CTX, signal: controller.signal })
+    controller.abort(reason)
+    await expect(pending).rejects.toBe(reason)
+  })
+
+  test("passes the caller's abort on to the describer's signal", async () => {
+    const controller = new AbortController()
+    let seen: AbortSignal | undefined
+    const spec = specWith((_args, ctx) => {
+      seen = ctx.signal
+      return new Promise<CallDescription>(() => {})
+    })
+    const pending = permissionDescription(spec, {}, { ...CTX, signal: controller.signal })
+    controller.abort()
+    await expect(pending).rejects.toBeDefined()
+    expect(seen?.aborted).toBe(true)
+  })
+
+  test("rethrows when the caller's signal is already aborted", async () => {
+    const controller = new AbortController()
+    controller.abort()
+    await expect(
+      permissionDescription(
+        answering({ facts: [{ label: "A", value: "b" }] }),
+        {},
+        { ...CTX, signal: controller.signal },
+      ),
+    ).rejects.toBe(controller.signal.reason)
+  })
+
+  test("stops listening to the caller's signal once done", async () => {
+    const controller = new AbortController()
+    const added: unknown[] = []
+    const removed: unknown[] = []
+    const add = controller.signal.addEventListener.bind(controller.signal)
+    const remove = controller.signal.removeEventListener.bind(controller.signal)
+    controller.signal.addEventListener = ((type: string, listener: EventListener, options?: unknown) => {
+      added.push(listener)
+      add(type, listener, options as AddEventListenerOptions)
+    }) as typeof add
+    controller.signal.removeEventListener = ((type: string, listener: EventListener) => {
+      removed.push(listener)
+      remove(type, listener)
+    }) as typeof remove
+    const spec = answering({ facts: [{ label: "A", value: "b" }] })
+    await permissionDescription(spec, {}, { ...CTX, signal: controller.signal })
+    expect(added).toHaveLength(1)
+    expect(removed).toEqual(added)
+  })
+})
+
+describe("approvalPrompt", () => {
+  test("is the header alone without a description", () => {
+    expect(approvalPrompt("Send to 1, 2", undefined)).toBe("Send to 1, 2")
+  })
+
+  test("adds one line per fact", () => {
+    const description = {
+      facts: [
+        { label: "Kind", value: "group" },
+        { label: "Size", value: "3" },
+      ],
+    }
+    expect(approvalPrompt("H", description)).toBe("H\nKind: group\nSize: 3")
+  })
+
+  test("adds the text after a blank line", () => {
+    const description = { facts: [{ label: "Kind", value: "group" }], text: "hello\nworld" }
+    expect(approvalPrompt("H", description)).toBe("H\nKind: group\n\nhello\nworld")
+  })
+
+  test("adds a text without facts after a blank line", () => {
+    expect(approvalPrompt("H", { facts: [], text: "hello" })).toBe("H\n\nhello")
+  })
+})
