@@ -31,6 +31,17 @@ function cut(text: string, limit: number): string {
   return points.length > limit ? `${points.slice(0, limit - 1).join("")}…` : text
 }
 
+/** The placeholder names of a template whose every brace belongs to a `{name}` placeholder, else `undefined`. */
+export function templatePlaceholders(text: string): Set<string> | undefined {
+  const names = new Set<string>()
+  const parts = text.split(HEADLINE_PLACEHOLDER)
+  for (const [index, part] of parts.entries()) {
+    if (index % 2 === 1) names.add(part)
+    else if (/[{}]/.test(part)) return undefined
+  }
+  return names
+}
+
 /** Whether a value is a plain object: not an array, a date or a class instance. */
 function isRecord(value: unknown): value is Record<string, unknown> {
   if (typeof value !== "object" || value === null) return false
@@ -74,10 +85,8 @@ function headlineOf(headline: unknown): CallHeadline | undefined {
   if (entries.length > MAX_HEADLINE_VALUES) return undefined
   if (!entries.every((entry): entry is [string, string] => typeof entry[1] === "string")) return undefined
   const given = new Set(entries.map(([name]) => name))
-  const wellFormed = text
-    .split(HEADLINE_PLACEHOLDER)
-    .every((part, index) => (index % 2 === 0 ? !/[{}]/.test(part) : given.has(part)))
-  if (!wellFormed) return undefined
+  const placeholders = templatePlaceholders(text)
+  if (!placeholders || ![...placeholders].every((name) => given.has(name))) return undefined
 
   const cutValues = entries.map(([name, value]) => [name, cut(value, MAX_HEADLINE_VALUE_LENGTH)] as const)
   return values === undefined ? { text } : { text, values: Object.fromEntries(cutValues) }
