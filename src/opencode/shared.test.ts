@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test"
 import { z } from "zod"
 import { ToolError, defineTool, type ToolContext } from "../core"
+import { promptTranslator } from "../entry/words"
 import { permissionMetadata, runTool } from "./shared"
 
 const CTX: ToolContext = { cwd: "/work", signal: new AbortController().signal }
@@ -30,6 +31,20 @@ describe("permissionMetadata", () => {
       message:
         'Label the area "north"\n\n--- Details ---\n\nTarget: north\nArea: north\n\n--- Body ---\n\nBody<U+202E>',
     })
+  })
+
+  test("draws the title, the plugin's words and the description's labels through the translator", () => {
+    const t = promptTranslator({ ja: { Title: "題名" } }, "ja")
+    expect(permissionMetadata(spec, args, ["north"], { facts: [{ label: "エリア", value: "north" }] }, t)).toEqual({
+      arguments: args,
+      class: "add",
+      message: "題名\n\n--- 詳細 ---\n\n対象: north\nエリア: north",
+    })
+  })
+
+  test("keeps the English title when the translator has no word for it", () => {
+    const t = promptTranslator({ ja: {} }, "ja")
+    expect(permissionMetadata(spec, args, ["north"], undefined, t).message).toBe("Title\n\n--- 詳細 ---\n\n対象: north")
   })
 })
 

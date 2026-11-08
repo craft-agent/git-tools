@@ -1,5 +1,5 @@
-import type { ToolSpec } from "../core"
-import { permissionDescription } from "../entry/description"
+import type { ToolSpec, Translator } from "../core"
+import { DESCRIBE_TIMEOUT_MS, permissionDescription } from "../entry/description"
 import { permissionResources } from "../entry/permission"
 import { loadSkills } from "./skills"
 import {
@@ -21,7 +21,7 @@ async function sessionDirectory(ctx: V2Context, sessionID: string): Promise<stri
   }
 }
 
-function v2Tool(ctx: V2Context, spec: ToolSpec, ownDir: string | undefined): V2Tool {
+function v2Tool(ctx: V2Context, spec: ToolSpec, ownDir: string | undefined, t: Translator): V2Tool {
   return {
     name: spec.id,
     description: spec.description,
@@ -38,13 +38,13 @@ function v2Tool(ctx: V2Context, spec: ToolSpec, ownDir: string | undefined): V2T
         const toolContext = { cwd: directory, ownDir, signal }
         const [resources, description] = await Promise.all([
           permissionResources(spec, input, toolContext),
-          permissionDescription(spec, input, toolContext),
+          permissionDescription(spec, input, toolContext, DESCRIBE_TIMEOUT_MS, t),
         ])
         await ctx.permission.assert({
           action: spec.id,
           resources,
           save: persistableResources(resources),
-          metadata: permissionMetadata(spec, input, resources, description),
+          metadata: permissionMetadata(spec, input, resources, description, t),
           sessionID,
         })
       }
@@ -62,9 +62,8 @@ function v2Tool(ctx: V2Context, spec: ToolSpec, ownDir: string | undefined): V2T
  */
 export function createV2Setup(specs: ToolSpec[], deps: PluginDeps = {}): OpenCodePlugin["setup"] {
   return async function setup(ctx: V2Context): Promise<void> {
-    const tools = selectedTools(specs, ctx.options, deps.env, deps.profile).map((spec) =>
-      v2Tool(ctx, spec, deps.ownDir),
-    )
+    const selected = selectedTools(specs, ctx.options, deps)
+    const tools = selected.specs.map((spec) => v2Tool(ctx, spec, deps.ownDir, selected.translator))
     const skills = deps.skillsDir === undefined ? [] : await loadSkills(deps.skillsDir)
 
     if (tools.length > 0) {

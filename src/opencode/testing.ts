@@ -2,7 +2,7 @@ import { mkdtempSync, realpathSync, rmSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { z } from "zod"
-import { ToolError, defineTool, isWithin, type ToolSpec, type WriteClass } from "../core"
+import { ToolError, defineTool, isWithin, type ToolSpec, type Translations, type WriteClass } from "../core"
 import type { EntryProfile } from "../entry/profile"
 
 /** Fixtures the OpenCode plugin tests share. */
@@ -32,6 +32,24 @@ export const ADD_ID = "demo_thing_create"
 export const LABEL_ID = "demo_thing_label"
 export const ADMIN_ID = "demo_other_delete"
 export const FAILING_ID = "demo_thing_close"
+
+/** Japanese words for the add fixture's title and for the label fixture's headline, fact label and text label. */
+export const TRANSLATIONS: Translations = {
+  ja: {
+    [`Title of ${ADD_ID}`]: "追加ツール",
+    "Label the area {area}": "エリア {area} にラベルを付ける",
+    Area: "エリア",
+    Body: "本文",
+  },
+}
+
+/** The approval prompts of the add and label fixtures for `north`, in English and through `TRANSLATIONS`. */
+export const ENGLISH_ADD = `Title of ${ADD_ID}\n\n--- Details ---\n\nTarget: north`
+export const JAPANESE_ADD = "追加ツール\n\n--- 詳細 ---\n\n対象: north"
+export const ENGLISH_LABEL =
+  'Label the area "north"\n\n--- Details ---\n\nTarget: north\nArea: north\n\n--- Body ---\n\nBody<U+202E>'
+export const JAPANESE_LABEL =
+  'エリア "north" にラベルを付ける\n\n--- 詳細 ---\n\n対象: north\nエリア: north\n\n--- 本文 ---\n\nBody<U+202E>'
 
 /**
  * A write fixture writes to its `area` (the working directory without one) and
