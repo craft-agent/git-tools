@@ -1,9 +1,31 @@
 import { describe, expect, test } from "bun:test"
 import { z } from "zod"
 import { ToolError, defineTool, type ToolContext } from "../core"
-import { runTool } from "./shared"
+import { permissionMetadata, runTool } from "./shared"
 
 const CTX: ToolContext = { cwd: "/work", signal: new AbortController().signal }
+
+describe("permissionMetadata", () => {
+  const spec = { title: "Title", class: "add" } as const
+  const args = { area: "north" }
+
+  test("without a description the message is the one-line header", () => {
+    expect(permissionMetadata(spec, args, ["north"])).toEqual({
+      arguments: args,
+      class: "add",
+      message: "Title on north",
+    })
+  })
+
+  test("adds the already-marked facts and text below the header", () => {
+    expect(
+      permissionMetadata(spec, args, ["north"], {
+        facts: [{ label: "Area", value: "north" }],
+        text: "Body<U+202E>",
+      }),
+    ).toEqual({ arguments: args, class: "add", message: "Title on north\nArea: north\n\nBody<U+202E>" })
+  })
+})
 
 /** Runs a read tool that throws `error`, and resolves to what `runTool` threw. */
 async function failure(error: Error): Promise<unknown> {

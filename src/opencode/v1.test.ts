@@ -3,7 +3,7 @@ import { afterEach, describe, expect, test } from "bun:test"
 import { z } from "zod"
 import { defineTool } from "../core"
 import { ALL_TOOLS } from "../tools"
-import { ADD_ID, ADMIN_ID, FAILING_ID, PROFILE, READ_ID, fixtureSpecs, tempDir } from "./testing"
+import { ADD_ID, ADMIN_ID, FAILING_ID, LABEL_ID, PROFILE, READ_ID, fixtureSpecs, tempDir } from "./testing"
 import type { V1AskRequest, V1ToolContext } from "./types"
 import { createV1Server } from "./v1"
 
@@ -44,7 +44,7 @@ async function setUp(fake: Fake = {}) {
 describe("V1 server", () => {
   test("registers the default toolsets with the spec's description and argument shape", async () => {
     const { tool } = await setUp()
-    expect(Object.keys(tool)).toEqual([READ_ID, ADD_ID, FAILING_ID])
+    expect(Object.keys(tool)).toEqual([READ_ID, ADD_ID, LABEL_ID, FAILING_ID])
     expect(tool[READ_ID]!.description).toBe(
       `Description of ${READ_ID}\n\nArguments:\n- area (string, optional): The area the call works in.\n- count (integer, optional): How many.`,
     )
@@ -55,7 +55,11 @@ describe("V1 server", () => {
   test("takes toolsets, read_only and tools from the options", async () => {
     expect(Object.keys((await setUp({ options: { toolsets: "all" } })).tool)).toContain(ADMIN_ID)
     expect(Object.keys((await setUp({ options: { read_only: true } })).tool)).toEqual([READ_ID])
-    expect(Object.keys((await setUp({ options: { exclude_tools: [ADD_ID] } })).tool)).toEqual([READ_ID, FAILING_ID])
+    expect(Object.keys((await setUp({ options: { exclude_tools: [ADD_ID] } })).tool)).toEqual([
+      READ_ID,
+      LABEL_ID,
+      FAILING_ID,
+    ])
     expect(Object.keys((await setUp({ env: { DEMO_TOOLSETS: "beta" } })).tool)).toEqual([ADMIN_ID])
   })
 
@@ -179,6 +183,24 @@ describe("V1 tool calls", () => {
         patterns: ["north"],
         always: ["north"],
         metadata: { arguments: { area: "north" }, class: "add", message: `Title of ${ADD_ID} on north` },
+      },
+    ])
+  })
+
+  test("a described write tool adds marked facts and text without changing its permission targets", async () => {
+    const { tool, asks, events, context } = await setUp()
+    await tool[LABEL_ID]!.execute({ area: "north" }, context)
+    expect(events).toEqual([`ask:${LABEL_ID}`, `execute:${LABEL_ID}`])
+    expect(asks).toEqual([
+      {
+        permission: LABEL_ID,
+        patterns: ["north"],
+        always: ["north"],
+        metadata: {
+          arguments: { area: "north" },
+          class: "add",
+          message: `Title of ${LABEL_ID} on north\nArea: north\n\nBody<U+202E>`,
+        },
       },
     ])
   })

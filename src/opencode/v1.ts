@@ -1,4 +1,5 @@
 import { inputJsonSchema, type ToolSpec } from "../core"
+import { permissionDescription } from "../entry/description"
 import { permissionResources } from "../entry/permission"
 import {
   needsPermission,
@@ -54,12 +55,15 @@ function v1Tool(spec: ToolSpec, ownDir: string | undefined): V1Tool {
     async execute(args: unknown, context: V1ToolContext): Promise<string> {
       const ctx = { cwd: workingDir(context), ownDir, signal: context.abort }
       if (needsPermission(spec)) {
-        const resources = await permissionResources(spec, args, ctx)
+        const [resources, description] = await Promise.all([
+          permissionResources(spec, args, ctx),
+          permissionDescription(spec, args, ctx),
+        ])
         await context.ask({
           permission: spec.id,
           patterns: resources,
           always: persistableResources(resources),
-          metadata: permissionMetadata(spec, args, resources),
+          metadata: permissionMetadata(spec, args, resources, description),
         })
       }
       const result = await runTool(spec, args, ctx)

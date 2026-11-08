@@ -29,6 +29,7 @@ const writeInput = toolInput.extend({ extra_area: z.string().optional() })
 
 export const READ_ID = "demo_thing_read"
 export const ADD_ID = "demo_thing_create"
+export const LABEL_ID = "demo_thing_label"
 export const ADMIN_ID = "demo_other_delete"
 export const FAILING_ID = "demo_thing_close"
 
@@ -61,13 +62,18 @@ function fixture(id: string, toolset: string, writeClass: WriteClass, events: st
 }
 
 /**
- * A read and an add tool of `alpha`, an administrative tool of `beta`, and an
+ * A read and two add tools of `alpha`, an administrative tool of `beta`, and an
  * `alpha` tool that fails with `not_found`; `events` logs each execution.
  */
 export function fixtureSpecs(events: string[]): ToolSpec[] {
   return [
     fixture(READ_ID, "alpha", "read", events),
     fixture(ADD_ID, "alpha", "add", events),
+    defineTool({
+      ...fixture(LABEL_ID, "alpha", "add", events),
+      input: writeInput,
+      describe: (args) => ({ facts: [{ label: "Area", value: args.area ?? "here" }], text: "Body\u202E" }),
+    }),
     fixture(ADMIN_ID, "beta", "administrative", events),
     defineTool({
       id: FAILING_ID,

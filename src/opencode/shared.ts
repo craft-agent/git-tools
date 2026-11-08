@@ -1,4 +1,5 @@
-import { invoke, isToolError, selectTools, type ToolContext, type ToolSpec } from "../core"
+import { invoke, isToolError, selectTools, type CallDescription, type ToolContext, type ToolSpec } from "../core"
+import { approvalPrompt } from "../entry/description"
 import { errorText } from "../entry/errors"
 import { ANY_RESOURCE } from "../entry/permission"
 import { PROJECT_PROFILE, type EntryProfile } from "../entry/profile"
@@ -17,7 +18,7 @@ export type PluginDeps = {
   ownDir?: string
 }
 
-/** The one plain line a person reads when the harness asks to run a tool; it names everything the call writes to. */
+/** The first line of the approval prompt; it names everything the call writes to. */
 export function permissionMessage(spec: Pick<ToolSpec, "title">, resources: string[]): string {
   return resources.length === 1 && resources[0] === ANY_RESOURCE
     ? spec.title
@@ -30,8 +31,17 @@ export function persistableResources(resources: string[]): string[] {
 }
 
 /** What the harness is told about a call it is asked to allow. */
-export function permissionMetadata(spec: Pick<ToolSpec, "title" | "class">, args: unknown, resources: string[]) {
-  return { arguments: args, class: spec.class, message: permissionMessage(spec, resources) }
+export function permissionMetadata(
+  spec: Pick<ToolSpec, "title" | "class">,
+  args: unknown,
+  resources: string[],
+  description?: CallDescription,
+) {
+  return {
+    arguments: args,
+    class: spec.class,
+    message: approvalPrompt(permissionMessage(spec, resources), description),
+  }
 }
 
 /** Whether a call must be allowed by the harness first: every tool but a read tool. */

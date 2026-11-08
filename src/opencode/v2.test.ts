@@ -3,7 +3,7 @@ import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { z } from "zod"
-import { ADD_ID, ADMIN_ID, FAILING_ID, PROFILE, READ_ID, fixtureSpecs, tempDir } from "./testing"
+import { ADD_ID, ADMIN_ID, FAILING_ID, LABEL_ID, PROFILE, READ_ID, fixtureSpecs, tempDir } from "./testing"
 import type { V2Context, V2PermissionRequest, V2Skill, V2Tool } from "./types"
 import { createV2Setup } from "./v2"
 
@@ -65,7 +65,7 @@ const signal = new AbortController().signal
 describe("V2 setup", () => {
   test("registers the default toolsets with the spec's name, description and schemas", async () => {
     const { tools } = await setUp()
-    expect([...tools.keys()]).toEqual([READ_ID, ADD_ID, FAILING_ID])
+    expect([...tools.keys()]).toEqual([READ_ID, ADD_ID, LABEL_ID, FAILING_ID])
     const read = tools.get(READ_ID)!
     expect(read.description).toBe(`Description of ${READ_ID}`)
     expect(z.toJSONSchema(read.input, { io: "input" }).additionalProperties).toBe(false)
@@ -79,6 +79,7 @@ describe("V2 setup", () => {
     expect([...(await setUp({ options: { read_only: true, toolsets: "all" } })).tools.keys()]).toEqual([READ_ID])
     expect([...(await setUp({ options: { tools: [ADMIN_ID], exclude_tools: [ADD_ID] } })).tools.keys()]).toEqual([
       READ_ID,
+      LABEL_ID,
       ADMIN_ID,
       FAILING_ID,
     ])
@@ -89,6 +90,7 @@ describe("V2 setup", () => {
     expect([...(await setUp({ options: { read_only: false } }, { DEMO_READ_ONLY: "true" })).tools.keys()]).toEqual([
       READ_ID,
       ADD_ID,
+      LABEL_ID,
       FAILING_ID,
     ])
   })
@@ -145,6 +147,45 @@ describe("V2 tool calls", () => {
         sessionID: SESSION_ID,
       },
     ])
+  })
+
+  test("a described write tool adds marked facts and text without changing its permission targets", async () => {
+    const { tools, asserts, events } = await setUp()
+    await tools.get(LABEL_ID)!.execute({ area: "north" }, { sessionID: SESSION_ID, signal })
+    expect(events).toEqual([`assert:${LABEL_ID}`, `execute:${LABEL_ID}`])
+    expect(asserts).toEqual([
+      {
+        action: LABEL_ID,
+        resources: ["north"],
+        save: ["north"],
+        metadata: {
+          arguments: { area: "north" },
+          class: "add",
+          message: `Title of ${LABEL_ID} on north\nArea: north\n\nBody<U+202E>`,
+        },
+        sessionID: SESSION_ID,
+      },
+    ])
+  })
+
+  test("a describe that throws still asks with the one-line message", async () => {
+    const fake = fakeContext()
+    const specs = fixtureSpecs(fake.events)
+    specs.find((spec) => spec.id === LABEL_ID)!.describe = () => {
+      throw new Error("cannot describe")
+    }
+    await createV2Setup(specs, { env: {}, profile: PROFILE })(fake.ctx)
+    await fake.tools.get(LABEL_ID)!.execute({ area: "north" }, { sessionID: SESSION_ID, signal })
+    expect(fake.asserts).toEqual([
+      {
+        action: LABEL_ID,
+        resources: ["north"],
+        save: ["north"],
+        metadata: { arguments: { area: "north" }, class: "add", message: `Title of ${LABEL_ID} on north` },
+        sessionID: SESSION_ID,
+      },
+    ])
+    expect(fake.events).toEqual([`assert:${LABEL_ID}`, `execute:${LABEL_ID}`])
   })
 
   test("the resource keeps the target's case, and administrative tools ask too", async () => {
