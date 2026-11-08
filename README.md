@@ -138,7 +138,8 @@ Add the server to the host's MCP configuration. Flags go in `args`:
 
 Each toolset comes with a skill that tells an agent how to use its tools.
 There is one toolset per domain; `repo`, `commit` and `rebase` are on by
-default, `worktree` and `push` are opt-in. None has shipped yet.
+default, `worktree` and `push` are opt-in. `repo` is in place; the others are
+being built.
 
 | Toolset    | Covers                                                                   |
 | ---------- | ------------------------------------------------------------------------ |
@@ -147,6 +148,18 @@ default, `worktree` and `push` are opt-in. None has shipped yet.
 | `rebase`   | rebasing, stacked branches rebased together, and the rewrite rule        |
 | `worktree` | creating, listing and removing worktrees                                 |
 | `push`     | pushing one or more branches, against the remote commit each one expects |
+
+### `repo`
+
+One read tool, which changes nothing and reaches no remote. The `git-repo`
+skill says when to use each method.
+
+| Tool            | Method        | Reads                                                                                                                                                      |
+| --------------- | ------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `git_repo_read` | `status`      | the branch and its upstream, how it stands against the remote default branch, files by state, an operation in progress, stashes, worktrees, the last fetch |
+|                 | `conflicts`   | what a merge, rebase, cherry-pick or revert left: its sides, and each conflicted file's marker regions or its lockfile command                             |
+|                 | `conventions` | recent commit subjects with their conventional types and scopes, and the commit config files and pull request template in the tree                         |
+|                 | `origin`      | the commit a change came from, by sha, blame or pickaxe, with its full message                                                                             |
 
 ## Adding a tool
 
