@@ -1,4 +1,4 @@
-"""The message of the approval card: the header and what the call carries, fitted to the surface it is shown on."""
+"""The message of the approval card: the headline, the targets and what the call carries, fitted to the surface it is shown on."""
 
 from __future__ import annotations
 
@@ -7,6 +7,15 @@ import unicodedata
 from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any
+
+#: The name of the card's section that lists the targets and the facts; the plugin's own word, in English.
+DETAILS_HEADING = "Details"
+
+#: The label of a target's line in the Details; the plugin's own word, in English.
+TARGET_LABEL = "Target"
+
+#: What a target is when the resource a call writes to cannot be told; the card names no target for it.
+ANY_RESOURCE = "*"
 
 #: The budget, in UTF-16 code units of the HTML-escaped text, of the Telegram card;
 #: Hermes escapes it and cuts it from the end.
@@ -206,34 +215,46 @@ def _fact_line(label: str, value: str) -> str:
     return f"{label}: {value}"
 
 
-def _fit_facts(surface: Surface, header: str, facts: list[tuple[str, str]]) -> list[str]:
-    """The header and as many of ``facts`` as fit the budget, in order, with a ``(+N more)`` line for the rest.
+def _section_heading(name: str) -> str:
+    return f"--- {name} ---"
 
-    ``facts`` are marked and not escaped; the lines are escaped, and the budget
-    is measured on them as joined. N counts the facts after the last one shown,
-    whole or cut. When the header alone is over the budget, or leaves no room
-    for the notice, only the header is shown.
+
+def _fit_facts(surface: Surface, first: str, targets: list[str], facts: list[tuple[str, str]]) -> list[str]:
+    """The head and as many of ``facts`` as fit the budget, in order, with a ``(+N more)`` line for the rest.
+
+    The head is the first line, then the Details section's frame and the
+    ``targets`` (never cut or dropped); with no target the frame comes only
+    with a fact or the notice. ``first`` and ``targets`` are escaped; ``facts``
+    are marked and not escaped. The lines are escaped, and the budget is
+    measured on them as joined. N counts the facts after the last one shown,
+    whole or cut. When the head alone is over the budget, or leaves no room
+    for the notice, no fact is shown.
     """
     budget = surface.budget
 
     def fits(lines: list[str]) -> bool:
         return budget is None or surface.measure("\n".join(lines)) <= budget
 
+    def compose(details: list[str]) -> list[str]:
+        if not targets and not details:
+            return [first]
+        return [first, "", _section_heading(DETAILS_HEADING), "", *targets, *details]
+
     def escaped_fact(label: str, value: str) -> str:
         return surface.escape(_fact_line(label, value))
 
-    head = [surface.escape(header)]
+    head = compose([])
     if not fits(head):
         return head
     shown: list[str] = []
     omitted = 0
     for index, (label, value) in enumerate(facts):
         line = escaped_fact(label, value)
-        if fits([*head, *shown, line]):
+        if fits(compose([*shown, line])):
             shown.append(line)
             continue
         rest = len(facts) - index - 1
-        cut = _cut_value(value, lambda part: fits([*head, *shown, escaped_fact(label, part), *_more(rest)]))
+        cut = _cut_value(value, lambda part: fits(compose([*shown, escaped_fact(label, part), *_more(rest)])))
         if cut is None:
             omitted = rest + 1
         else:
@@ -241,11 +262,11 @@ def _fit_facts(surface: Surface, header: str, facts: list[tuple[str, str]]) -> l
             omitted = rest
         break
     else:
-        return [*head, *shown]
-    while shown and not fits([*head, *shown, *_more(omitted)]):
+        return compose(shown)
+    while shown and not fits(compose([*shown, *_more(omitted)])):
         shown.pop()
         omitted += 1
-    lines = [*head, *shown, *_more(omitted)]
+    lines = compose([*shown, *_more(omitted)])
     return lines if fits(lines) else head
 
 
@@ -267,20 +288,48 @@ def _cut_value(value: str, fits: Callable[[str], bool]) -> str | None:
     return value[:low] + ELLIPSIS
 
 
-def build_message(header: str, description: Description | None, surface: str | None) -> str:
-    """The message of the card: the header alone without a description, else the header, one line per fact and the text.
+def _head_fits(surface: Surface, first: str, targets: list[str]) -> bool:
+    """Whether the first line and every Target line, with the Details frame, fit the surface's budget."""
+    if surface.budget is None:
+        return True
+    lines = [first, "", _section_heading(DETAILS_HEADING), "", *targets] if targets else [first]
+    return surface.measure("\n".join(lines)) <= surface.budget
 
-    Every piece is made ``visible`` and escaped for the surface named
-    ``surface``. The header and the fact lines stay within the surface's
-    budget: facts that do not fit are cut or dropped and counted in a final
-    ``(+N more)`` line. The text follows after a blank line in full and is not
-    counted; the surface cuts it from its end.
+
+def build_message(title: str, resources: list[str], description: Description | None, surface: str | None) -> str:
+    """The message of the card, in the shape of ``approvalPrompt`` in ``src/entry/description.ts``.
+
+    The headline (the ``title`` without one); a Details section with a
+    ``Target`` line per resource, unless the only resource is ``*`` (what cannot
+    be told), then one line per fact; and the text under its own label. A
+    section with nothing to show is left out.
+
+    Every piece that is not the plugin's own words is made ``visible`` and
+    escaped for the surface named ``surface``; the section frames, ``Details``
+    and ``Target:`` are not. The first line, the Details frame, the targets and
+    the fact lines stay within the surface's budget: the targets are never cut
+    or dropped, facts that do not fit are cut or dropped and counted in a
+    ``(+N more)`` line. The text section is not counted; the surface cuts it
+    from its end.
     """
-    if description is None:
-        return header
     target = surface_for(surface)
-    facts = [(visible(label), visible(value)) for label, value in description.facts]
-    lines = _fit_facts(target, visible(header), facts)
-    if description.text is not None:
-        lines += ["", target.escape(visible(description.text[1], keep_newlines=True))]
+    named = [] if resources == [ANY_RESOURCE] else resources
+    targets = [f"{TARGET_LABEL}: {target.escape(visible(resource))}" for resource in named]
+    first = target.escape(visible(title))
+    if description and description.headline:
+        headline = target.escape(visible(description.headline))
+        # A headline that would push a target past the cut gives way to the title: the targets are what an
+        # "always" answer stores, so they must stay in sight.
+        if _head_fits(target, headline, targets) or not _head_fits(target, first, targets):
+            first = headline
+    facts = [(visible(label), visible(value)) for label, value in description.facts] if description else []
+    lines = _fit_facts(target, first, targets, facts)
+    if description and description.text is not None:
+        label, body = description.text
+        lines += [
+            "",
+            _section_heading(target.escape(visible(label))),
+            "",
+            target.escape(visible(body, keep_newlines=True)),
+        ]
     return "\n".join(lines)

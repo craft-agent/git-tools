@@ -9,13 +9,16 @@ from support import IMPL, ROOT_NAME
 
 card = importlib.import_module(f"{ROOT_NAME}.{IMPL}.card")
 
-HEADER = "Create a thing (demo_thing_create)"
+TITLE = "Create a thing"
 BUDGETED = ("telegram", "slack", "discord", "whatsapp", None)
 ALL_SURFACES = ("cli", "tui", *BUDGETED)
+DETAILS = "\n\n--- Details ---\n\n"
 
 
-def described(*facts: tuple[str, str], headline: str | None = None, text: str | None = None) -> object:
-    return card.Description(headline=headline, facts=tuple(facts), text=None if text is None else ("Text", text))
+def described(
+    *facts: tuple[str, str], headline: str | None = None, text: tuple[str, str] | None = None
+) -> object:
+    return card.Description(headline=headline, facts=tuple(facts), text=text)
 
 
 class VisibleTest(unittest.TestCase):
@@ -101,7 +104,7 @@ class ParseDescriptionTest(unittest.TestCase):
         self.assertEqual(card.parse_description({"facts": [fact]}), described(("a", "b")))
         self.assertEqual(card.parse_description({"headline": "h", "facts": []}), described(headline="h"))
         self.assertEqual(
-            card.parse_description({"facts": [], "text": {"label": "Text", "body": "t"}}), described(text="t")
+            card.parse_description({"facts": [], "text": {"label": "L", "body": "t"}}), described(text=("L", "t"))
         )
 
     def test_an_empty_body_drops_the_text(self) -> None:
@@ -121,8 +124,8 @@ class ParseDescriptionTest(unittest.TestCase):
     def test_ignores_extra_keys(self) -> None:
         parsed = card.parse_description({"facts": [{"label": "a", "value": "b", "x": 1}], "y": 2})
         self.assertEqual(parsed, described(("a", "b")))
-        parsed = card.parse_description({"facts": [], "text": {"label": "Text", "body": "t", "x": 1}})
-        self.assertEqual(parsed, described(text="t"))
+        parsed = card.parse_description({"facts": [], "text": {"label": "L", "body": "t", "x": 1}})
+        self.assertEqual(parsed, described(text=("L", "t")))
 
     def test_anything_else_is_none(self) -> None:
         bad = [
@@ -211,165 +214,289 @@ class SurfaceTest(unittest.TestCase):
 
 
 class BuildMessageTest(unittest.TestCase):
-    def fact_part(self, message: str) -> str:
-        return message.split("\n\n", 1)[0]
+    def head_of(self, message: str) -> str:
+        """The message without its text section."""
+        return message.split("\n\n--- Note ---", 1)[0]
 
-    def test_without_a_description_it_is_the_header_unchanged_for_every_surface(self) -> None:
-        header = "Create <b>[x](y)</b> & @everyone (demo_thing_create)"
+    def test_cli_and_tui_draw_the_one_shape_of_the_conventions(self) -> None:
+        description = described(
+            ("Size", "42 bytes"), headline='Create the note "todo"', text=("Note text", "# Todo")
+        )
+        expected = "\n".join(
+            [
+                'Create the note "todo"',
+                "",
+                "--- Details ---",
+                "",
+                "Target: /work/tree/notes/todo.md",
+                "Size: 42 bytes",
+                "",
+                "--- Note text ---",
+                "",
+                "# Todo",
+            ]
+        )
+        for surface in ("cli", "tui"):
+            with self.subTest(surface=surface):
+                message = card.build_message("Create a note", ["/work/tree/notes/todo.md"], description, surface)
+                self.assertEqual(message, expected)
+
+    def test_without_a_description_it_is_the_title_and_a_target_line_per_resource(self) -> None:
         for surface in (*ALL_SURFACES, "CLI", 5):
             with self.subTest(surface=surface):
-                self.assertEqual(card.build_message(header, None, surface), header)
+                message = card.build_message(TITLE, ["a", "b"], None, surface)
+                self.assertEqual(message, f"{TITLE}{DETAILS}Target: a\nTarget: b")
+
+    def test_resources_that_cannot_be_told_leave_the_title_alone(self) -> None:
+        for description in (None, described()):
+            with self.subTest(description=description):
+                self.assertEqual(card.build_message("Update a <widget>", ["*"], description, "cli"), "Update a <widget>")
+                self.assertEqual(
+                    card.build_message("Update a <widget>", ["*"], description, "slack"), "Update a &lt;widget&gt;"
+                )
+
+    def test_a_star_beside_named_resources_is_shown(self) -> None:
+        self.assertEqual(card.build_message(TITLE, ["a", "*"], None, "cli"), f"{TITLE}{DETAILS}Target: a\nTarget: *")
+        self.assertEqual(card.build_message(TITLE, ["*", "*"], None, "cli"), f"{TITLE}{DETAILS}Target: *\nTarget: *")
+
+    def test_facts_with_resources_that_cannot_be_told_are_the_whole_details(self) -> None:
+        message = card.build_message(TITLE, ["*"], described(("a", "b"), ("c", "d")), "cli")
+        self.assertEqual(message, f"{TITLE}{DETAILS}a: b\nc: d")
+
+    def test_targets_come_before_the_facts(self) -> None:
+        message = card.build_message(TITLE, ["x", "y"], described(("a", "b")), "cli")
+        self.assertEqual(message, f"{TITLE}{DETAILS}Target: x\nTarget: y\na: b")
+
+    def test_a_text_alone_follows_the_title_under_its_own_label(self) -> None:
+        message = card.build_message(TITLE, ["*"], described(text=("Note text", "hello\nworld")), "cli")
+        self.assertEqual(message, f"{TITLE}\n\n--- Note text ---\n\nhello\nworld")
+
+    def test_the_headline_stands_in_the_place_of_the_title(self) -> None:
+        message = card.build_message(TITLE, ["a"], described(headline='Create the thing "x"'), "cli")
+        self.assertEqual(message, f'Create the thing "x"{DETAILS}Target: a')
+
+    def test_a_headline_that_would_push_a_target_past_the_cut_gives_way_to_the_title(self) -> None:
+        headline = "H" * 490
+        for surface in BUDGETED:
+            with self.subTest(surface=surface):
+                message = card.build_message("Title", ["target/one"], described(headline=headline), surface)
+                self.assertEqual(message, f"Title{DETAILS}Target: target/one")
+        self.assertTrue(card.build_message("Title", ["target/one"], described(headline=headline), "cli").startswith("H"))
+
+    def test_a_long_headline_stays_when_the_title_would_not_fit_either(self) -> None:
+        resources = [f"target/{n}" for n in range(40)]
+        message = card.build_message("Title", resources, described(headline="Headline"), None)
+        self.assertTrue(message.startswith("Headline\n"))
 
     def test_cli_and_tui_show_everything_in_full(self) -> None:
         facts = [(f"Label {n}", "v" * 200) for n in range(20)]
-        text = "t" * 5000
+        resources = [f"target/{n}" for n in range(30)]
+        body = "t" * 5000
         for surface in ("cli", "tui"):
             with self.subTest(surface=surface):
-                expected = "\n".join([HEADER, *(f"{label}: {value}" for label, value in facts), "", text])
-                self.assertEqual(card.build_message(HEADER, described(*facts, text=text), surface), expected)
+                expected = "\n".join(
+                    [
+                        TITLE,
+                        "",
+                        "--- Details ---",
+                        "",
+                        *(f"Target: {resource}" for resource in resources),
+                        *(f"{label}: {value}" for label, value in facts),
+                        "",
+                        "--- Note ---",
+                        "",
+                        body,
+                    ]
+                )
+                description = described(*facts, text=("Note", body))
+                self.assertEqual(card.build_message(TITLE, resources, description, surface), expected)
 
-    def test_layout_is_header_then_facts_then_a_blank_line_and_the_text(self) -> None:
+    def test_marks_title_resources_labels_values_and_body(self) -> None:
         message = card.build_message(
-            HEADER, described(("Kind", "group"), ("Size", "3 KB"), text="hello\nworld"), "cli"
-        )
-        self.assertEqual(message, f"{HEADER}\nKind: group\nSize: 3 KB\n\nhello\nworld")
-
-    def test_a_description_of_a_text_only_and_of_facts_only(self) -> None:
-        self.assertEqual(card.build_message("H", described(text="t"), "cli"), "H\n\nt")
-        self.assertEqual(card.build_message("H", described(("a", "b")), "cli"), "H\na: b")
-
-    def test_marks_header_labels_values_and_text(self) -> None:
-        message = card.build_message(
-            "a\u202eb", described(("la\tbel", "x\ny\r\nz"), text="p\r\nq\rr\u200bs"), "cli"
-        )
-        self.assertEqual(message, "a<U+202E>b\nla<U+0009>bel: x<U+000A>y<U+000D><U+000A>z\n\np\nq<U+000D>r<U+200B>s")
-
-    def test_slack_escapes_mentions_links_and_ampersands(self) -> None:
-        message = card.build_message(
-            "H & <J>", described(("Chat <!channel>", "<@U1> & <http://x|y>"), text="<!here>"), "slack"
+            "a\u202eb",
+            ["r\u200bs"],
+            described(("la\tbel", "x\ny\r\nz"), text=("no\u2066te", "p\r\nq\rr\u200bs")),
+            "cli",
         )
         self.assertEqual(
             message,
-            "H &amp; &lt;J&gt;\nChat &lt;!channel&gt;: &lt;@U1&gt; &amp; &lt;http://x|y&gt;\n\n&lt;!here&gt;",
+            "a<U+202E>b"
+            f"{DETAILS}Target: r<U+200B>s\nla<U+0009>bel: x<U+000A>y<U+000D><U+000A>z"
+            "\n\n--- no<U+2066>te ---\n\np\nq<U+000D>r<U+200B>s",
         )
 
-    def test_discord_escapes_links_mentions_and_emphasis(self) -> None:
+    def test_marks_the_title_of_a_card_without_a_description_and_the_headline_of_one_with(self) -> None:
+        self.assertEqual(card.build_message("a\u202eb", ["*"], None, "cli"), "a<U+202E>b")
+        self.assertEqual(card.build_message("t", ["*"], described(headline="a\u202eb"), "cli"), "a<U+202E>b")
+
+    def test_slack_escapes_mentions_links_and_ampersands_everywhere_but_the_frames(self) -> None:
         message = card.build_message(
-            "A_B", described(("Link", "[x](http://e)"), ("Who", "@everyone a_b"), text="# t *b*"), "discord"
+            "H & <J>",
+            ["<@U1>"],
+            described(("Chat <!channel>", "<@U1> & <http://x|y>"), text=("<L>", "<!here>")),
+            "slack",
         )
         self.assertEqual(
             message,
-            "A\\_B\nLink: \\[x\\]\\(http://e\\)\nWho: \\@everyone a\\_b\n\n\\# t \\*b\\*",
+            "H &amp; &lt;J&gt;"
+            f"{DETAILS}Target: &lt;@U1&gt;\nChat &lt;!channel&gt;: &lt;@U1&gt; &amp; &lt;http://x|y&gt;"
+            "\n\n--- &lt;L&gt; ---\n\n&lt;!here&gt;",
         )
+
+    def test_discord_escapes_everything_but_the_plugins_own_words(self) -> None:
+        message = card.build_message(
+            "A_B",
+            ["x_y", "@everyone"],
+            described(("Link", "[x](http://e)"), ("Who", "@everyone a_b"), text=("Note-1", "# t *b*")),
+            "discord",
+        )
+        self.assertEqual(
+            message,
+            "A\\_B"
+            f"{DETAILS}Target: x\\_y\nTarget: \\@everyone\nLink: \\[x\\]\\(http://e\\)\nWho: \\@everyone a\\_b"
+            "\n\n--- Note\\-1 ---\n\n\\# t \\*b\\*",
+        )
+        self.assertEqual(card.build_message("A_B", ["x_y"], None, "discord"), f"A\\_B{DETAILS}Target: x\\_y")
 
     def test_an_unknown_or_missing_surface_gets_the_strictest_rules_and_budget(self) -> None:
         facts = [(f"Label {n}", "[v]" * 30) for n in range(20)]
-        expected = card.build_message(HEADER, described(*facts), "discord")
+        expected = card.build_message(TITLE, ["a_b"], described(*facts), "discord")
         for surface in (None, "desktop", "acp", 5):
             with self.subTest(surface=surface):
-                message = card.build_message(HEADER, described(*facts), surface)
+                message = card.build_message(TITLE, ["a_b"], described(*facts), surface)
                 self.assertEqual(message, expected)
                 self.assertLessEqual(len(message), 300)
                 self.assertIn("\\[v\\]", message)
+                self.assertIn("Target: a\\_b", message)
 
     def test_telegram_is_not_escaped(self) -> None:
-        message = card.build_message("H", described(("a", "<b>&[x](y)@all")), "telegram")
-        self.assertEqual(message, "H\na: <b>&[x](y)@all")
+        message = card.build_message("H", ["<b>&"], described(("a", "<b>&[x](y)@all")), "telegram")
+        self.assertEqual(message, f"H{DETAILS}Target: <b>&\na: <b>&[x](y)@all")
 
-    def test_the_budget_holds_for_many_facts_and_facts_keep_their_order(self) -> None:
+    def test_the_budget_holds_for_many_targets_and_facts_and_both_keep_their_order(self) -> None:
+        resources = [f"target/{n}" for n in range(3)]
         facts = [(f"Label {n}", "v" * 30) for n in range(40)]
         for surface in BUDGETED:
             with self.subTest(surface=surface):
                 target = card.surface_for(surface)
-                message = card.build_message(HEADER, described(*facts), surface)
+                message = card.build_message(TITLE, resources, described(*facts), surface)
                 self.assertLessEqual(target.measure(message), target.budget)
                 lines = message.split("\n")
-                shown = lines[1:-1]
+                self.assertEqual(lines[:7], [TITLE, "", "--- Details ---", "", *(f"Target: {r}" for r in resources)])
+                shown = lines[7:-1]
                 self.assertEqual(shown, [f"{label}: {value}" for label, value in facts[: len(shown)]])
                 self.assertEqual(lines[-1], f"(+{len(facts) - len(shown)} more)")
+
+    def test_targets_are_never_cut_or_dropped_and_leave_no_room_for_facts(self) -> None:
+        resources = [f"target/{n:02d}" for n in range(50)]
+        head = "\n".join([TITLE, "", "--- Details ---", "", *(f"Target: {r}" for r in resources)])
+        for surface in BUDGETED:
+            with self.subTest(surface=surface):
+                message = card.build_message(TITLE, resources, described(("A", "a"), ("B", "b")), surface)
+                self.assertEqual(message, head)
 
     def test_facts_that_all_fit_have_no_more_line(self) -> None:
         facts = [("a", "b"), ("c", "d")]
         for surface in BUDGETED:
             with self.subTest(surface=surface):
-                self.assertEqual(card.build_message("H", described(*facts), surface), "H\na: b\nc: d")
+                message = card.build_message("H", ["t"], described(*facts), surface)
+                self.assertEqual(message, f"H{DETAILS}Target: t\na: b\nc: d")
 
     def test_a_long_value_is_cut_with_an_ellipsis_and_followed_by_the_count_of_the_rest(self) -> None:
-        message = card.build_message("H", described(("A", "a"), ("B", "b" * 1000), ("C", "c")), "slack")
-        self.assertEqual(message, "H\nA: a\nB: " + "b" * 479 + "…\n(+1 more)")
+        # The first line and the frame take 20 characters, "A: a\n" 5, "B: " 3, "…" 1 and "\n(+1 more)" 10.
+        message = card.build_message("H", ["*"], described(("A", "a"), ("B", "b" * 1000), ("C", "c")), "slack")
+        self.assertEqual(message, f"H{DETAILS}A: a\nB: " + "b" * 461 + "…\n(+1 more)")
         self.assertEqual(len(message), 500)
 
     def test_a_cut_last_fact_has_no_more_line(self) -> None:
-        message = card.build_message("H", described(("A", "a"), ("B", "b" * 1000)), "slack")
-        self.assertEqual(message, "H\nA: a\nB: " + "b" * 489 + "…")
+        message = card.build_message("H", ["*"], described(("A", "a"), ("B", "b" * 1000)), "slack")
+        self.assertEqual(message, f"H{DETAILS}A: a\nB: " + "b" * 471 + "…")
         self.assertEqual(len(message), 500)
 
     def test_a_fact_that_keeps_fewer_than_eight_code_points_is_dropped(self) -> None:
-        # "H\nA: " and 285 characters leave room for 5 characters of the next value.
-        message = card.build_message("H", described(("A", "a" * 285), ("B", "b" * 100), ("C", "c")), "discord")
-        self.assertEqual(message, "H\nA: " + "a" * 285 + "\n(+2 more)")
-        self.assertEqual(len(message), 300)
+        # 20 characters, "A: " and 255 characters leave room for 7 characters of the next value.
+        message = card.build_message("H", ["*"], described(("A", "a" * 255), ("B", "b" * 100), ("C", "c")), "discord")
+        self.assertEqual(message, f"H{DETAILS}A: " + "a" * 255 + "\n(+2 more)")
 
     def test_a_fact_that_keeps_exactly_eight_code_points_is_cut(self) -> None:
-        # "H\nA: ", 282 characters and "\nB: " leave room for 8 characters and the ellipsis.
-        message = card.build_message("H", described(("A", "a" * 282), ("B", "b" * 100)), "discord")
-        self.assertEqual(message, "H\nA: " + "a" * 282 + "\nB: " + "b" * 8 + "…")
+        # 20 characters, "A: ", 254 characters, "\nB: " and "\n(+1 more)" leave room for 8 characters and the ellipsis.
+        message = card.build_message("H", ["*"], described(("A", "a" * 254), ("B", "b" * 100), ("C", "c")), "discord")
+        self.assertEqual(message, f"H{DETAILS}A: " + "a" * 254 + "\nB: " + "b" * 8 + "…\n(+1 more)")
         self.assertEqual(len(message), 300)
 
     def test_shown_facts_are_removed_from_the_end_until_the_more_line_fits(self) -> None:
-        message = card.build_message("H", described(("A", "a" * 292), ("B", "b" * 100)), "discord")
-        self.assertEqual(message, "H\n(+2 more)")
+        message = card.build_message("H", ["*"], described(("A", "a" * 275), ("B", "b" * 100)), "discord")
+        self.assertEqual(message, f"H{DETAILS}(+2 more)")
 
-    def test_a_header_over_the_budget_shows_no_fact(self) -> None:
-        header = "x" * 400
-        message = card.build_message(header, described(("A", "a"), ("B", "b"), text="t"), "discord")
-        self.assertEqual(message, f"{header}\n\nt")
-        self.assertEqual(card.build_message(header, described(text="t"), "discord"), f"{header}\n\nt")
+    def test_a_head_over_the_budget_shows_no_fact_and_no_notice(self) -> None:
+        title = "x" * 400
+        message = card.build_message(title, ["t"], described(("A", "a"), ("B", "b"), text=("Note", "t")), "discord")
+        self.assertEqual(message, f"{title}{DETAILS}Target: t\n\n--- Note ---\n\nt")
+        message = card.build_message(title, ["t"], described(("A", "a")), "discord")
+        self.assertEqual(message, f"{title}{DETAILS}Target: t")
 
-    def test_a_header_that_leaves_no_room_for_the_more_line_is_shown_alone(self) -> None:
-        header = "x" * 299
-        self.assertEqual(card.build_message(header, described(("A", "b")), "discord"), header)
+    def test_facts_that_all_drop_leave_the_frame_with_the_notice_when_it_fits(self) -> None:
+        title = "x" * 270
+        message = card.build_message(title, ["*"], described(("A", "a" * 100), ("B", "b")), "discord")
+        self.assertEqual(message, f"{title}{DETAILS}(+2 more)")
+        self.assertEqual(len(message), 298)
+
+    def test_facts_that_all_drop_leave_no_details_when_the_notice_does_not_fit_either(self) -> None:
+        title = "x" * 299
+        self.assertEqual(card.build_message(title, ["*"], described(("A", "b")), "discord"), title)
+        self.assertEqual(
+            card.build_message(title, ["*"], described(("A", "b"), text=("Note", "t")), "discord"),
+            f"{title}\n\n--- Note ---\n\nt",
+        )
+
+    def test_a_head_that_leaves_no_room_for_the_notice_shows_no_fact(self) -> None:
+        # The head is 20 characters and "Target: " 8, so the resource makes it 298: no room for a line or the notice.
+        resource = "r" * 270
+        message = card.build_message("H", [resource], described(("A", "b")), "discord")
+        self.assertEqual(message, f"H{DETAILS}Target: {resource}")
 
     def test_the_text_follows_in_full_and_is_not_counted_against_the_budget(self) -> None:
         facts = [(f"Label {n}", "v" * 30) for n in range(40)]
-        text = "line one\n" + "t" * 5000
+        body = "line one\n" + "t" * 5000
         for surface in BUDGETED:
             with self.subTest(surface=surface):
-                without = card.build_message(HEADER, described(*facts), surface)
-                message = card.build_message(HEADER, described(*facts, text=text), surface)
-                self.assertEqual(message, f"{without}\n\n{text}")
-                self.assertEqual(self.fact_part(message), without)
+                without = card.build_message(TITLE, ["a"], described(*facts), surface)
+                message = card.build_message(TITLE, ["a"], described(*facts, text=("Note", body)), surface)
+                self.assertEqual(message, f"{without}\n\n--- Note ---\n\n{body}")
+                self.assertEqual(self.head_of(message), without)
 
     def test_telegram_measures_after_the_html_escape(self) -> None:
-        message = card.build_message("H", described(("A", "&" * 600)), "telegram")
-        # "H\nA: " is 5 units, "…" one, and each "&" is the 5 units of "&amp;".
-        self.assertEqual(message, "H\nA: " + "&" * 98 + "…")
+        message = card.build_message("H", ["*"], described(("A", "&" * 600)), "telegram")
+        # 20 units for the first line and the frame, "A: " 3, "…" one, and each "&" is the 5 units of "&amp;".
+        self.assertEqual(message, f"H{DETAILS}A: " + "&" * 95 + "…")
         self.assertLessEqual(card.surface_for("telegram").measure(message), 500)
         self.assertGreater(card.surface_for("telegram").measure(message.replace("…", "&&…")), 500)
 
     def test_telegram_measures_in_utf16_units_and_never_splits_a_surrogate_pair(self) -> None:
-        message = card.build_message("H", described(("A", "😀" * 600)), "telegram")
-        self.assertEqual(message, "H\nA: " + "😀" * 247 + "…")
+        message = card.build_message("H", ["*"], described(("A", "😀" * 600)), "telegram")
+        self.assertEqual(message, f"H{DETAILS}A: " + "😀" * 238 + "…")
         self.assertLessEqual(card.surface_for("telegram").measure(message), 500)
         message.encode("utf-16-le")
 
     def test_a_missing_surface_fits_entities_within_the_strictest_telegram_units(self) -> None:
-        message = card.build_message("H", described(("A", "&" * 200)), None)
-        self.assertLessEqual(card.surface_for("telegram").measure(self.fact_part(message)), 300)
+        message = card.build_message("H", ["&"], described(("A", "&" * 200)), None)
+        self.assertLessEqual(card.surface_for("telegram").measure(message), 300)
         self.assertTrue(message.endswith("…"))
         self.assertNotIn("&amp;" * 200, message)
 
     def test_a_lone_surrogate_is_marked_before_it_is_measured(self) -> None:
-        message = card.build_message("H\ud800", described(("A\udc00", "\ud800" * 600), text="\ud83d"), "telegram")
+        description = described(("A\udc00", "\ud800" * 600), text=("Note", "\ud83d"))
+        message = card.build_message("H\ud800", ["r\ud800"], description, "telegram")
         message.encode("utf-16-le")
         self.assertIn("<U+D800>", message)
-        self.assertLessEqual(card.surface_for("telegram").measure(self.fact_part(message)), 500)
+        self.assertIn("<U+D83D>", message)
+        self.assertLessEqual(card.surface_for("telegram").measure(self.head_of(message)), 500)
 
     def test_escapes_are_measured_and_never_split_by_a_cut(self) -> None:
         for surface, escaped in (("slack", "&lt;"), ("discord", "&lt;")):
             with self.subTest(surface=surface):
                 target = card.surface_for(surface)
-                message = card.build_message("H", described(("A", "<" * 1000)), surface)
+                message = card.build_message("H", ["*"], described(("A", "<" * 1000)), surface)
                 self.assertLessEqual(target.measure(message), target.budget)
                 value = message.split(": ", 1)[1]
                 self.assertTrue(value.endswith("…"))
@@ -381,7 +508,7 @@ class BuildMessageTest(unittest.TestCase):
             with self.subTest(surface=surface):
                 target = card.surface_for(surface)
                 value = "ab&<[" * 200
-                message = card.build_message("H", described(("A", value)), surface)
+                message = card.build_message("H", ["*"], described(("A", value)), surface)
                 self.assertEqual(message, self.longest_cut(target, value))
 
     def longest_cut(self, target: object, value: str) -> str:
@@ -389,7 +516,7 @@ class BuildMessageTest(unittest.TestCase):
         fitting = [
             message
             for size in range(len(value))
-            if target.measure(message := target.escape(f"H\nA: {value[:size]}…")) <= target.budget
+            if target.measure(message := f"H{DETAILS}{target.escape(f'A: {value[:size]}…')}") <= target.budget
         ]
         return fitting[-1]
 
