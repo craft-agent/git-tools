@@ -39,4 +39,15 @@ describe("git_repo_read", () => {
       rmSync(plainDir, { recursive: true, force: true })
     }
   })
+
+  test("refuses paths on method status as invalid_argument", async () => {
+    let error: unknown
+    try {
+      await invoke(repoRead, { method: "status", paths: ["a.txt"] }, { cwd: process.cwd() })
+    } catch (err) {
+      error = err
+    }
+    expect(error).toBeInstanceOf(ToolError)
+    expect((error as ToolError).code).toBe("invalid_argument")
+  })
 })
