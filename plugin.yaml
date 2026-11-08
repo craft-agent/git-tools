@@ -24,3 +24,5 @@ config_schema:
   exclude_tools:
     type: list
     description: Single tools to remove by id. Wins over tools and toolsets.
+  language:
+    description: The language of the approval card, such as ja. Defaults to Hermes's display language, else English.
