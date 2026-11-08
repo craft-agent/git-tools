@@ -9,21 +9,25 @@ describe("permissionMetadata", () => {
   const spec = { title: "Title", class: "add" } as const
   const args = { area: "north" }
 
-  test("without a description the message is the one-line header", () => {
+  test("without a description the message is the title and the targets", () => {
     expect(permissionMetadata(spec, args, ["north"])).toEqual({
       arguments: args,
       class: "add",
-      message: "Title on north",
+      message: "Title\n\n--- Details ---\n\nTarget: north",
     })
   })
 
-  test("adds the already-marked facts and text below the header", () => {
+  test("takes the facts and text from the description", () => {
     expect(
       permissionMetadata(spec, args, ["north"], {
         facts: [{ label: "Area", value: "north" }],
-        text: "Body<U+202E>",
+        text: { label: "Body", body: "Body<U+202E>" },
       }),
-    ).toEqual({ arguments: args, class: "add", message: "Title on north\nArea: north\n\nBody<U+202E>" })
+    ).toEqual({
+      arguments: args,
+      class: "add",
+      message: "Title\n\n--- Details ---\n\nTarget: north\nArea: north\n\n--- Body ---\n\nBody<U+202E>",
+    })
   })
 })
 

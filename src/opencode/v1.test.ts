@@ -182,12 +182,16 @@ describe("V1 tool calls", () => {
         permission: ADD_ID,
         patterns: ["north"],
         always: ["north"],
-        metadata: { arguments: { area: "north" }, class: "add", message: `Title of ${ADD_ID} on north` },
+        metadata: {
+          arguments: { area: "north" },
+          class: "add",
+          message: `Title of ${ADD_ID}\n\n--- Details ---\n\nTarget: north`,
+        },
       },
     ])
   })
 
-  test("a described write tool adds marked facts and text without changing its permission targets", async () => {
+  test("a described write tool shows its facts and text without changing its permission targets", async () => {
     const { tool, asks, events, context } = await setUp()
     await tool[LABEL_ID]!.execute({ area: "north" }, context)
     expect(events).toEqual([`ask:${LABEL_ID}`, `execute:${LABEL_ID}`])
@@ -199,7 +203,7 @@ describe("V1 tool calls", () => {
         metadata: {
           arguments: { area: "north" },
           class: "add",
-          message: `Title of ${LABEL_ID} on north\nArea: north\n\nBody<U+202E>`,
+          message: `Title of ${LABEL_ID}\n\n--- Details ---\n\nTarget: north\nArea: north\n\n--- Body ---\n\nBody<U+202E>`,
         },
       },
     ])
@@ -220,7 +224,7 @@ describe("V1 tool calls", () => {
     expect(asks.map((request) => request.patterns)).toEqual([["/work/project"], ["/work/other"]])
   })
 
-  test("a call that writes to two targets asks for both, sorted, and the message names them", async () => {
+  test("a call that writes to two targets asks for both, sorted, and the message names each on a Target line", async () => {
     const { tool, asks, context } = await setUp()
     await tool[ADD_ID]!.execute({ area: "south", extra_area: "east" }, context)
     expect(asks.map((request) => [request.patterns, request.always])).toEqual([
@@ -229,7 +233,13 @@ describe("V1 tool calls", () => {
         ["east", "south"],
       ],
     ])
-    expect(asks[0]!.metadata.message).toBe(`Title of ${ADD_ID} on east, south`)
+    expect(asks[0]!.metadata.message).toBe(`Title of ${ADD_ID}\n\n--- Details ---\n\nTarget: east\nTarget: south`)
+  })
+
+  test("a call whose targets cannot be told shows its title alone", async () => {
+    const { tool, asks, context } = await setUp()
+    await expect(tool[ADD_ID]!.execute({ area: 5 }, context)).rejects.toThrow("invalid_argument")
+    expect(asks[0]!.metadata.message).toBe(`Title of ${ADD_ID}`)
   })
 
   test("a target that cannot be told is asked for as * beside the others, and never saved", async () => {

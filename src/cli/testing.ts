@@ -103,7 +103,10 @@ export const specs: ToolSpec[] = [
     input: writeInput,
     output,
     targets: areaTargets,
-    describe: (args) => ({ facts: [{ label: "Area", value: args.area ?? "here" }], text: "Body\u202E line\r\nnext" }),
+    describe: (args) => ({
+      facts: [{ label: "Area", value: args.area ?? "here" }],
+      text: { label: "Body", body: "Body\u202E line\r\nnext" },
+    }),
     async execute(args, ctx) {
       return { tool: DESCRIBED_ID, cwd: ctx.cwd, count: args.count, own_dir: ctx.ownDir }
     },

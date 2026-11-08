@@ -142,14 +142,14 @@ describe("V2 tool calls", () => {
         metadata: {
           arguments: { area: "north", count: 1 },
           class: "add",
-          message: `Title of ${ADD_ID} on north`,
+          message: `Title of ${ADD_ID}\n\n--- Details ---\n\nTarget: north`,
         },
         sessionID: SESSION_ID,
       },
     ])
   })
 
-  test("a described write tool adds marked facts and text without changing its permission targets", async () => {
+  test("a described write tool shows its facts and text without changing its permission targets", async () => {
     const { tools, asserts, events } = await setUp()
     await tools.get(LABEL_ID)!.execute({ area: "north" }, { sessionID: SESSION_ID, signal })
     expect(events).toEqual([`assert:${LABEL_ID}`, `execute:${LABEL_ID}`])
@@ -161,14 +161,14 @@ describe("V2 tool calls", () => {
         metadata: {
           arguments: { area: "north" },
           class: "add",
-          message: `Title of ${LABEL_ID} on north\nArea: north\n\nBody<U+202E>`,
+          message: `Title of ${LABEL_ID}\n\n--- Details ---\n\nTarget: north\nArea: north\n\n--- Body ---\n\nBody<U+202E>`,
         },
         sessionID: SESSION_ID,
       },
     ])
   })
 
-  test("a describe that throws still asks with the one-line message", async () => {
+  test("a describe that throws still asks with the title and the targets", async () => {
     const fake = fakeContext()
     const specs = fixtureSpecs(fake.events)
     specs.find((spec) => spec.id === LABEL_ID)!.describe = () => {
@@ -181,7 +181,11 @@ describe("V2 tool calls", () => {
         action: LABEL_ID,
         resources: ["north"],
         save: ["north"],
-        metadata: { arguments: { area: "north" }, class: "add", message: `Title of ${LABEL_ID} on north` },
+        metadata: {
+          arguments: { area: "north" },
+          class: "add",
+          message: `Title of ${LABEL_ID}\n\n--- Details ---\n\nTarget: north`,
+        },
         sessionID: SESSION_ID,
       },
     ])
@@ -202,7 +206,7 @@ describe("V2 tool calls", () => {
     expect(asserts.map((request) => request.resources)).toEqual([["/work/other"]])
   })
 
-  test("a call that writes to two targets asks for both, sorted, and the message names them", async () => {
+  test("a call that writes to two targets asks for both, sorted, and the message names each on a Target line", async () => {
     const { tools, asserts } = await setUp()
     await tools.get(ADD_ID)!.execute({ area: "south", extra_area: "east" }, { sessionID: SESSION_ID, signal })
     expect(asserts.map((request) => [request.resources, request.save])).toEqual([
@@ -211,7 +215,15 @@ describe("V2 tool calls", () => {
         ["east", "south"],
       ],
     ])
-    expect(asserts[0]!.metadata?.message).toBe(`Title of ${ADD_ID} on east, south`)
+    expect(asserts[0]!.metadata?.message).toBe(`Title of ${ADD_ID}\n\n--- Details ---\n\nTarget: east\nTarget: south`)
+  })
+
+  test("a call whose targets cannot be told shows its title alone", async () => {
+    const { tools, asserts } = await setUp()
+    await expect(tools.get(ADD_ID)!.execute({ area: 5 }, { sessionID: SESSION_ID, signal })).rejects.toThrow(
+      "invalid_argument",
+    )
+    expect(asserts[0]!.metadata?.message).toBe(`Title of ${ADD_ID}`)
   })
 
   test("a target that cannot be told is asked for beside the others, and never saved", async () => {

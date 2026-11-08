@@ -83,12 +83,12 @@ describe("permissionDescription", () => {
   test("gives the description with its characters marked, as a fresh object", async () => {
     const given: CallDescription = {
       facts: [{ label: "Na\u202eme", value: "a\u200bb" }],
-      text: "line\r\nnext\rend",
+      text: { label: "Bo\u202ady", body: "line\r\nnext\rend" },
     }
     const result = await permissionDescription(answering(given), {}, CTX)
     expect(result).toEqual({
       facts: [{ label: "Na<U+202E>me", value: "a<U+200B>b" }],
-      text: "line\nnext<U+000D>end",
+      text: { label: "Bo<U+202A>dy", body: "line\nnext<U+000D>end" },
     })
     expect(result).not.toBe(given)
   })
@@ -186,26 +186,67 @@ describe("permissionDescription", () => {
 })
 
 describe("approvalPrompt", () => {
-  test("is the header alone without a description", () => {
-    expect(approvalPrompt("Send to 1, 2", undefined)).toBe("Send to 1, 2")
+  test("without a description it is the title and a Target line per resource", () => {
+    expect(approvalPrompt("Title", ["/a", "/b"], undefined)).toBe("Title\n\n--- Details ---\n\nTarget: /a\nTarget: /b")
   })
 
-  test("adds one line per fact", () => {
+  test("without a description and with targets that cannot be told it is the title alone", () => {
+    expect(approvalPrompt("Title", ["*"], undefined)).toBe("Title")
+  })
+
+  test("shows a * beside named resources as a target", () => {
+    expect(approvalPrompt("Title", ["a", "*"], undefined)).toBe("Title\n\n--- Details ---\n\nTarget: a\nTarget: *")
+  })
+
+  test("takes the title, then Details with targets and facts, then the text under its label", () => {
+    const description = {
+      facts: [
+        { label: "Kind", value: "note" },
+        { label: "Size", value: "42 bytes" },
+      ],
+      text: { label: "Note text", body: "# Todo\n\nbuy milk" },
+    }
+    expect(approvalPrompt("Title", ["/work/todo.md"], description)).toBe(
+      [
+        "Title",
+        "",
+        "--- Details ---",
+        "",
+        "Target: /work/todo.md",
+        "Kind: note",
+        "Size: 42 bytes",
+        "",
+        "--- Note text ---",
+        "",
+        "# Todo",
+        "",
+        "buy milk",
+      ].join("\n"),
+    )
+  })
+
+  test("shows the facts under Details without Target lines when the targets cannot be told", () => {
     const description = {
       facts: [
         { label: "Kind", value: "group" },
-        { label: "Size", value: "3" },
+        { label: "Size", value: "3 bytes" },
       ],
     }
-    expect(approvalPrompt("H", description)).toBe("H\nKind: group\nSize: 3")
+    expect(approvalPrompt("Title", ["*"], description)).toBe("Title\n\n--- Details ---\n\nKind: group\nSize: 3 bytes")
   })
 
-  test("adds the text after a blank line", () => {
-    const description = { facts: [{ label: "Kind", value: "group" }], text: "hello\nworld" }
-    expect(approvalPrompt("H", description)).toBe("H\nKind: group\n\nhello\nworld")
+  test("leaves Details out for a text alone when the targets cannot be told", () => {
+    const description = { facts: [], text: { label: "Body", body: "hello" } }
+    expect(approvalPrompt("Title", ["*"], description)).toBe("Title\n\n--- Body ---\n\nhello")
   })
 
-  test("adds a text without facts after a blank line", () => {
-    expect(approvalPrompt("H", { facts: [], text: "hello" })).toBe("H\n\nhello")
+  test("leaves Details out with no resources and no facts", () => {
+    expect(approvalPrompt("Title", [], undefined)).toBe("Title")
+  })
+
+  test("marks hidden characters in the resources", () => {
+    expect(approvalPrompt("Title", ["a\u202eb\nc"], undefined)).toBe(
+      "Title\n\n--- Details ---\n\nTarget: a<U+202E>b<U+000A>c",
+    )
   })
 })

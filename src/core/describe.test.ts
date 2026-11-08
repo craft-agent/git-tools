@@ -1,6 +1,13 @@
 import { describe, expect, test } from "bun:test"
 import { z } from "zod"
-import { callDescription, MAX_FACTS, MAX_LABEL_LENGTH, MAX_TEXT_LENGTH, MAX_VALUE_LENGTH } from "./describe"
+import {
+  callDescription,
+  MAX_FACTS,
+  MAX_LABEL_LENGTH,
+  MAX_TEXT_LABEL_LENGTH,
+  MAX_TEXT_LENGTH,
+  MAX_VALUE_LENGTH,
+} from "./describe"
 import type { ToolContext, ToolSpec } from "./tool"
 
 const CTX: ToolContext = { cwd: "/work" }
@@ -14,6 +21,8 @@ function specWith(describe?: Describer) {
 
 const answering = (answer: unknown) => specWith((() => answer) as unknown as Describer)
 
+const BODY = { label: "Note text", body: "body" }
+
 describe("callDescription", () => {
   test("is undefined for a tool without a describer", async () => {
     expect(await callDescription(specWith(), {}, CTX)).toBeUndefined()
@@ -23,7 +32,7 @@ describe("callDescription", () => {
     let called = false
     const spec = specWith(() => {
       called = true
-      return { facts: [], text: "body" }
+      return { facts: [], text: BODY }
     })
     for (const args of [{ name: 1 }, { extra: 1 }, null, "text", []]) {
       expect(await callDescription(spec, args, CTX)).toBeUndefined()
@@ -35,15 +44,23 @@ describe("callDescription", () => {
     const seen: unknown[] = []
     const spec = specWith((args, ctx) => {
       seen.push(args, ctx)
-      return { facts: [{ label: "Name", value: args.name }], text: "body" }
+      return { facts: [{ label: "Name", value: args.name }], text: BODY }
     })
-    expect(await callDescription(spec, {}, CTX)).toEqual({ facts: [{ label: "Name", value: "item" }], text: "body" })
+    expect(await callDescription(spec, {}, CTX)).toEqual({ facts: [{ label: "Name", value: "item" }], text: BODY })
     expect(seen).toEqual([{ name: "item" }, CTX])
+  })
+
+  test("copies facts and text, and ignores extra keys", async () => {
+    const text = { label: "Note text", body: "body", extra: true }
+    const answer = { facts: [{ label: "Name", value: "item" }], text, extra: true }
+    const result = await callDescription(answering(answer), {}, CTX)
+    expect(result).toEqual({ facts: [{ label: "Name", value: "item" }], text: BODY })
+    expect(result?.text).not.toBe(text)
   })
 
   test("copies facts, ignores extra keys and omits absent, undefined or empty text", async () => {
     const fact = { label: " Name ", value: "item", extra: true }
-    for (const text of [undefined, ""]) {
+    for (const text of [undefined, { label: "Note text", body: "" }]) {
       const answer = { facts: [fact], text, extra: true }
       const result = await callDescription(answering(answer), {}, CTX)
       expect(result).toEqual({ facts: [{ label: " Name ", value: "item" }] })
@@ -63,30 +80,31 @@ describe("callDescription", () => {
   })
 
   test("cuts labels, values and text by code points, keeping an emoji at the boundary whole", async () => {
-    expect([MAX_LABEL_LENGTH, MAX_VALUE_LENGTH, MAX_TEXT_LENGTH]).toEqual([40, 200, 2000])
+    expect([MAX_LABEL_LENGTH, MAX_VALUE_LENGTH, MAX_TEXT_LABEL_LENGTH, MAX_TEXT_LENGTH]).toEqual([40, 200, 40, 2000])
     const long = (limit: number) => `${"a".repeat(limit - 2)}😀bc`
     const expected = (limit: number) => `${"a".repeat(limit - 2)}😀…`
     const result = await callDescription(
       answering({
         facts: [{ label: long(MAX_LABEL_LENGTH), value: long(MAX_VALUE_LENGTH) }],
-        text: long(MAX_TEXT_LENGTH),
+        text: { label: long(MAX_TEXT_LABEL_LENGTH), body: long(MAX_TEXT_LENGTH) },
       }),
       {},
       CTX,
     )
     expect(result).toEqual({
       facts: [{ label: expected(MAX_LABEL_LENGTH), value: expected(MAX_VALUE_LENGTH) }],
-      text: expected(MAX_TEXT_LENGTH),
+      text: { label: expected(MAX_TEXT_LABEL_LENGTH), body: expected(MAX_TEXT_LENGTH) },
     })
     expect(Array.from(result!.facts[0].label)).toHaveLength(MAX_LABEL_LENGTH)
     expect(Array.from(result!.facts[0].value)).toHaveLength(MAX_VALUE_LENGTH)
-    expect(Array.from(result!.text!)).toHaveLength(MAX_TEXT_LENGTH)
+    expect(Array.from(result!.text!.label)).toHaveLength(MAX_TEXT_LABEL_LENGTH)
+    expect(Array.from(result!.text!.body)).toHaveLength(MAX_TEXT_LENGTH)
   })
 
   test("does not cut strings that exactly fit their budgets", async () => {
     const answer = {
       facts: [{ label: "😀".repeat(MAX_LABEL_LENGTH), value: "😀".repeat(MAX_VALUE_LENGTH) }],
-      text: "😀".repeat(MAX_TEXT_LENGTH),
+      text: { label: "😀".repeat(MAX_TEXT_LABEL_LENGTH), body: "😀".repeat(MAX_TEXT_LENGTH) },
     }
     expect(await callDescription(answering(answer), {}, CTX)).toEqual(answer)
   })
@@ -108,6 +126,16 @@ describe("callDescription", () => {
       { facts: ["text"] },
       { facts: [], text: 1 },
       { facts: [], text: null },
+      { facts: [], text: "body" },
+      { facts: [], text: [] },
+      { facts: [], text: new Date() },
+      { facts: [], text: { body: "body" } },
+      { facts: [], text: { label: " \t\n", body: "body" } },
+      { facts: [], text: { label: 1, body: "body" } },
+      { facts: [], text: { label: "Note text" } },
+      { facts: [], text: { label: "Note text", body: 1 } },
+      { facts: [], text: { label: "Note text", body: null } },
+      { facts: [{ label: "Name", value: "item" }], text: { label: "", body: "" } },
       { facts: [...Array.from({ length: MAX_FACTS }, () => ({ label: "Name", value: "item" })), null] },
     ]
     for (const answer of invalid) {
@@ -117,8 +145,10 @@ describe("callDescription", () => {
 
   test("is undefined with no facts or text, but keeps text without facts", async () => {
     expect(await callDescription(answering({ facts: [] }), {}, CTX)).toBeUndefined()
-    expect(await callDescription(answering({ facts: [], text: "" }), {}, CTX)).toBeUndefined()
-    expect(await callDescription(answering({ facts: [], text: "body" }), {}, CTX)).toEqual({ facts: [], text: "body" })
+    expect(await callDescription(answering({ facts: [], text: { label: "Note text", body: "" } }), {}, CTX)).toBe(
+      undefined,
+    )
+    expect(await callDescription(answering({ facts: [], text: BODY }), {}, CTX)).toEqual({ facts: [], text: BODY })
   })
 
   test("is undefined when the describer throws or rejects", async () => {
@@ -151,7 +181,7 @@ describe("callDescription", () => {
   })
 
   test("takes an asynchronous describer as well", async () => {
-    const answer = { facts: [{ label: "Name", value: "item" }], text: "body" }
+    const answer = { facts: [{ label: "Name", value: "item" }], text: BODY }
     expect(
       await callDescription(
         specWith(async () => answer),

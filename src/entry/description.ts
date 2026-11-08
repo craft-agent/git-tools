@@ -1,4 +1,12 @@
-import { callDescription, type CallDescription, type ToolContext, type ToolSpec } from "../core"
+import {
+  callDescription,
+  type CallDescription,
+  type CallFact,
+  type CallText,
+  type ToolContext,
+  type ToolSpec,
+} from "../core"
+import { ANY_RESOURCE } from "./permission"
 
 /** How long a description may take, in milliseconds, before the prompt goes without one. */
 export const DESCRIBE_TIMEOUT_MS = 10_000
@@ -30,25 +38,31 @@ export function visible(text: string, options: { keepNewlines?: boolean } = {}):
   return text.replace(HIDDEN_ALL, mark)
 }
 
-/** A description with every label and value, and the text, made `visible`. */
-function markedDescription(description: CallDescription): CallDescription {
-  const facts = description.facts.map(({ label, value }) => ({ label: visible(label), value: visible(value) }))
-  return description.text === undefined ? { facts } : { facts, text: visible(description.text, { keepNewlines: true }) }
+/** A call's description as the prompt shows it: the characters made `visible`. */
+export type ShownDescription = { facts: CallFact[]; text?: CallText }
+
+/** A description with every label, value and text made `visible`. */
+function shownDescription({ facts, text }: CallDescription): ShownDescription {
+  return {
+    facts: facts.map((fact) => ({ label: visible(fact.label), value: visible(fact.value) })),
+    ...(text && { text: { label: visible(text.label), body: visible(text.body, { keepNewlines: true }) } }),
+  }
 }
 
 /**
  * The description of a call for an approval prompt (see `callDescription`),
- * with its characters made `visible`. It gives `undefined` where there is
- * none, and also when describing takes longer than `timeoutMs`, even if the
- * describer ignores its signal. It never throws but for the caller's own
- * cancellation (`ctx.signal`), so the approval is asked either way.
+ * as the prompt shows it: the characters made `visible`. It gives `undefined`
+ * where there is none, and also when describing takes longer than
+ * `timeoutMs`, even if the describer ignores its signal. It never throws but
+ * for the caller's own cancellation (`ctx.signal`), so the approval is asked
+ * either way.
  */
 export async function permissionDescription(
   spec: Pick<ToolSpec, "input" | "describe">,
   args: unknown,
   ctx: ToolContext,
   timeoutMs: number = DESCRIBE_TIMEOUT_MS,
-): Promise<CallDescription | undefined> {
+): Promise<ShownDescription | undefined> {
   const outer = ctx.signal
   if (outer?.aborted) throw outer.reason
 
@@ -75,7 +89,7 @@ export async function permissionDescription(
       cancelled,
     ])
     if (outer?.aborted) throw outer.reason
-    return description && markedDescription(description)
+    return description && shownDescription(description)
   } catch (error) {
     if (outer?.aborted) throw error
     return undefined
@@ -85,14 +99,33 @@ export async function permissionDescription(
   }
 }
 
+/** The name of the prompt's section that lists the targets and the facts; the plugin's own word, in English. */
+export const DETAILS_HEADING = "Details"
+
+/** The label of a target's line in the Details; the plugin's own word, in English. */
+export const TARGET_LABEL = "Target"
+
+/** The line that opens a section of the prompt. */
+const sectionHeading = (name: string) => `--- ${name} ---`
+
 /**
- * The whole text of an approval prompt: the header alone without a
- * description, else the header, one line per fact, and after a blank line the
- * text. It does not mark or escape; its inputs come from `permissionDescription`.
+ * The whole text of an approval prompt, in the one shape of every native
+ * plugin: the title; a Details section with a
+ * `Target` line per resource, unless the only resource is `*` (what cannot be
+ * told), then one line per fact; and a section of the text under its own
+ * label. A section with nothing to show is left out. The resources are made
+ * `visible` here; the description comes from `permissionDescription`, which
+ * has done the same.
  */
-export function approvalPrompt(header: string, description: CallDescription | undefined): string {
-  if (!description) return header
-  const lines = [header, ...description.facts.map(({ label, value }) => `${label}: ${value}`)]
-  if (description.text !== undefined) lines.push("", description.text)
+export function approvalPrompt(title: string, resources: string[], description: ShownDescription | undefined): string {
+  const targets =
+    resources.length === 1 && resources[0] === ANY_RESOURCE
+      ? []
+      : resources.map((resource) => `${TARGET_LABEL}: ${visible(resource)}`)
+  const details = [...targets, ...(description?.facts ?? []).map(({ label, value }) => `${label}: ${value}`)]
+
+  const lines = [title]
+  if (details.length > 0) lines.push("", sectionHeading(DETAILS_HEADING), "", ...details)
+  if (description?.text) lines.push("", sectionHeading(description.text.label), "", description.text.body)
   return lines.join("\n")
 }

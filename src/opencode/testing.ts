@@ -72,7 +72,10 @@ export function fixtureSpecs(events: string[]): ToolSpec[] {
     defineTool({
       ...fixture(LABEL_ID, "alpha", "add", events),
       input: writeInput,
-      describe: (args) => ({ facts: [{ label: "Area", value: args.area ?? "here" }], text: "Body\u202E" }),
+      describe: (args) => ({
+        facts: [{ label: "Area", value: args.area ?? "here" }],
+        text: { label: "Body", body: "Body\u202E" },
+      }),
     }),
     fixture(ADMIN_ID, "beta", "administrative", events),
     defineTool({
