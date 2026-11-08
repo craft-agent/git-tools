@@ -208,11 +208,13 @@ class ApprovalHookTest(FakeCliCase):
         build = approval.card.build_message
         built: list[Any] = []
 
-        def failing_with_a_description(title: str, resources: list[str], description: Any, surface: Any) -> str:
+        def failing_with_a_description(
+            title: str, resources: list[str], description: Any, surface: Any, words: Any
+        ) -> str:
             built.append((description is None, surface))
             if description is not None:
                 raise RuntimeError("boom")
-            return build(title, resources, description, surface)
+            return build(title, resources, description, surface, words)
 
         with mock.patch.object(approval.card, "build_message", side_effect=failing_with_a_description):
             decision = hook(tool_name="demo_thing_create", args={})
@@ -411,6 +413,121 @@ class ApprovalLanguageTest(FakeCliCase):
                 with self.subTest(argv=call["argv"]):
                     self.assertFalse(any(arg.startswith("--language") for arg in call["argv"]))
                     self.assertFalse(any(arg.startswith("--harness-language") for arg in call["argv"]))
+
+
+JAPANESE_WORDS = {"details": "詳細", "target": "対象", "more": "（ほか {count} 件）"}
+
+
+class ApprovalWordsTest(FakeCliCase):
+    def answer(self, **fields: Any) -> dict[str, Any]:
+        """The decision for a call whose ``target`` answers its resources and description with ``fields`` added."""
+        description = {"facts": [{"label": "サイズ", "value": "1 byte"}], "text": {"label": "メモの本文", "body": "x"}}
+        document = {"resources": ["target/one"], "description": description, **fields}
+        self.reply("target demo_thing_create", stdout=json.dumps(document, ensure_ascii=False))
+        ctx = self.register(ctx=SurfaceContext())
+        return ctx.hooks[0][1](tool_name="demo_thing_create", args={})
+
+    def test_the_title_and_the_words_of_the_answer_draw_the_card(self) -> None:
+        decision = self.answer(title="メモを作成する", words=JAPANESE_WORDS)
+        self.assertEqual(
+            decision,
+            {
+                "action": "approve",
+                "message": "メモを作成する\n\n--- 詳細 ---\n\n対象: target/one\nサイズ: 1 byte\n\n--- メモの本文 ---\n\nx",
+                "rule_key": key("demo_thing_create", "target/one"),
+            },
+        )
+
+    def test_without_a_title_or_words_the_card_is_the_english_one(self) -> None:
+        decision = self.answer()
+        self.assertEqual(
+            decision["message"], f"{CREATE}{DETAILS}Target: target/one\nサイズ: 1 byte\n\n--- メモの本文 ---\n\nx"
+        )
+
+    def test_words_are_used_beside_the_registered_title_and_a_title_beside_english_words(self) -> None:
+        self.assertEqual(
+            self.answer(words=JAPANESE_WORDS)["message"],
+            f"{CREATE}\n\n--- 詳細 ---\n\n対象: target/one\nサイズ: 1 byte\n\n--- メモの本文 ---\n\nx",
+        )
+        self.assertEqual(
+            self.answer(title="メモを作成する")["message"],
+            "メモを作成する" + f"{DETAILS}Target: target/one\nサイズ: 1 byte\n\n--- メモの本文 ---\n\nx",
+        )
+
+    def test_a_bad_title_is_the_registered_one_and_changes_nothing_else(self) -> None:
+        for title in (None, "", "  ", 3, ["t"], {"t": 1}):
+            with self.subTest(title=title):
+                decision = self.answer(title=title, words=JAPANESE_WORDS)
+                self.assertEqual(
+                    decision["message"],
+                    f"{CREATE}\n\n--- 詳細 ---\n\n対象: target/one\nサイズ: 1 byte\n\n--- メモの本文 ---\n\nx",
+                )
+                self.assertEqual(decision["rule_key"], key("demo_thing_create", "target/one"))
+
+    def test_bad_words_are_the_english_ones_and_change_neither_the_title_nor_the_description_nor_the_resources(self) -> None:
+        good = JAPANESE_WORDS
+        for words in (
+            "words",
+            [],
+            {},
+            {"details": "詳細", "target": "対象"},
+            {"target": "対象", "more": good["more"]},
+            {"details": "詳細", "more": good["more"]},
+            {**good, "details": ""},
+            {**good, "target": " "},
+            {**good, "more": ""},
+            {**good, "details": 3},
+            {**good, "more": "（ほか 件）"},
+            {**good, "more": "{count} {count}"},
+            {**good, "more": "{count} {x}"},
+            {**good, "more": "{count} }"},
+            {**good, "more": ["{count}"]},
+        ):
+            with self.subTest(words=words):
+                decision = self.answer(title="メモを作成する", words=words)
+                self.assertEqual(
+                    decision["message"],
+                    "メモを作成する" + f"{DETAILS}Target: target/one\nサイズ: 1 byte\n\n--- メモの本文 ---\n\nx",
+                )
+                self.assertEqual(decision["rule_key"], key("demo_thing_create", "target/one"))
+
+    def test_words_and_title_survive_resources_that_cannot_be_told(self) -> None:
+        decision = self.answer(resources=[], title="メモを作成する", words=JAPANESE_WORDS)
+        self.assertRegex(decision["rule_key"], r":once-[0-9a-f]{32}$")
+        self.assertEqual(decision["message"], "メモを作成する\n\n--- 詳細 ---\n\nサイズ: 1 byte\n\n--- メモの本文 ---\n\nx")
+
+    def test_the_card_that_falls_back_keeps_the_title_and_the_words(self) -> None:
+        self.reply(
+            "target demo_thing_create",
+            stdout=json.dumps(
+                {
+                    "resources": ["target/one"],
+                    "title": "メモを作成する",
+                    "words": JAPANESE_WORDS,
+                    "description": {"facts": [{"label": "a", "value": "b"}]},
+                },
+                ensure_ascii=False,
+            ),
+        )
+        hook = self.register().hooks[0][1]
+        build = approval.card.build_message
+
+        def failing_with_a_description(*args: Any) -> str:
+            if args[2] is not None:
+                raise RuntimeError("boom")
+            return build(*args)
+
+        with mock.patch.object(approval.card, "build_message", side_effect=failing_with_a_description):
+            decision = hook(tool_name="demo_thing_create", args={})
+        self.assertEqual(decision["message"], "メモを作成する\n\n--- 詳細 ---\n\n対象: target/one")
+        with mock.patch.object(approval.card, "build_message", side_effect=RuntimeError("boom")):
+            decision = hook(tool_name="demo_thing_create", args={})
+        self.assertEqual(decision["message"], "メモを作成する")
+
+    def test_a_failed_target_is_the_registered_title_in_english(self) -> None:
+        self.reply("target demo_thing_create", code=1, stdout=json.dumps({"title": "メモを作成する", "words": JAPANESE_WORDS}))
+        decision = self.register().hooks[0][1](tool_name="demo_thing_create", args={})
+        self.assertEqual(decision["message"], CREATE)
 
 
 class DisplayLanguageTest(unittest.TestCase):

@@ -13,6 +13,7 @@ TITLE = "Create a thing"
 BUDGETED = ("telegram", "slack", "discord", "whatsapp", None)
 ALL_SURFACES = ("cli", "tui", *BUDGETED)
 DETAILS = "\n\n--- Details ---\n\n"
+JAPANESE = card.Words(details="詳細", target="対象", more="（ほか {count} 件）")
 
 
 def described(
@@ -163,6 +164,51 @@ class ParseDescriptionTest(unittest.TestCase):
         for raw in bad:
             with self.subTest(raw=raw):
                 self.assertIsNone(card.parse_description(raw))
+
+
+class ParseWordsTest(unittest.TestCase):
+    GOOD = {"details": "詳細", "target": "対象", "more": "（ほか {count} 件）"}
+
+    def test_reads_the_three_words(self) -> None:
+        self.assertEqual(card.parse_words(self.GOOD), JAPANESE)
+        self.assertEqual(card.parse_words({**self.GOOD, "x": 1}), JAPANESE)
+
+    def test_english_is_the_words_of_the_constants(self) -> None:
+        self.assertEqual(card.ENGLISH_WORDS, card.Words("Details", "Target", "(+{count} more)"))
+
+    def test_any_bad_word_gives_the_english_ones(self) -> None:
+        bad = [
+            None,
+            [],
+            "words",
+            {},
+            {k: v for k, v in self.GOOD.items() if k != "details"},
+            {k: v for k, v in self.GOOD.items() if k != "target"},
+            {k: v for k, v in self.GOOD.items() if k != "more"},
+            {**self.GOOD, "details": ""},
+            {**self.GOOD, "target": "  "},
+            {**self.GOOD, "more": ""},
+            {**self.GOOD, "details": 1},
+            {**self.GOOD, "target": None},
+            {**self.GOOD, "more": ["{count}"]},
+            {**self.GOOD, "more": "ほか 件"},
+            {**self.GOOD, "more": "{count} と {count}"},
+            {**self.GOOD, "more": "{count} {name}"},
+            {**self.GOOD, "more": "{count} {"},
+            {**self.GOOD, "more": "{count} }"},
+            {**self.GOOD, "more": "{{count}}"},
+            {**self.GOOD, "more": "{ count }"},
+            {**self.GOOD, "more": "{0}"},
+        ]
+        for raw in bad:
+            with self.subTest(raw=raw):
+                self.assertIs(card.parse_words(raw), card.ENGLISH_WORDS)
+
+    def test_a_title_is_a_non_blank_string_or_nothing(self) -> None:
+        self.assertEqual(card.parse_title("メモを作成する"), "メモを作成する")
+        for raw in (None, "", "  ", 3, ["t"], {"title": "t"}):
+            with self.subTest(raw=raw):
+                self.assertIsNone(card.parse_title(raw))
 
 
 class SurfaceTest(unittest.TestCase):
@@ -510,6 +556,101 @@ class BuildMessageTest(unittest.TestCase):
                 value = "ab&<[" * 200
                 message = card.build_message("H", ["*"], described(("A", value)), surface)
                 self.assertEqual(message, self.longest_cut(target, value))
+
+    def test_english_words_given_explicitly_change_nothing(self) -> None:
+        facts = [(f"Label {n}", "v&[" * 30) for n in range(20)]
+        description = described(*facts, text=("Note", "t"))
+        for surface in (*ALL_SURFACES, "CLI", 5):
+            with self.subTest(surface=surface):
+                self.assertEqual(
+                    card.build_message(TITLE, ["a_b"], description, surface, card.ENGLISH_WORDS),
+                    card.build_message(TITLE, ["a_b"], description, surface),
+                )
+
+    def test_japanese_words_draw_the_cli_card(self) -> None:
+        description = described(("サイズ", "1 byte"), text=("メモの本文", "x"))
+        expected = "\n".join(
+            [
+                "メモを作成する",
+                "",
+                "--- 詳細 ---",
+                "",
+                "対象: /work/tree/notes/todo.md",
+                "サイズ: 1 byte",
+                "",
+                "--- メモの本文 ---",
+                "",
+                "x",
+            ]
+        )
+        for surface in ("cli", "tui"):
+            with self.subTest(surface=surface):
+                message = card.build_message(
+                    "メモを作成する", ["/work/tree/notes/todo.md"], description, surface, JAPANESE
+                )
+                self.assertEqual(message, expected)
+
+    def test_japanese_words_without_a_description_or_with_no_target_to_name(self) -> None:
+        self.assertEqual(
+            card.build_message("メモを作成する", ["a", "b"], None, "cli", JAPANESE),
+            "メモを作成する\n\n--- 詳細 ---\n\n対象: a\n対象: b",
+        )
+        self.assertEqual(
+            card.build_message("メモを作成する", ["*"], described(("サイズ", "1")), "cli", JAPANESE),
+            "メモを作成する\n\n--- 詳細 ---\n\nサイズ: 1",
+        )
+        self.assertEqual(card.build_message("メモを作成する", ["*"], None, "cli", JAPANESE), "メモを作成する")
+
+    def test_the_japanese_notice_counts_the_facts_not_shown_and_the_budget_holds(self) -> None:
+        facts = [(f"ラベル {n}", "値" * 30) for n in range(40)]
+        for surface in BUDGETED:
+            with self.subTest(surface=surface):
+                target = card.surface_for(surface)
+                message = card.build_message("メモ", ["a", "b"], described(*facts), surface, JAPANESE)
+                self.assertLessEqual(target.measure(message), target.budget)
+                lines = message.split("\n")
+                self.assertEqual(lines[:6], ["メモ", "", "--- 詳細 ---", "", "対象: a", "対象: b"])
+                shown = lines[6:-1]
+                self.assertTrue(shown)
+                self.assertEqual(shown, [f"{label}: {value}" for label, value in facts[: len(shown)]])
+                self.assertEqual(lines[-1], f"（ほか {len(facts) - len(shown)} 件）")
+
+    def test_the_words_used_are_the_ones_measured(self) -> None:
+        # Each "&" is 5 UTF-16 units once Hermes has escaped it, so these words leave room for the notice only.
+        facts = [(f"L{n}", "v" * 30) for n in range(10)]
+        wide = card.Words(details="&" * 30, target="&" * 30, more="&" * 30 + " {count}")
+        english = card.build_message("H", ["a"], described(*facts), "telegram")
+        self.assertEqual(english.count("\nL"), 10)
+        message = card.build_message("H", ["a"], described(*facts), "telegram", wide)
+        self.assertEqual(message, f"H\n\n--- {'&' * 30} ---\n\n{'&' * 30}: a\n{'&' * 30} 10")
+        self.assertLessEqual(card.surface_for("telegram").measure(message), 500)
+
+    def test_a_translated_heading_that_over_fills_the_head_shows_no_fact(self) -> None:
+        words = card.Words(details="詳" * 290, target="対象", more="（ほか {count} 件）")
+        message = card.build_message("H", ["t"], described(("A", "a")), "discord", words)
+        self.assertEqual(message, f"H\n\n--- {'詳' * 290} ---\n\n対象: t")
+
+    def test_translated_words_are_escaped_for_the_surface_but_not_the_frames_or_the_colon(self) -> None:
+        words = card.Words(details="詳_細", target="対*象", more="[ほか {count} 件]")
+        facts = (("A", "a"), ("B", "b"))
+        self.assertEqual(
+            card.build_message("T", ["x_y"], described(*facts), "discord", words),
+            "T\n\n--- 詳\\_細 ---\n\n対\\*象: x\\_y\nA: a\nB: b",
+        )
+        cut = card.build_message("T", ["*"], described(("A", "a"), ("B", "b" * 1000), ("C", "c")), "discord", words)
+        self.assertTrue(cut.startswith("T\n\n--- 詳\\_細 ---\n\nA: a\nB: bbbb"))
+        self.assertTrue(cut.endswith("…\n\\[ほか 1 件\\]"))
+        self.assertLessEqual(card.STRICTEST_SURFACE.measure(cut), 300)
+        angle = card.Words(details="<詳細>", target="<対象>", more="<ほか {count} 件>")
+        slack = card.build_message("T", ["x"], described(("A", "a"), ("B", "b" * 1000), ("C", "c")), "slack", angle)
+        self.assertTrue(slack.startswith("T\n\n--- &lt;詳細&gt; ---\n\n&lt;対象&gt;: x\nA: a\nB: bbbb"))
+        self.assertTrue(slack.endswith("…\n&lt;ほか 1 件&gt;"))
+
+    def test_translated_words_are_marked(self) -> None:
+        words = card.Words(details="詳\u202e細", target="対\u200b象", more="ほか\u2066 {count}")
+        message = card.build_message("T", ["x"], described(("A", "a"), ("B", "b" * 1000), ("C", "c")), "telegram", words)
+        self.assertTrue(message.startswith("T\n\n--- 詳<U+202E>細 ---\n\n対<U+200B>象: x\nA: a\nB: bbbb"))
+        self.assertTrue(message.endswith("…\nほか<U+2066> 1"))
 
     def longest_cut(self, target: object, value: str) -> str:
         """The card for one fact with the longest prefix of ``value`` that fits, found by trying each length."""

@@ -14,6 +14,12 @@ DETAILS_HEADING = "Details"
 #: The label of a target's line in the Details; the plugin's own word, in English.
 TARGET_LABEL = "Target"
 
+#: The notice of the facts that are not shown, in English; ``{count}`` stands for how many.
+MORE_NOTICE = "(+{count} more)"
+
+#: Where the number goes in the notice.
+COUNT_PLACEHOLDER = "{count}"
+
 #: What a target is when the resource a call writes to cannot be told; the card names no target for it.
 ANY_RESOURCE = "*"
 
@@ -206,9 +212,70 @@ def parse_description(raw: Any) -> Description | None:
     return Description(headline=headline, facts=facts, text=text)
 
 
-def _more(count: int) -> list[str]:
+@dataclass(frozen=True)
+class Words:
+    """The plugin's own words of the card, in one language: the Details heading, the Target label and the notice.
+
+    ``more`` holds ``{count}`` once.
+    """
+
+    details: str
+    target: str
+    more: str
+
+
+#: The words in English, which the card uses when the command line gave no others or gave bad ones.
+ENGLISH_WORDS = Words(DETAILS_HEADING, TARGET_LABEL, MORE_NOTICE)
+
+
+def _is_word(raw: Any) -> bool:
+    return isinstance(raw, str) and bool(raw.strip())
+
+
+def _is_notice(raw: Any) -> bool:
+    """Whether ``raw`` is a word that holds ``{count}`` once and no other brace."""
+    if not _is_word(raw) or raw.count(COUNT_PLACEHOLDER) != 1:
+        return False
+    rest = raw.replace(COUNT_PLACEHOLDER, "")
+    return "{" not in rest and "}" not in rest
+
+
+def parse_title(raw: Any) -> str | None:
+    """The translated title the command line printed, or ``None`` for anything but a non-blank string."""
+    return raw if _is_word(raw) else None
+
+
+def parse_words(raw: Any) -> Words:
+    """The words the command line printed, or the English ones when any of the three is missing or bad.
+
+    ``{"details": str, "target": str, "more": str}`` with non-blank strings and
+    ``{count}`` once in ``more``; extra keys are ignored. The command line has
+    already marked every string; ``build_message`` marks again, which changes
+    nothing.
+    """
+    if not isinstance(raw, dict) or not _is_word(raw.get("details")) or not _is_word(raw.get("target")):
+        return ENGLISH_WORDS
+    if not _is_notice(raw.get("more")):
+        return ENGLISH_WORDS
+    return Words(details=raw["details"], target=raw["target"], more=raw["more"])
+
+
+def _own_word(surface: Surface, word: str, english: str) -> str:
+    """``word`` as the card shows it: the English word as it is, any other made ``visible`` and escaped for ``surface``."""
+    return word if word == english else surface.escape(visible(word))
+
+
+def _shown_words(surface: Surface, words: Words) -> Words:
+    return Words(
+        details=_own_word(surface, words.details, ENGLISH_WORDS.details),
+        target=_own_word(surface, words.target, ENGLISH_WORDS.target),
+        more=_own_word(surface, words.more, ENGLISH_WORDS.more),
+    )
+
+
+def _more(count: int, words: Words) -> list[str]:
     """The line that says how many facts are not shown, or no line when all are."""
-    return [f"(+{count} more)"] if count else []
+    return [words.more.replace(COUNT_PLACEHOLDER, str(count))] if count else []
 
 
 def _fact_line(label: str, value: str) -> str:
@@ -219,16 +286,19 @@ def _section_heading(name: str) -> str:
     return f"--- {name} ---"
 
 
-def _fit_facts(surface: Surface, first: str, targets: list[str], facts: list[tuple[str, str]]) -> list[str]:
-    """The head and as many of ``facts`` as fit the budget, in order, with a ``(+N more)`` line for the rest.
+def _fit_facts(
+    surface: Surface, first: str, targets: list[str], facts: list[tuple[str, str]], words: Words
+) -> list[str]:
+    """The head and as many of ``facts`` as fit the budget, in order, with a notice line (``words.more``) for the rest.
 
     The head is the first line, then the Details section's frame and the
     ``targets`` (never cut or dropped); with no target the frame comes only
-    with a fact or the notice. ``first`` and ``targets`` are escaped; ``facts``
-    are marked and not escaped. The lines are escaped, and the budget is
-    measured on them as joined. N counts the facts after the last one shown,
-    whole or cut. When the head alone is over the budget, or leaves no room
-    for the notice, no fact is shown.
+    with a fact or the notice. ``first``, ``targets`` and ``words`` are
+    escaped; ``facts`` are marked and not escaped. The lines are escaped, and
+    the budget is measured on them as joined, with the words as given. N
+    counts the facts after the last one shown, whole or cut. When the head
+    alone is over the budget, or leaves no room for the notice, no fact is
+    shown.
     """
     budget = surface.budget
 
@@ -238,7 +308,7 @@ def _fit_facts(surface: Surface, first: str, targets: list[str], facts: list[tup
     def compose(details: list[str]) -> list[str]:
         if not targets and not details:
             return [first]
-        return [first, "", _section_heading(DETAILS_HEADING), "", *targets, *details]
+        return [first, "", _section_heading(words.details), "", *targets, *details]
 
     def escaped_fact(label: str, value: str) -> str:
         return surface.escape(_fact_line(label, value))
@@ -254,7 +324,7 @@ def _fit_facts(surface: Surface, first: str, targets: list[str], facts: list[tup
             shown.append(line)
             continue
         rest = len(facts) - index - 1
-        cut = _cut_value(value, lambda part: fits(compose([*shown, escaped_fact(label, part), *_more(rest)])))
+        cut = _cut_value(value, lambda part: fits(compose([*shown, escaped_fact(label, part), *_more(rest, words)])))
         if cut is None:
             omitted = rest + 1
         else:
@@ -263,10 +333,10 @@ def _fit_facts(surface: Surface, first: str, targets: list[str], facts: list[tup
         break
     else:
         return compose(shown)
-    while shown and not fits(compose([*shown, *_more(omitted)])):
+    while shown and not fits(compose([*shown, *_more(omitted, words)])):
         shown.pop()
         omitted += 1
-    lines = compose([*shown, *_more(omitted)])
+    lines = compose([*shown, *_more(omitted, words)])
     return lines if fits(lines) else head
 
 
@@ -288,42 +358,52 @@ def _cut_value(value: str, fits: Callable[[str], bool]) -> str | None:
     return value[:low] + ELLIPSIS
 
 
-def _head_fits(surface: Surface, first: str, targets: list[str]) -> bool:
+def _head_fits(surface: Surface, first: str, targets: list[str], words: Words) -> bool:
     """Whether the first line and every Target line, with the Details frame, fit the surface's budget."""
     if surface.budget is None:
         return True
-    lines = [first, "", _section_heading(DETAILS_HEADING), "", *targets] if targets else [first]
+    lines = [first, "", _section_heading(words.details), "", *targets] if targets else [first]
     return surface.measure("\n".join(lines)) <= surface.budget
 
 
-def build_message(title: str, resources: list[str], description: Description | None, surface: str | None) -> str:
+def build_message(
+    title: str,
+    resources: list[str],
+    description: Description | None,
+    surface: str | None,
+    words: Words = ENGLISH_WORDS,
+) -> str:
     """The message of the card, in the shape of ``approvalPrompt`` in ``src/entry/description.ts``.
 
     The headline (the ``title`` without one); a Details section with a
     ``Target`` line per resource, unless the only resource is ``*`` (what cannot
     be told), then one line per fact; and the text under its own label. A
-    section with nothing to show is left out.
+    section with nothing to show is left out. The plugin's own words (the
+    Details heading, the ``Target`` label and the notice of the facts not
+    shown) are ``words``.
 
-    Every piece that is not the plugin's own words is made ``visible`` and
-    escaped for the surface named ``surface``; the section frames, ``Details``
-    and ``Target:`` are not. The first line, the Details frame, the targets and
-    the fact lines stay within the surface's budget: the targets are never cut
-    or dropped, facts that do not fit are cut or dropped and counted in a
-    ``(+N more)`` line. The text section is not counted; the surface cuts it
+    Every piece that is not the plugin's own English words is made ``visible``
+    and escaped for the surface named ``surface``, ``words`` of another
+    language included; the section frames and the ``: `` after the label are
+    not. The first line, the Details frame, the targets and the fact lines
+    stay within the surface's budget, measured with ``words``: the targets are
+    never cut or dropped, facts that do not fit are cut or dropped and counted
+    in a notice line. The text section is not counted; the surface cuts it
     from its end.
     """
     target = surface_for(surface)
+    shown = _shown_words(target, words)
     named = [] if resources == [ANY_RESOURCE] else resources
-    targets = [f"{TARGET_LABEL}: {target.escape(visible(resource))}" for resource in named]
+    targets = [f"{shown.target}: {target.escape(visible(resource))}" for resource in named]
     first = target.escape(visible(title))
     if description and description.headline:
         headline = target.escape(visible(description.headline))
         # A headline that would push a target past the cut gives way to the title: the targets are what an
         # "always" answer stores, so they must stay in sight.
-        if _head_fits(target, headline, targets) or not _head_fits(target, first, targets):
+        if _head_fits(target, headline, targets, shown) or not _head_fits(target, first, targets, shown):
             first = headline
     facts = [(visible(label), visible(value)) for label, value in description.facts] if description else []
-    lines = _fit_facts(target, first, targets, facts)
+    lines = _fit_facts(target, first, targets, facts, shown)
     if description and description.text is not None:
         label, body = description.text
         lines += [

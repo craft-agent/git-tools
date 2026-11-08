@@ -25,10 +25,15 @@ HOOK_NAME = "pre_tool_call"
 
 @dataclass(frozen=True)
 class Target:
-    """The resources a call writes to and its description, from the same ``target`` run."""
+    """What one ``target`` run says of a call: its resources, description, translated title and the card's words.
+
+    A ``title`` of ``None`` is the tool's registered one, and the ``words`` default to English.
+    """
 
     resources: list[str]
     description: card.Description | None
+    title: str | None = None
+    words: card.Words = card.ENGLISH_WORDS
 
 
 def _non_blank(value: Any) -> str | None:
@@ -93,9 +98,11 @@ def resolve_target(
             return Target([ANY_RESOURCE], None)
         resources = document.get("resources")
         description = card.parse_description(document.get("description"))
+        title = card.parse_title(document.get("title"))
+        words = card.parse_words(document.get("words"))
         if isinstance(resources, list) and resources and all(isinstance(item, str) and item for item in resources):
-            return Target(resources, description)
-        return Target([ANY_RESOURCE], description)
+            return Target(resources, description, title, words)
+        return Target([ANY_RESOURCE], description, title, words)
     except Exception:  # an approval is asked for either way; only its resources are lost
         return Target([ANY_RESOURCE], None)
 
@@ -106,19 +113,22 @@ def rule_key(tool_id: str, resources: list[str]) -> str:
 
 
 def _message(tool: ToolInfo, target: Target, surface: Callable[[], str | None]) -> str:
-    """The card's message: the tool's title, its targets and its description, fitted to the session's surface.
+    """The card's message: the title, its targets and its description, fitted to the session's surface.
 
+    The title is the one ``target`` translated, else the tool's registered one.
     A hook that raises asks nothing, so a card that cannot be built falls back
-    to the one without a description, and that one to the title alone.
+    to the one without a description, with the same title and words, and that
+    one to the title alone.
     """
+    title = target.title or tool.title
     try:
-        return card.build_message(tool.title, target.resources, target.description, surface())
+        return card.build_message(title, target.resources, target.description, surface(), target.words)
     except Exception:
         pass
     try:
-        return card.build_message(tool.title, target.resources, None, None)
+        return card.build_message(title, target.resources, None, None, target.words)
     except Exception:
-        return tool.title
+        return title
 
 
 def make_hook(
