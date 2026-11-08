@@ -170,7 +170,7 @@ Every tool belongs to one class, and the class sets its MCP annotations.
   gave). The text section holds what the call writes, as it is, never a
   summary of it; a summary the tool can compute is a fact (`Size`, `Lines`).
 - **Facts are short and ordered by what they decide.** A label is a noun of
-  one or two words in the language of the tool's title, and a value carries
+  one or two words, in English like the tool's title, and a value carries
   its unit (`42 bytes`). The fact that changes the person's answer comes
   first (the kind of target, whether it overwrites); amounts come last. A
   fact never repeats the headline or a target. `src/core/facts.ts` holds the
@@ -199,8 +199,30 @@ Every tool belongs to one class, and the class sets its MCP annotations.
   longer than 10 s gives the prompt it would have given without one. The
   approval is asked either way, and the targets are never lost with the
   description.
-- **The prompt's own words are English.** The section names and the
-  `Target` label are the plugin's, in English like every tool of the starter.
+- **The prompt speaks the language set for the harness.** A native plugin
+  draws its prompt in the language of the `language` setting, else in the
+  harness's own display language where it has one (Hermes's
+  `display.language`), else in English. No harness tells a plugin who
+  approves a call, so this is the language set where the plugin runs, not
+  each person's. The server's locale (`LANG`) is never read: it is the
+  machine's, and a person reading English on a machine set to another
+  language would see the prompt change. A tag matches its own table, else
+  the one of its first subtag (`ja-JP` and `ja_JP` are `ja`; `zh-Hant` can
+  have its own), and a language the package has no words for falls back to
+  English without a word. An MCP client draws its own prompt,
+  so the MCP server takes no `language`.
+- **Translations are tables keyed by the English words.** The plugin's own
+  words (`Details`, `Target`, `(+N more)`) and a tool's (its title, its
+  headline templates, its fact labels and its text label) are written in
+  English in the code. Per language, a package gives one table from those
+  English words to their translation (`src/words.ts`), and the entry point
+  looks each word up as it draws the prompt, so a tool's code does not change.
+  A translated template must hold the same placeholders as the English one
+  and keep within its limits, or the English one is used, so a translation
+  cannot move the line between the tool's words and the call's data. Values
+  are the call's data and are never translated; a value's unit (`42 bytes`)
+  stays as the tool wrote it. A translation is marked like every other piece
+  of the prompt.
 - **`confirm: "elicitation"` adds the tool's own form** for administrative
   tools, where the client offers form-mode elicitation. It is for people who
   switch the client's approvals off: the tool states what will happen in plain
@@ -222,6 +244,9 @@ Every entry point takes the same settings:
 - **`confirm`** is `harness` (the default) or `elicitation`; it says who asks
   before an administrative tool acts (see "Write classes"). The default leaves
   the question to the harness, whose approval every user already knows.
+- **`language`** is the language of a native plugin's approval prompt (see
+  "Write classes"); unset, the prompt follows the harness's display language
+  or stays in English.
 
 ## The core contract
 

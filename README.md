@@ -237,6 +237,7 @@ variable, and an option or setting wins over the variable too.
 | `tools`         | `--tools`         | `GIT_TOOLS_TOOLS`         | single tools to add by ID, whatever their toolset                             |
 | `exclude_tools` | `--exclude-tools` | `GIT_TOOLS_EXCLUDE_TOOLS` | single tools to remove by ID; wins over `tools` and `toolsets`                |
 | `confirm`       | `--confirm`       | `GIT_TOOLS_CONFIRM`       | MCP server only: `harness` (default) or `elicitation`, as the conventions say |
+| `language`      | `--language`      | `GIT_TOOLS_LANGUAGE`      | native plugins only: the approval prompt's language, such as `ja`             |
 
 Lists are comma-separated in a flag or a variable. Where each harness reads them:
 
@@ -258,8 +259,10 @@ Lists are comma-separated in a flag or a variable. Where each harness reads them
           exclude_tools: []
   ```
 
-  The plugin passes its own environment to the command line it runs, so the
-  variables work too. A running gateway keeps the environment it started with;
+  Without a `language` setting, the approval card follows Hermes's own
+  `display.language` (or `HERMES_LANGUAGE`), the language of its approval
+  buttons, and else stays in English. The plugin passes its own environment
+  to the command line it runs, so the variables work too. A running gateway keeps the environment it started with;
   restart it (`hermes gateway restart`) after changing one.
 
 - **Claude Code, Grok Build and Antigravity** start the plugin's server without
@@ -290,6 +293,8 @@ Lists are comma-separated in a flag or a variable. Where each harness reads them
 - `src/core/` — the tool contract and the tools, free of any harness and of
   the project's names.
 - `src/tools.ts` — the list of every tool, which each entry point registers.
+- `src/words.ts` — the translations of the tools' words, per language, which
+  the native plugins use in their approval prompts.
 - `src/mcp/` — the MCP server, built to `dist/mcp.js` and run by
   `git-tools`.
 - `src/opencode/` — the OpenCode plugin, built to `dist/opencode.js`.
