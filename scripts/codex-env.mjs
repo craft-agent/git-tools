@@ -1,5 +1,8 @@
 import { build } from "esbuild"
-import { fileURLToPath } from "node:url"
+import { mkdtemp, rm, writeFile } from "node:fs/promises"
+import { tmpdir } from "node:os"
+import { join } from "node:path"
+import { fileURLToPath, pathToFileURL } from "node:url"
 import { format, resolveConfig } from "prettier"
 
 /** The legacy manifest Codex loads the plugin from, which names the server relative to the plugin root. */
@@ -22,7 +25,23 @@ export async function renderCodexEnv(text, variables) {
   return format(JSON.stringify(doc, null, 2), { ...config, filepath: CODEX_MANIFEST_PATH })
 }
 
-/** Loads the forwarded environment variables defined in TypeScript through an in-memory esbuild bundle. */
+/**
+ * Imports an ES module from its source text. The text goes to a temporary
+ * file, not a `data:` URL: Bun on Linux resolves a `data:` URL as a file name
+ * and fails with NameTooLong once a package's bundle outgrows the starter's.
+ */
+export async function importModuleText(text) {
+  const dir = await mkdtemp(join(tmpdir(), "codex-env-"))
+  try {
+    const file = join(dir, "module.mjs")
+    await writeFile(file, text)
+    return await import(pathToFileURL(file).href)
+  } finally {
+    await rm(dir, { recursive: true, force: true })
+  }
+}
+
+/** Loads the forwarded environment variables defined in TypeScript through an esbuild bundle. */
 export async function loadForwardedVariables() {
   const result = await build({
     stdin: {
@@ -38,7 +57,6 @@ export async function loadForwardedVariables() {
     target: "node24",
     logLevel: "silent",
   })
-  const base64 = Buffer.from(result.outputFiles[0].contents).toString("base64")
-  const mod = await import(`data:text/javascript;base64,${base64}`)
+  const mod = await importModuleText(result.outputFiles[0].text)
   return mod.forwardedVariables()
 }

@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test"
 import { readFileSync } from "node:fs"
 import { check, resolveConfig } from "prettier"
 import { forwardedVariables } from "../src/entry/settings"
-import { CODEX_MANIFEST_PATH, loadForwardedVariables, renderCodexEnv } from "./codex-env.mjs"
+import { CODEX_MANIFEST_PATH, importModuleText, loadForwardedVariables, renderCodexEnv } from "./codex-env.mjs"
 
 const realManifest = readFileSync(CODEX_MANIFEST_PATH, "utf8")
 
@@ -39,5 +39,12 @@ describe("Codex environment variables", () => {
 
   test("loadForwardedVariables resolves to the same array as forwardedVariables()", async () => {
     expect(await loadForwardedVariables()).toEqual(forwardedVariables())
+  })
+
+  test("importModuleText imports a module far longer than a file name may be", async () => {
+    const padding = "x".repeat(400_000)
+    const mod = await importModuleText(`export const padding = "${padding}"\nexport const answer = () => 42\n`)
+    expect(mod.answer()).toBe(42)
+    expect(mod.padding).toHaveLength(padding.length)
   })
 })
