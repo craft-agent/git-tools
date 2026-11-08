@@ -36,10 +36,14 @@ def _read_document(stdout: str) -> dict[str, Any] | None:
 
 
 def _failure(code: int, stdout: str, stderr: str) -> str:
-    """The error result of a command line that did not succeed: its ``<code>: <message>``, or its stderr."""
+    """The error result of a command line that did not succeed: its ``<code>: <message>`` and details line, or its stderr."""
     error = (_read_document(stdout) or {}).get("error")
     if isinstance(error, dict) and isinstance(error.get("code"), str) and isinstance(error.get("message"), str):
-        return error_result(f"{error['code']}: {error['message']}")
+        message = f"{error['code']}: {error['message']}"
+        details = error.get("details")
+        if isinstance(details, dict):
+            message = f"{message}\n" + json.dumps(details, ensure_ascii=False, separators=(",", ":"))
+        return error_result(message)
     detail = stderr.strip() or f"exit status {code}"
     return error_result(f"{project.CLI_NAME} failed: {detail}")
 

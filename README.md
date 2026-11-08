@@ -159,10 +159,12 @@ default, `worktree` and `push` are opt-in. None has shipped yet.
    the entry points do. A tool that runs a program is tested against a fake of
    that program on `PATH`; no test reaches a real service.
 3. List it in `src/tools.ts`. A new toolset goes into `toolsets` in
-   `src/project.ts` (and `defaultToolsets` when it is on by default).
+   `src/project.ts` (and `defaultToolsets` when it is on by default), and a
+   variable the tool reads besides the settings into `toolVariables`.
 4. Add or update the toolset's skill, `skills/<prefix>-<toolset>/SKILL.md`.
 5. Run `pnpm run build && pnpm run manifests` to list the tool in
-   `plugin.yaml`, then describe it under "Tools and skills".
+   `plugin.yaml` and its variables in Codex's manifest, then describe it under
+   "Tools and skills".
 
 [`docs/conventions.md`](docs/conventions.md) has the rules each step follows.
 
@@ -239,11 +241,14 @@ Lists are comma-separated in a flag or a variable. Where each harness reads them
   environment the harness runs in.
 - **Codex** passes a plugin's MCP server only a few basic variables (such as
   `PATH` and `HOME`) and those the plugin's manifest names, which are the
-  variables above: set them in the environment Codex runs in. To pass flags,
-  or to give the server another variable it needs, add the server under
-  `[mcp_servers]` in Codex's `config.toml` instead of using the plugin: flags
-  go in `args`, `env_vars` names the variables to forward from Codex's
-  environment, and `env` sets fixed values.
+  variables above: set them in the environment Codex runs in. A variable the
+  tools read besides the settings belongs in `toolVariables` in
+  `src/project.ts`; `pnpm run manifests` adds it to the manifest after the
+  settings' variables. To pass flags, or to give the server a variable the
+  package does not name, add the server under `[mcp_servers]` in Codex's
+  `config.toml` instead of using the plugin: flags go in `args`, `env_vars`
+  names the variables to forward from Codex's environment, and `env` sets
+  fixed values.
 
   ```toml
   [mcp_servers.git-tools]
@@ -254,8 +259,8 @@ Lists are comma-separated in a flag or a variable. Where each harness reads them
 
 ## Layout
 
-- `src/project.ts` — the package's name, tool ID prefix, setting prefix and
-  toolsets.
+- `src/project.ts` — the package's name, tool ID prefix, setting prefix,
+  toolsets and the other variables its tools read.
 - `src/core/` — the tool contract and the tools, free of any harness and of
   the project's names.
 - `src/tools.ts` — the list of every tool, which each entry point registers.

@@ -1,4 +1,4 @@
-export { ToolError, isAbortError, isToolError, type ErrorCode } from "./errors"
+export { ToolError, isAbortError, isToolError, type ErrorCode, type ErrorDetails, type JsonValue } from "./errors"
 export { abortError, exec, type ExecOptions, type ExecResult } from "./exec"
 export { isWithin } from "./paths"
 export { ANY_TARGET, writeTargets } from "./targets"

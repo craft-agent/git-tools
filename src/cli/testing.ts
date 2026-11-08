@@ -29,6 +29,7 @@ export const ADMIN_ID = "demo_other_publish"
 export const MISSING_ID = "demo_thing_close"
 export const BROKEN_ID = "demo_thing_reopen"
 export const SLOW_ID = "demo_thing_lock"
+export const DETAILED_ID = "demo_thing_check"
 
 /**
  * The add fixture writes to its `area` (the working directory without one) and
@@ -84,6 +85,11 @@ export const specs: ToolSpec[] = [
     return new Promise((_resolve, reject) => {
       if (signal?.aborted) reject(abortError(signal))
       signal?.addEventListener("abort", () => reject(abortError(signal)))
+    })
+  }),
+  failingWith(DETAILED_ID, "overwrite", async () => {
+    throw new ToolError("invalid_argument", "The thing has problems.", {
+      details: { problems: [{ field: "name", reason: "empty" }] },
     })
   }),
 ]

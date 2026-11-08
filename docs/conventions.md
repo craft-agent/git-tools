@@ -84,6 +84,25 @@ says what to do next.
 
 A project adds a code to `src/core/errors.ts` and to this table together.
 
+- **Structure the caller needs goes in `details`, not in the message.** When
+  fixing the cause takes more than a sentence (the lint violations, the
+  findings, the output of a hook), the error carries it as `details`: a JSON
+  object with snake_case keys, like a result. A model then reads the fields
+  instead of parsing them back out of prose; the message still says what to
+  do next on its own.
+- **`details` is fixed when the error is made.** `ToolError` keeps a frozen
+  JSON copy, so every entry point renders the same value. The copy is what
+  JSON makes of it (`undefined` is dropped, `NaN` becomes `null`), and a value
+  JSON cannot write at all, such as a cycle or a `BigInt`, fails where it was
+  thrown, as a bug, not where it is rendered.
+- **Each entry point passes `details` on only when it is set**, so an error
+  without it reads as it always did. The MCP server and the command line put
+  it beside the code and the message, as `error.details`. The OpenCode and
+  Hermes plugins, whose errors are text, append it to `<code>: <message>` as
+  JSON on a line of its own.
+- The `errors` of a partial result (`StepErrors`) stay `<code>: <message>`
+  strings.
+
 ## Write classes
 
 Every tool belongs to one class, and the class sets its MCP annotations.
@@ -160,6 +179,12 @@ Every entry point takes the same settings:
   authenticate is passed through, and nothing else, so a stray variable
   cannot redirect a call. Prompts and colors are switched off, so nothing
   waits on a person and output parses the same everywhere.
+- **Every variable the tools read besides the settings is named in
+  `toolVariables` in `src/project.ts`**, whether a tool reads it itself or
+  passes it through to a program. Codex gives a plugin's server only a few
+  basic variables (`PATH`, `HOME` and the like) and those its manifest names,
+  and `pnpm run manifests` writes that list from the settings and
+  `toolVariables`: a variable left out is set everywhere but in Codex.
 - **Every call has a time limit**, and a call that is stopped, by that limit
   or by cancellation, has its child process killed: `SIGTERM`, then `SIGKILL`
   after two seconds. A hung program neither holds a harness forever nor
