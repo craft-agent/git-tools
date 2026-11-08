@@ -3,7 +3,8 @@ version: 0.0.0
 description: "Git tools for coding agents: state, commits, rewrites and stacked branches, worktrees and pushing."
 manifest_version: 1
 requires_hermes: ">=0.22"
-provides_tools: []
+provides_tools:
+  - git_repo_read
 provides_hooks:
   - pre_tool_call
 config_schema:
