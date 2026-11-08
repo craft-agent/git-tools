@@ -73,6 +73,7 @@ export function fixtureSpecs(events: string[]): ToolSpec[] {
       ...fixture(LABEL_ID, "alpha", "add", events),
       input: writeInput,
       describe: (args) => ({
+        headline: { text: "Label the area {area}", values: { area: args.area ?? "here" } },
         facts: [{ label: "Area", value: args.area ?? "here" }],
         text: { label: "Body", body: "Body\u202E" },
       }),

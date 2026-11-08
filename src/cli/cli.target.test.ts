@@ -25,6 +25,7 @@ describe("target", () => {
     expect(json(run)).toEqual({
       resources: ["north"],
       description: {
+        headline: 'Label the area "north"',
         facts: [{ label: "Area", value: "north" }],
         text: { label: "Body", body: "Body<U+202E> line\nnext" },
       },

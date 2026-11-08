@@ -104,6 +104,7 @@ export const specs: ToolSpec[] = [
     output,
     targets: areaTargets,
     describe: (args) => ({
+      headline: { text: "Label the area {area}", values: { area: args.area ?? "here" } },
       facts: [{ label: "Area", value: args.area ?? "here" }],
       text: { label: "Body", body: "Body\u202E line\r\nnext" },
     }),

@@ -93,10 +93,41 @@ describe("permissionDescription", () => {
     expect(result).not.toBe(given)
   })
 
-  test("has no text key when the description has none", async () => {
+  test("has no headline or text key when the description has none", async () => {
     const result = await permissionDescription(answering({ facts: [{ label: "A", value: "b" }] }), {}, CTX)
     expect(result).toEqual({ facts: [{ label: "A", value: "b" }] })
+    expect(result && "headline" in result).toBe(false)
     expect(result && "text" in result).toBe(false)
+  })
+
+  test("renders the headline with each value quoted", async () => {
+    const headline = { text: "Move {from} to {to}, then {from}", values: { from: "a", to: "b" } }
+    const result = await permissionDescription(answering({ headline, facts: [] }), {}, CTX)
+    expect(result).toEqual({ headline: 'Move "a" to "b", then "a"', facts: [] })
+  })
+
+  test("escapes a backslash and a quote in a headline value", async () => {
+    const headline = { text: "Open {path}", values: { path: 'C:\\dir\\"x"' } }
+    const result = await permissionDescription(answering({ headline, facts: [] }), {}, CTX)
+    expect(result?.headline).toBe('Open "C:\\\\dir\\\\\\"x\\""')
+  })
+
+  test("marks hidden characters in a headline value and in the template", async () => {
+    const headline = { text: "Re\u202ename {name}", values: { name: "a\u202eb\nc" } }
+    const result = await permissionDescription(answering({ headline, facts: [] }), {}, CTX)
+    expect(result?.headline).toBe('Re<U+202E>name "a<U+202E>b<U+000A>c"')
+  })
+
+  test("does not take a placeholder written inside a value for another one", async () => {
+    const headline = { text: "Create {a} and {b}", values: { a: "{b}", b: "x" } }
+    const result = await permissionDescription(answering({ headline, facts: [] }), {}, CTX)
+    expect(result?.headline).toBe('Create "{b}" and "x"')
+  })
+
+  test("shows the title in place of a bad headline", async () => {
+    const headline = { text: "Create {name}" }
+    const result = await permissionDescription(answering({ headline, facts: [{ label: "A", value: "b" }] }), {}, CTX)
+    expect(result).toEqual({ facts: [{ label: "A", value: "b" }] })
   })
 
   test("gives the describer a signal and the rest of the context", async () => {
@@ -198,8 +229,9 @@ describe("approvalPrompt", () => {
     expect(approvalPrompt("Title", ["a", "*"], undefined)).toBe("Title\n\n--- Details ---\n\nTarget: a\nTarget: *")
   })
 
-  test("takes the title, then Details with targets and facts, then the text under its label", () => {
+  test("takes the headline, then Details with targets and facts, then the text under its label", () => {
     const description = {
+      headline: 'Create the note "todo"',
       facts: [
         { label: "Kind", value: "note" },
         { label: "Size", value: "42 bytes" },
@@ -208,7 +240,7 @@ describe("approvalPrompt", () => {
     }
     expect(approvalPrompt("Title", ["/work/todo.md"], description)).toBe(
       [
-        "Title",
+        'Create the note "todo"',
         "",
         "--- Details ---",
         "",
@@ -222,6 +254,12 @@ describe("approvalPrompt", () => {
         "",
         "buy milk",
       ].join("\n"),
+    )
+  })
+
+  test("uses the title when the description has no headline", () => {
+    expect(approvalPrompt("Title", ["*"], { facts: [{ label: "Kind", value: "group" }] })).toBe(
+      "Title\n\n--- Details ---\n\nKind: group",
     )
   })
 
@@ -242,6 +280,10 @@ describe("approvalPrompt", () => {
 
   test("leaves Details out with no resources and no facts", () => {
     expect(approvalPrompt("Title", [], undefined)).toBe("Title")
+  })
+
+  test("shows a headline alone", () => {
+    expect(approvalPrompt("Title", ["*"], { headline: "Create it", facts: [] })).toBe("Create it")
   })
 
   test("marks hidden characters in the resources", () => {

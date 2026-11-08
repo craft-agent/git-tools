@@ -191,7 +191,7 @@ describe("V1 tool calls", () => {
     ])
   })
 
-  test("a described write tool shows its facts and text without changing its permission targets", async () => {
+  test("a described write tool shows its headline, facts and text without changing its permission targets", async () => {
     const { tool, asks, events, context } = await setUp()
     await tool[LABEL_ID]!.execute({ area: "north" }, context)
     expect(events).toEqual([`ask:${LABEL_ID}`, `execute:${LABEL_ID}`])
@@ -203,7 +203,8 @@ describe("V1 tool calls", () => {
         metadata: {
           arguments: { area: "north" },
           class: "add",
-          message: `Title of ${LABEL_ID}\n\n--- Details ---\n\nTarget: north\nArea: north\n\n--- Body ---\n\nBody<U+202E>`,
+          message:
+            'Label the area "north"\n\n--- Details ---\n\nTarget: north\nArea: north\n\n--- Body ---\n\nBody<U+202E>',
         },
       },
     ])

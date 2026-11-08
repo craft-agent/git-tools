@@ -17,16 +17,18 @@ describe("permissionMetadata", () => {
     })
   })
 
-  test("takes the facts and text from the description", () => {
+  test("takes the headline, facts and text from the description", () => {
     expect(
       permissionMetadata(spec, args, ["north"], {
+        headline: 'Label the area "north"',
         facts: [{ label: "Area", value: "north" }],
         text: { label: "Body", body: "Body<U+202E>" },
       }),
     ).toEqual({
       arguments: args,
       class: "add",
-      message: "Title\n\n--- Details ---\n\nTarget: north\nArea: north\n\n--- Body ---\n\nBody<U+202E>",
+      message:
+        'Label the area "north"\n\n--- Details ---\n\nTarget: north\nArea: north\n\n--- Body ---\n\nBody<U+202E>',
     })
   })
 })

@@ -143,7 +143,7 @@ describe("callDescription", () => {
     }
   })
 
-  test("is undefined with no facts or text, but keeps text without facts", async () => {
+  test("is undefined with no headline, facts or text, but keeps text without facts", async () => {
     expect(await callDescription(answering({ facts: [] }), {}, CTX)).toBeUndefined()
     expect(await callDescription(answering({ facts: [], text: { label: "Note text", body: "" } }), {}, CTX)).toBe(
       undefined,

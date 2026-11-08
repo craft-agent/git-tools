@@ -1,7 +1,9 @@
 import {
+  HEADLINE_PLACEHOLDER,
   callDescription,
   type CallDescription,
   type CallFact,
+  type CallHeadline,
   type CallText,
   type ToolContext,
   type ToolSpec,
@@ -38,12 +40,26 @@ export function visible(text: string, options: { keepNewlines?: boolean } = {}):
   return text.replace(HIDDEN_ALL, mark)
 }
 
-/** A call's description as the prompt shows it: the characters made `visible`. */
-export type ShownDescription = { facts: CallFact[]; text?: CallText }
+/** A call's description as the prompt shows it: the headline rendered to one line, the characters made `visible`. */
+export type ShownDescription = { headline?: string; facts: CallFact[]; text?: CallText }
 
-/** A description with every label, value and text made `visible`. */
-function shownDescription({ facts, text }: CallDescription): ShownDescription {
+/** Quotes a headline value: `visible`, then `\` and `"` escaped, inside double quotes. */
+function quoted(value: string): string {
+  return `"${visible(value).replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"`
+}
+
+/** The headline with its template made `visible` and every placeholder replaced by its quoted value. */
+function renderedHeadline({ text, values = {} }: CallHeadline): string {
+  return text
+    .split(HEADLINE_PLACEHOLDER)
+    .map((part, index) => (index % 2 === 0 ? visible(part) : quoted(values[part] ?? "")))
+    .join("")
+}
+
+/** A description with the headline rendered, and every label, value and text made `visible`. */
+function shownDescription({ headline, facts, text }: CallDescription): ShownDescription {
   return {
+    ...(headline && { headline: renderedHeadline(headline) }),
     facts: facts.map((fact) => ({ label: visible(fact.label), value: visible(fact.value) })),
     ...(text && { text: { label: visible(text.label), body: visible(text.body, { keepNewlines: true }) } }),
   }
@@ -51,11 +67,11 @@ function shownDescription({ facts, text }: CallDescription): ShownDescription {
 
 /**
  * The description of a call for an approval prompt (see `callDescription`),
- * as the prompt shows it: the characters made `visible`. It gives `undefined`
- * where there is none, and also when describing takes longer than
- * `timeoutMs`, even if the describer ignores its signal. It never throws but
- * for the caller's own cancellation (`ctx.signal`), so the approval is asked
- * either way.
+ * as the prompt shows it: the headline rendered, the characters made
+ * `visible`. It gives `undefined` where there is none, and also when
+ * describing takes longer than `timeoutMs`, even if the describer ignores its
+ * signal. It never throws but for the caller's own cancellation
+ * (`ctx.signal`), so the approval is asked either way.
  */
 export async function permissionDescription(
   spec: Pick<ToolSpec, "input" | "describe">,
@@ -110,7 +126,7 @@ const sectionHeading = (name: string) => `--- ${name} ---`
 
 /**
  * The whole text of an approval prompt, in the one shape of every native
- * plugin: the title; a Details section with a
+ * plugin: the headline (the title without one); a Details section with a
  * `Target` line per resource, unless the only resource is `*` (what cannot be
  * told), then one line per fact; and a section of the text under its own
  * label. A section with nothing to show is left out. The resources are made
@@ -124,7 +140,7 @@ export function approvalPrompt(title: string, resources: string[], description: 
       : resources.map((resource) => `${TARGET_LABEL}: ${visible(resource)}`)
   const details = [...targets, ...(description?.facts ?? []).map(({ label, value }) => `${label}: ${value}`)]
 
-  const lines = [title]
+  const lines = [description?.headline ?? title]
   if (details.length > 0) lines.push("", sectionHeading(DETAILS_HEADING), "", ...details)
   if (description?.text) lines.push("", sectionHeading(description.text.label), "", description.text.body)
   return lines.join("\n")

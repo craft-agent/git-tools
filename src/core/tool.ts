@@ -12,11 +12,14 @@ export type ConfirmRequest = { tool: string; message: string }
 /** One fact an approval prompt shows of a call, read as `Label: value`. */
 export type CallFact = { label: string; value: string }
 
+/** A headline template the tool picks, such as `Create the note {name}`, and the values the entry point quotes into it. */
+export type CallHeadline = { text: string; values?: Record<string, string> }
+
 /** The text a call carries, under the tool's own label (`Note text`). */
 export type CallText = { label: string; body: string }
 
-/** What a call will do, as an approval prompt shows it: short facts, then an optional text. */
-export type CallDescription = { facts: CallFact[]; text?: CallText }
+/** What a call will do, as an approval prompt shows it: an optional headline, short facts, then an optional text. */
+export type CallDescription = { headline?: CallHeadline; facts: CallFact[]; text?: CallText }
 
 export type ToolContext = {
   /** The working directory the call runs in. */
@@ -40,8 +43,9 @@ export type ToolSpec<I extends z.ZodObject<any> = z.ZodObject<any>, O extends z.
   /** What the call writes to, as the permission rules of an entry point name it. */
   targets?(args: z.output<I>, ctx: ToolContext): string[] | Promise<string[]>
   /**
-   * What the call will do, for the person approving it: facts such as the
-   * kind of target, and the text the call carries under the tool's own label.
+   * What the call will do, for the person approving it: a headline template
+   * (the title stands without one), facts such as the kind of target, and the
+   * text the call carries under the tool's own label.
    */
   describe?(args: z.output<I>, ctx: ToolContext): CallDescription | Promise<CallDescription>
   input: I
