@@ -148,8 +148,9 @@ class FakeCliCase(unittest.TestCase):
     def write_fixture(self) -> None:
         self.fixture.write_text(json.dumps({"log": str(self.log), "replies": self.replies}), encoding="utf-8")
 
-    def register(self, config: dict[str, Any] | None = None) -> StubContext:
-        ctx = StubContext(config)
+    def register(self, config: dict[str, Any] | None = None, ctx: StubContext | None = None) -> StubContext:
+        if ctx is None:
+            ctx = StubContext(config)
         self.write_fixture()
         plugin.register(ctx)
         return ctx

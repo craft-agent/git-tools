@@ -8,7 +8,10 @@ from typing import Any, Protocol
 
 
 class PluginContext(Protocol):
-    """What ``register(ctx)`` is handed; Hermes' ``PluginContext`` provides all of it."""
+    """What ``register(ctx)`` is handed; Hermes' ``PluginContext`` provides all of it.
+
+    ``session_surface()`` is read when present (see ``approval.session_surface``).
+    """
 
     def get_config(self, key: str, default: Any = None) -> Any:
         """Read ``plugins.entries.<plugin>.settings.<key>``."""
