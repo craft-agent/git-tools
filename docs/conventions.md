@@ -221,7 +221,11 @@ note`). The prompt shows it wherever no headline can stand: a tool without
   was true when the prompt was drawn; between the answer and the run, a file
   the call reads can be rewritten or a target can change kind. So a native
   plugin pins the prompt of every call whose tool has `describe`: the
-  targets and the description, before translation, as one hash. Right
+  targets and the description, before translation, as one hash. The hash
+  takes the description whole, before the budgets above cut it: a text past
+  its 2000 characters, a value past its cut and the facts past the eighth
+  are what the call carries too, so a change there is a change of the call
+  even where the prompt could not show it. Right
   before the call runs, the entry point resolves both again, and a call
   whose hash differs, or whose description can no longer be told, fails with
   `stale` without running; the person is asked again on the next call. A

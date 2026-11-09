@@ -15,7 +15,8 @@ function sorted(value: unknown): unknown {
 /**
  * The pin of an approval: the lowercase hex SHA-256 of the canonical JSON (keys
  * sorted recursively, arrays in order) of what the call writes to and its
- * description as the tool gave it, before translation, hidden `pins` included.
+ * description as the tool gave it, whole, before translation and before the
+ * prompt's budgets cut it, hidden `pins` included.
  * The order in which a `describe` lists its keys never changes the pin; a
  * change of any resource, headline, fact, text or pin does.
  */

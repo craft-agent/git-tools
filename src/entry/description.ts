@@ -5,8 +5,9 @@ import {
   MAX_TEXT_LABEL_LENGTH,
   MAX_VALUE_LENGTH,
   MAX_VALUE_TEMPLATE_LENGTH,
-  callDescription,
   cut,
+  cutDescription,
+  wholeCallDescription,
   type CallDescription,
   type CallHeadline,
   type CallText,
@@ -69,13 +70,14 @@ function renderedValue(value: string | CallValue, t: Translator): string {
 }
 
 /**
- * A description with the tool's words (the headline and value templates and
- * the labels) translated, the headline and the values rendered, and every
- * label, value and text made `visible`. The values and the text are the
- * call's data and stay as they are. The `pins` are never shown, so they are
- * never copied.
+ * A description cut to the prompt's budgets (see `cutDescription`), with the
+ * tool's words (the headline and value templates and the labels) translated,
+ * the headline and the values rendered, and every label, value and text made
+ * `visible`. The values and the text are the call's data and stay as they
+ * are. The `pins` are never shown, so they are never copied.
  */
-export function shownDescription({ headline, facts, text }: CallDescription, t: Translator): ShownDescription {
+export function shownDescription(description: CallDescription, t: Translator): ShownDescription {
+  const { headline, facts, text } = cutDescription(description)
   return {
     ...(headline && { headline: renderedHeadline({ ...headline, text: t.template(headline.text) }) }),
     facts: facts.map((fact) => ({
@@ -92,11 +94,11 @@ export function shownDescription({ headline, facts, text }: CallDescription, t: 
 }
 
 /**
- * The description of a call as the tool gave it (see `callDescription`),
- * before translation. It gives `undefined` where there is none, and also when
- * describing takes longer than `timeoutMs`, even if the describer ignores its
- * signal. It never throws but for the caller's own cancellation
- * (`ctx.signal`), so the approval is asked either way.
+ * The description of a call as the tool gave it, uncut (see
+ * `wholeCallDescription`), before translation. It gives `undefined` where
+ * there is none, and also when describing takes longer than `timeoutMs`, even
+ * if the describer ignores its signal. It never throws but for the caller's
+ * own cancellation (`ctx.signal`), so the approval is asked either way.
  */
 export async function timedCallDescription(
   spec: Pick<ToolSpec, "input" | "describe">,
@@ -125,7 +127,7 @@ export async function timedCallDescription(
       outer?.addEventListener("abort", onAbort, { once: true })
     })
     const description = await Promise.race([
-      callDescription(spec, args, { ...ctx, signal: controller.signal }),
+      wholeCallDescription(spec, args, { ...ctx, signal: controller.signal }),
       timedOut,
       cancelled,
     ])

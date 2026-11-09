@@ -26,8 +26,9 @@ function resolveCall(
 /**
  * What an approval is drawn from: the resources of the call and, when the
  * tool describes it, the description as the prompt shows it (see
- * `permissionDescription`) and the `pin` of what was resolved. A call whose
- * prompt shows no description has no pin.
+ * `permissionDescription`) and the `pin` of what was resolved, taken on the
+ * description before the prompt cuts it. A call whose prompt shows no
+ * description has no pin.
  */
 export async function approvalOf(
   spec: ApprovalSpec,
@@ -43,8 +44,9 @@ export async function approvalOf(
 
 /**
  * Right before a call runs: resolves the resources and the description again
- * and throws `stale` unless they still give `pin`, so the call runs on what
- * its prompt showed. A description that can no longer be told counts as a
+ * and throws `stale` unless they still give `pin` (taken on the description
+ * before the prompt cuts it), so the call runs on what its prompt showed and
+ * on what it left out. A description that can no longer be told counts as a
  * change. Without a pin it returns at once and resolves nothing. A
  * cancellation is rethrown, never turned into `stale`.
  */

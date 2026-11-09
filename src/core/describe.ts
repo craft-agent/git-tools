@@ -127,12 +127,19 @@ function pinsOf(pins: unknown): { pins?: Record<string, string> } | undefined {
   return entries.length === 0 ? {} : { pins: Object.fromEntries(entries) }
 }
 
+/** A fact's value as a fresh copy, uncut: a string as it is, a template with its own copy of the values. */
+function copyValue(value: string | CallValue): string | CallValue {
+  if (typeof value === "string") return value
+  const { text, values } = value
+  return values === undefined ? { text } : { text, values: { ...values } }
+}
+
 /**
- * The headline when it is well formed, else `undefined`: a nonblank template
- * within its budget whose every brace belongs to a `{name}` placeholder that
- * has a string value, with at most `MAX_HEADLINE_VALUES` values. A bad
- * headline falls back to the title and never voids the rest of the
- * description.
+ * The headline, uncut, when it is well formed, else `undefined`: a nonblank
+ * template within its budget whose every brace belongs to a `{name}`
+ * placeholder that has a string value, with at most `MAX_HEADLINE_VALUES`
+ * values. A bad headline falls back to the title and never voids the rest of
+ * the description.
  */
 function headlineOf(headline: unknown): CallHeadline | undefined {
   if (!isRecord(headline) || typeof headline.text !== "string") return undefined
@@ -141,22 +148,49 @@ function headlineOf(headline: unknown): CallHeadline | undefined {
   if (entries === undefined || !isTemplate(text, MAX_HEADLINE_LENGTH, entries)) return undefined
   if (!entries.every((entry): entry is [string, string] => typeof entry[1] === "string")) return undefined
 
-  const cutValues = entries.map(([name, value]) => [name, cut(value, MAX_HEADLINE_VALUE_LENGTH)] as const)
-  return values === undefined ? { text } : { text, values: Object.fromEntries(cutValues) }
+  return values === undefined ? { text } : { text, values: Object.fromEntries(entries) }
+}
+
+/** A headline with its values cut to `MAX_HEADLINE_VALUE_LENGTH`, its template kept. */
+function cutHeadline({ text, values }: CallHeadline): CallHeadline {
+  if (values === undefined) return { text }
+  const cutValues = Object.entries(values).map(
+    ([name, value]) => [name, cut(value, MAX_HEADLINE_VALUE_LENGTH)] as const,
+  )
+  return { text, values: Object.fromEntries(cutValues) }
 }
 
 /**
- * What a call will do, as an optional headline, short facts and an optional
- * text, within their code point budgets. A tool without a describer,
- * arguments the input schema rejects, a describer that fails, an answer of
- * another shape (a bad fact, text or pins included) and an answer with no
- * headline, facts or text (pins alone show nothing) all give `undefined`,
- * leaving approval to proceed without a description. A bad headline alone is
- * dropped, so the title stands in its place. The pins, at most `MAX_PINS`
- * nonblank names with string values, are kept as given, and none when empty.
- * A cancellation is never turned into `undefined`; it is rethrown.
+ * A description kept within the prompt's code point budgets: the first
+ * `MAX_FACTS` facts, every label, value, headline value and the text cut to
+ * theirs. The pins are kept as they are. It cuts what is already cut to the
+ * same result.
  */
-export async function callDescription(
+export function cutDescription({ headline, facts, text, pins }: CallDescription): CallDescription {
+  return {
+    ...(headline && { headline: cutHeadline(headline) }),
+    facts: facts.slice(0, MAX_FACTS).map(({ label, value }) => ({
+      label: cut(label, MAX_LABEL_LENGTH),
+      value: cutValue(value),
+    })),
+    ...(text && { text: { label: cut(text.label, MAX_TEXT_LABEL_LENGTH), body: cut(text.body, MAX_TEXT_LENGTH) } }),
+    ...(pins && { pins }),
+  }
+}
+
+/**
+ * What a call carries, which the pin takes: an optional headline, facts and
+ * an optional text, all uncut and every fact kept. A tool without a
+ * describer, arguments the input schema rejects, a describer that fails, an
+ * answer of another shape (a bad fact, text or pins included) and an answer
+ * with no headline, facts or text (pins alone show nothing) all give
+ * `undefined`, leaving approval to proceed without a description. A bad
+ * headline alone is dropped, so the title stands in its place. The pins, at
+ * most `MAX_PINS` nonblank names with string values, are kept as given, and
+ * none when empty. A cancellation is never turned into `undefined`; it is
+ * rethrown.
+ */
+export async function wholeCallDescription(
   spec: Pick<ToolSpec, "input" | "describe">,
   args: unknown,
   ctx: ToolContext,
@@ -180,15 +214,26 @@ export async function callDescription(
   const kept = pinsOf(answer.pins)
   if (kept === undefined) return undefined
 
-  const facts = entries.slice(0, MAX_FACTS).map(({ label, value }) => ({
-    label: cut(label, MAX_LABEL_LENGTH),
-    value: cutValue(value),
-  }))
+  const facts = entries.map(({ label, value }) => ({ label, value: copyValue(value) }))
   const headline = answer.headline === undefined ? undefined : headlineOf(answer.headline)
   const text =
     answer.text === undefined || answer.text.body === ""
       ? undefined
-      : { label: cut(answer.text.label, MAX_TEXT_LABEL_LENGTH), body: cut(answer.text.body, MAX_TEXT_LENGTH) }
+      : { label: answer.text.label, body: answer.text.body }
   if (headline === undefined && facts.length === 0 && text === undefined) return undefined
   return { ...(headline && { headline }), facts, ...(text && { text }), ...kept }
+}
+
+/**
+ * What the prompt shows of a call: `wholeCallDescription` cut to the prompt's
+ * code point budgets (see `cutDescription`). It gives `undefined` wherever
+ * the whole description does.
+ */
+export async function callDescription(
+  spec: Pick<ToolSpec, "input" | "describe">,
+  args: unknown,
+  ctx: ToolContext,
+): Promise<CallDescription | undefined> {
+  const whole = await wholeCallDescription(spec, args, ctx)
+  return whole && cutDescription(whole)
 }
