@@ -142,6 +142,28 @@ export function intentSpecs(events: string[]): ToolSpec[] {
   ]
 }
 
+export const PIN_ID = "demo_thing_stamp"
+
+/** The failure a harness reports when the pin fixture's described state changed after the prompt. */
+export const PIN_STALE = `stale: ${PIN_ID} did not run: what its approval showed changed before it could run. Call it again to be asked again.`
+
+/** What the pin fixture describes now: a test changes it where the harness asks for approval. */
+export type PinState = { value: string; failing?: boolean }
+
+/** An add tool of `alpha` whose describer reads `state`: a fact from its `value`, and a describer that throws while `failing`. */
+export function pinSpecs(events: string[], state: PinState): ToolSpec[] {
+  return [
+    defineTool({
+      ...fixture(PIN_ID, "alpha", "add", events),
+      input: writeInput,
+      describe: () => {
+        if (state.failing) throw new Error("cannot tell")
+        return { facts: [{ label: "Value", value: state.value }] }
+      },
+    }),
+  ]
+}
+
 /** A new directory, by real path, that `cleanups` removes. */
 export function tempDir(cleanups: (() => void)[]): string {
   const dir = realpathSync(mkdtempSync(join(tmpdir(), "opencode-dir-")))

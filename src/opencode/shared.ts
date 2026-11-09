@@ -8,9 +8,10 @@ import {
   type Translations,
   type Translator,
 } from "../core"
-import { approvalPrompt, standIn, type ShownDescription } from "../entry/description"
+import { DESCRIBE_TIMEOUT_MS, approvalPrompt, standIn, type ShownDescription } from "../entry/description"
 import { errorText } from "../entry/errors"
 import { ANY_RESOURCE } from "../entry/permission"
+import { checkPin } from "../entry/pin"
 import { PROJECT_PROFILE, type EntryProfile } from "../entry/profile"
 import { settingsFromOptions } from "../entry/settings"
 import { promptTranslator, promptWords } from "../entry/words"
@@ -74,12 +75,14 @@ export function selectedTools(
 }
 
 /**
- * Runs a tool through core `invoke`; a tool failure reaches the harness as an
- * `Error` reading `<code>: <message>`, with `details` as JSON on a line of its
- * own when set.
+ * Runs a tool through core `invoke`, after `checkPin` has found what its
+ * approval showed unchanged (a `pin` of `undefined` checks nothing); a tool
+ * failure, `stale` included, reaches the harness as an `Error` reading
+ * `<code>: <message>`, with `details` as JSON on a line of its own when set.
  */
-export async function runTool(spec: ToolSpec, args: unknown, ctx: ToolContext): Promise<unknown> {
+export async function runTool(spec: ToolSpec, args: unknown, ctx: ToolContext, pin?: string): Promise<unknown> {
   try {
+    await checkPin(spec, args, ctx, pin, DESCRIBE_TIMEOUT_MS)
     return await invoke(spec, args, ctx)
   } catch (error) {
     if (!isToolError(error)) throw error

@@ -72,9 +72,10 @@ function renderedValue(value: string | CallValue, t: Translator): string {
  * A description with the tool's words (the headline and value templates and
  * the labels) translated, the headline and the values rendered, and every
  * label, value and text made `visible`. The values and the text are the
- * call's data and stay as they are.
+ * call's data and stay as they are. The `pins` are never shown, so they are
+ * never copied.
  */
-function shownDescription({ headline, facts, text }: CallDescription, t: Translator): ShownDescription {
+export function shownDescription({ headline, facts, text }: CallDescription, t: Translator): ShownDescription {
   return {
     ...(headline && { headline: renderedHeadline({ ...headline, text: t.template(headline.text) }) }),
     facts: facts.map((fact) => ({
@@ -91,21 +92,18 @@ function shownDescription({ headline, facts, text }: CallDescription, t: Transla
 }
 
 /**
- * The description of a call for an approval prompt (see `callDescription`),
- * as the prompt shows it: the tool's words translated through `t`, the
- * headline rendered, the characters made `visible`. It gives `undefined`
- * where there is none, and also when
+ * The description of a call as the tool gave it (see `callDescription`),
+ * before translation. It gives `undefined` where there is none, and also when
  * describing takes longer than `timeoutMs`, even if the describer ignores its
  * signal. It never throws but for the caller's own cancellation
  * (`ctx.signal`), so the approval is asked either way.
  */
-export async function permissionDescription(
+export async function timedCallDescription(
   spec: Pick<ToolSpec, "input" | "describe">,
   args: unknown,
   ctx: ToolContext,
   timeoutMs: number = DESCRIBE_TIMEOUT_MS,
-  t: Translator = ENGLISH,
-): Promise<ShownDescription | undefined> {
+): Promise<CallDescription | undefined> {
   const outer = ctx.signal
   if (outer?.aborted) throw outer.reason
 
@@ -132,7 +130,7 @@ export async function permissionDescription(
       cancelled,
     ])
     if (outer?.aborted) throw outer.reason
-    return description && shownDescription(description, t)
+    return description
   } catch (error) {
     if (outer?.aborted) throw error
     return undefined
@@ -140,6 +138,24 @@ export async function permissionDescription(
     clearTimeout(timer)
     if (onAbort) outer?.removeEventListener("abort", onAbort)
   }
+}
+
+/**
+ * The description of a call for an approval prompt (see `timedCallDescription`),
+ * as the prompt shows it: the tool's words translated through `t`, the
+ * headline rendered, the characters made `visible`. It gives `undefined`
+ * where there is none, and never throws but for the caller's own
+ * cancellation, so the approval is asked either way.
+ */
+export async function permissionDescription(
+  spec: Pick<ToolSpec, "input" | "describe">,
+  args: unknown,
+  ctx: ToolContext,
+  timeoutMs: number = DESCRIBE_TIMEOUT_MS,
+  t: Translator = ENGLISH,
+): Promise<ShownDescription | undefined> {
+  const description = await timedCallDescription(spec, args, ctx, timeoutMs)
+  return description && shownDescription(description, t)
 }
 
 /** The line that opens a section of the prompt. */
