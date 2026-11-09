@@ -33,6 +33,9 @@ SLACK_BUDGET = 500
 #: The budget, in characters, of the Discord card, which is also the strictest one; Hermes cuts it from the end.
 DISCORD_BUDGET = 300
 
+#: The names of the surfaces Hermes shows a card on without cutting it or rendering markup in it: its own clients.
+PLAIN_SURFACE_NAMES = ("cli", "tui", "desktop", "acp")
+
 #: How few code points of a value are worth showing cut; a value that does not keep this many is dropped instead.
 MIN_VALUE_CODE_POINTS = 8
 
@@ -109,23 +112,32 @@ def _strictest_escape(text: str) -> str:
     return _discord_escape(_slack_escape(text))
 
 
-#: With no known surface named the card may be on any of them, so use the strictest budget, measure and escaping.
+#: With no surface named the card may be on any of them, so use the strictest budget, measure and escaping.
 STRICTEST_SURFACE = Surface(DISCORD_BUDGET, _telegram_units, _strictest_escape)
+
+#: A surface Hermes does not cut: the card is shown in full and as written.
+PLAIN_SURFACE = Surface(None, _characters, _identity)
 
 #: The surfaces the plugin knows, by name.
 KNOWN_SURFACES = {
-    "cli": Surface(None, _characters, _identity),
-    "tui": Surface(None, _characters, _identity),
+    **{name: PLAIN_SURFACE for name in PLAIN_SURFACE_NAMES},
     "telegram": Surface(TELEGRAM_BUDGET, _telegram_units, _identity),
     "slack": Surface(SLACK_BUDGET, _characters, _slack_escape),
+    "discord": Surface(DISCORD_BUDGET, _characters, _discord_escape),
 }
 
 
 def surface_for(name: str | None) -> Surface:
-    """The surface called ``name`` (any case), or the strictest one for a name not known, none or not a string."""
-    if not isinstance(name, str):
+    """The surface called ``name`` (any case).
+
+    Hermes cuts the card only on the surfaces the plugin knows, so any other
+    name is a plain surface, since another surface's escapes would show there
+    as written. A card whose surface cannot be told (none, empty or not a
+    string) gets the strictest one.
+    """
+    if not isinstance(name, str) or not name:
         return STRICTEST_SURFACE
-    return KNOWN_SURFACES.get(name.lower(), STRICTEST_SURFACE)
+    return KNOWN_SURFACES.get(name.lower(), PLAIN_SURFACE)
 
 
 def _mark(character: str) -> str:
