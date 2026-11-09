@@ -27,7 +27,7 @@ const SHORT_SHA_LENGTH = 12
 const MAX_NAMED_BRANCHES = 5
 
 /** Where git keeps the remote-tracking branches. */
-const REMOTE_REFS_PREFIX = "refs/remotes/"
+export const REMOTE_REFS_PREFIX = "refs/remotes/"
 
 const REWRITE_RULES = ["detached", "default_branch", "merged", "shared", "protected", "layers_above"] as const
 
@@ -277,15 +277,16 @@ function forkRefusal(details: ForkDetails, branch: string): RewriteRefusal {
 /**
  * Reads the stack the rule uses. A line that forks above the branch comes back
  * as `fork`; it is rethrown for a rewrite of the whole stack, which cannot tell
- * which line is meant.
+ * which line is meant unless `top` names it.
  */
 async function readStackForRule(
   root: string,
   wholeStack: boolean,
+  top: string | undefined,
   signal?: AbortSignal,
 ): Promise<{ stack: Stack | null; fork: ForkDetails | null }> {
   try {
-    return { stack: await readStack(root, { signal }), fork: null }
+    return { stack: await readStack(root, { top, signal }), fork: null }
   } catch (error) {
     const fork = isToolError(error) && error.code === "invalid_argument" ? forkDetails(error) : null
     if (wholeStack || !fork) throw error
@@ -308,12 +309,13 @@ async function readStackForRule(
  * them. `wholeStack` is for a rewrite that moves every layer up to the top, and
  * takes the commits it replaces from the top's tip instead; it ignores
  * `amending`. A line that forks above the branch is a `layers_above` refusal,
- * and an `invalid_argument` error with `wholeStack`.
+ * and an `invalid_argument` error with `wholeStack` unless `top` names the
+ * branch the stack ends at.
  */
 export async function checkRewrite(
   root: string,
   oldest: string,
-  options: { base?: string; signal?: AbortSignal; wholeStack?: boolean; amending?: boolean } = {},
+  options: { base?: string; signal?: AbortSignal; wholeStack?: boolean; amending?: boolean; top?: string } = {},
 ): Promise<RewriteCheck> {
   const { signal, wholeStack = false, amending = false } = options
   const oldestSha = await resolveCommit(root, oldest, signal)
@@ -337,7 +339,7 @@ export async function checkRewrite(
   }
 
   const refusals: RewriteRefusal[] = []
-  const { stack, fork } = await readStackForRule(root, wholeStack, signal)
+  const { stack, fork } = await readStackForRule(root, wholeStack, wholeStack ? options.top : undefined, signal)
   if (fork) refusals.push(forkRefusal(fork, branch))
   else if (stack && !wholeStack) refusals.push(...layersAboveRefusals(stack, amending))
 

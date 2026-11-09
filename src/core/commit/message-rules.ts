@@ -14,7 +14,8 @@ export const SUBJECT_TARGET_MAX = 60
 /** The `type(scope): summary` shape of a conventional subject. */
 export const CONVENTIONAL_PATTERN = /^[a-z]+(\([^)]+\))?!?: .+/
 const MERGE_OR_REVERT_PATTERN = /^(Merge|Revert)\b/
-const AUTOSQUASH_PATTERN = /^(?:fixup|squash|amend)! /
+/** The subjects `git rebase --autosquash` folds into an earlier commit. */
+export const AUTOSQUASH_PATTERN = /^(?:fixup|squash|amend)! /
 const FENCE_PATTERN = /^\s*(```|~~~)/
 const WRAP_EXEMPT_PATTERN = /^\s*(https?:\/\/|[-*]\s|\d+\.\s|\|)/
 
