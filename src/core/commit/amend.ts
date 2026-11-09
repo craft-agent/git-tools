@@ -1,7 +1,7 @@
 import { z } from "zod"
 import { ToolError } from "../errors"
 import { git, gitResult } from "../git"
-import { branchFact, filesFact, linesFact } from "../git-facts"
+import { branchFact, filesFact, forcePushFact, linesFact } from "../git-facts"
 import { checkRewrite, currentBranch, needsForcePush, needsForcePushAfterAmend, shortSha } from "../rewrite"
 import { type CallDescription, type CallFact, defineTool, type ToolContext } from "../tool"
 import { workingTree } from "../tree"
@@ -111,7 +111,7 @@ export const commitAmend = defineTool({
 
     const facts: CallFact[] = []
     if (branch !== null && (await needsForcePushAfterAmend(root, branch, amended, signal))) {
-      facts.push({ label: "Push", value: { text: "needs a force push" } })
+      facts.push(forcePushFact())
     }
     if (accepted) facts.push(accepted)
     facts.push({ label: "Change", value: { text: changeText(staged, message !== old) } })

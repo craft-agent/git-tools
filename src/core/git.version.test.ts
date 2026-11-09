@@ -3,7 +3,7 @@ import { mkdtempSync, realpathSync, rmSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { isToolError } from "./errors"
-import { ensureGit, resetGitCheck } from "./git"
+import { ensureGit, requireGitVersion, resetGitCheck } from "./git"
 
 const ORIGINAL_PATH = process.env.PATH
 const tempDirs: string[] = []
@@ -119,6 +119,17 @@ describe("ensureGit", () => {
       expect(exitError.code).toBe("git_error")
       expect(exitError.message).toContain("Could not read the git version")
     }
+  })
+
+  test("requireGitVersion names the feature a git older than its minimum lacks", async () => {
+    installFakeGit("git version 2.35.1")
+    resetGitCheck()
+
+    await expect(requireGitVersion("2.34.0", "a feature")).resolves.toBeUndefined()
+    await expect(requireGitVersion("2.38.0", "--update-refs")).rejects.toMatchObject({
+      code: "git_too_old",
+      message: "git 2.35.1 is older than 2.38.0, which --update-refs needs; update git.",
+    })
   })
 
   test("a failed check is retried after PATH is fixed", async () => {

@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test"
-import { branchFact, commitsFact, filesFact, GIT_FACT_TRANSLATIONS, linesFact } from "./git-facts"
+import { branchFact, commitsFact, filesFact, forcePushFact, GIT_FACT_TRANSLATIONS, linesFact } from "./git-facts"
 import type { CallFact } from "./tool"
 import { translator } from "./words"
 
@@ -36,9 +36,16 @@ describe("branchFact", () => {
   })
 })
 
+describe("forcePushFact", () => {
+  test("labels the fact Push and says the push needs a force push", () => {
+    expect(forcePushFact()).toEqual({ label: "Push", value: { text: "needs a force push" } })
+  })
+})
+
 describe("GIT_FACT_TRANSLATIONS", () => {
   const ja = translator(GIT_FACT_TRANSLATIONS, "ja")
   const facts: CallFact[] = [
+    forcePushFact(),
     linesFact(3, 1),
     filesFact(1),
     filesFact(2),

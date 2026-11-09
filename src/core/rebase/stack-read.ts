@@ -96,7 +96,7 @@ async function remoteState(root: string, tip: string, ref: string, signal?: Abor
 }
 
 /** The worktrees other than `root` and the branch checked out in each, by full branch name. */
-async function otherWorktrees(root: string, signal?: AbortSignal): Promise<Map<string, string>> {
+export async function otherWorktrees(root: string, signal?: AbortSignal): Promise<Map<string, string>> {
   const out = await git(["worktree", "list", "--porcelain"], { cwd: root, signal })
   const self = await realpath(root)
   const checkedOut = new Map<string, string>()

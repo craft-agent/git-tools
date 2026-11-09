@@ -19,8 +19,6 @@ export const COMMIT_TRANSLATIONS: Translations = {
     "Amend the last commit": "直前のコミットを修正する",
     "About to amend the last commit": "直前のコミットを修正しようとしています",
     "About to amend {commit}": "{commit} を修正しようとしています",
-    Push: "プッシュ",
-    "needs a force push": "force push が必要",
     Change: "変更内容",
     "staged changes and message": "ステージした変更とメッセージ",
     "staged changes": "ステージした変更",

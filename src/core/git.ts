@@ -202,6 +202,17 @@ export async function ensureGit(signal?: AbortSignal): Promise<void> {
   await gitVersion(signal)
 }
 
+/**
+ * Throws `git_too_old` naming `feature` when git is older than `minimum`, for
+ * an option newer than `MIN_GIT_VERSION` that only some calls use.
+ */
+export async function requireGitVersion(minimum: string, feature: string, signal?: AbortSignal): Promise<void> {
+  const version = await gitVersion(signal)
+  if (isOlder(version, minimum)) {
+    throw new ToolError("git_too_old", `git ${version} is older than ${minimum}, which ${feature} needs; update git.`)
+  }
+}
+
 /** Forgets the version check. For tests only, which change `PATH` between cases. */
 export function resetGitCheck(): void {
   gitCheck = undefined
