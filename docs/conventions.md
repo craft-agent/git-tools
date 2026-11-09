@@ -423,13 +423,19 @@ changes a rule above, it says so. The discussion behind them is on
   domain could show lives in `src/core/git-facts.ts`; a domain's own fact
   stays beside its tools:
 
-  | Fact                | Value                                     | Shown by                  |
-  | ------------------- | ----------------------------------------- | ------------------------- |
-  | `Accepted findings` | the fingerprints of the findings let pass | committing                |
-  | `Branch`            | the branch's name                         | committing                |
-  | `Files`             | `{files} files`                           | staging hunks, committing |
-  | `Hunks`             | `{hunks} of {total}`                      | staging hunks             |
-  | `Lines`             | `{added} added, {removed} removed`        | staging hunks, committing |
+  | Fact                | Value                                     | Shown by                            |
+  | ------------------- | ----------------------------------------- | ----------------------------------- |
+  | `Push`              | `needs a force push`, only when it does   | amending                            |
+  | `Accepted findings` | the fingerprints of the findings let pass | committing, amending                |
+  | `Change`            | `message only`, `staged changes`, …       | amending                            |
+  | `Branch`            | the branch's name                         | committing, amending                |
+  | `Files`             | `{files} files`                           | staging hunks, committing, amending |
+  | `Hunks`             | `{hunks} of {total}`                      | staging hunks                       |
+  | `Lines`             | `{added} added, {removed} removed`        | staging hunks, committing, amending |
+
+  A fact the person's answer turns on comes first: amending a commit the
+  branch has pushed says so before anything else, since the next push must
+  then force.
 
 ### Results and errors of git operations
 
