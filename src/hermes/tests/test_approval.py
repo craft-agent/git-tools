@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import re
 import sys
+import threading
 import types
 import unittest
 from pathlib import Path
@@ -595,6 +596,138 @@ class ApprovalIntentTest(FakeCliCase):
         description = {"headline": "Create the thing x", "facts": [{"label": "Size", "value": "1"}]}
         decision = self.decide(intent=TARGET_INTENT, description=description)
         self.assertEqual(decision["message"], f"Create the thing x{DETAILS}Target: target/one\nSize: 1")
+
+
+PIN = "0f" * 32
+MODIFY_EMPTY = {"action": "modify", "args": {approval.PIN_ARGUMENT: ""}}
+
+
+class ApprovalPinTest(FakeCliCase):
+    def answer(self, **fields: Any) -> None:
+        self.reply("target demo_thing_create", stdout=json.dumps({"resources": ["target/one"], **fields}))
+        self.write_fixture()
+
+    def hooks(self) -> tuple[Any, Any]:
+        ctx = self.register()
+        return ctx.hooks[0][1], ctx.hooks[1][1]
+
+    def decide(self, pins: Any, **call: Any) -> dict[str, str]:
+        tool = listing.ToolInfo.from_listing(LISTING[1])
+        return approval.make_hook(self.runtime, [tool], pins=pins)(tool_name="demo_thing_create", args={}, **call)
+
+    def test_the_pin_of_the_answer_is_parsed(self) -> None:
+        for pin, expected in (
+            (PIN, PIN),
+            (PIN.upper(), None),
+            (PIN[:-1], None),
+            (PIN + "0", None),
+            ("", None),
+            (5, None),
+            (None, None),
+            ([PIN], None),
+        ):
+            with self.subTest(pin=pin):
+                self.answer(pin=pin)
+                self.assertEqual(approval.resolve_target(self.runtime, "demo_thing_create", {}).pin, expected)
+
+    def test_an_answer_without_a_pin_has_none(self) -> None:
+        self.answer()
+        self.assertIsNone(approval.resolve_target(self.runtime, "demo_thing_create", {}).pin)
+
+    def test_the_pin_of_a_failed_target_is_none(self) -> None:
+        self.reply("target demo_thing_create", code=1, stdout=json.dumps({"resources": ["a"], "pin": PIN}))
+        self.write_fixture()
+        self.assertIsNone(approval.resolve_target(self.runtime, "demo_thing_create", {}).pin)
+
+    def test_the_approval_hook_stashes_a_pin_and_decides_the_same_without_one(self) -> None:
+        self.answer(pin=PIN)
+        stash = approval.PinStash()
+        with_pin = self.decide(stash, tool_call_id="call-1")
+        self.assertEqual(stash.take("call-1"), PIN)
+        self.answer()
+        without_pin = self.decide(stash, tool_call_id="call-1")
+        self.assertIsNone(stash.take("call-1"))
+        self.assertEqual(with_pin, without_pin)
+        self.assertEqual(set(with_pin), {"action", "message", "rule_key"})
+
+    def test_an_approval_without_a_pin_clears_one_left_under_its_call_id(self) -> None:
+        self.answer(pin=PIN)
+        stash = approval.PinStash()
+        self.decide(stash, tool_call_id="call-1")
+        self.answer()
+        self.decide(stash, tool_call_id="call-1")
+        self.assertIsNone(stash.take("call-1"))
+
+    def test_the_approval_hook_stashes_nothing_without_a_usable_call_id(self) -> None:
+        self.answer(pin=PIN)
+        stash = approval.PinStash(limit=1)
+        for call in ({}, {"tool_call_id": ""}, {"tool_call_id": "  "}, {"tool_call_id": None}, {"tool_call_id": 4}):
+            with self.subTest(call=call):
+                self.assertEqual(self.decide(stash, **call)["action"], "approve")
+        stash.put("sentinel", PIN)
+        self.assertEqual(stash.take("sentinel"), PIN)
+        self.assertIsNone(stash.take(""))
+        self.assertIsNone(stash.take("  "))
+
+    def test_the_pin_hook_gives_the_pin_once_then_empty(self) -> None:
+        self.answer(pin=PIN)
+        approve, pin_hook = self.hooks()
+        approve(tool_name="demo_thing_create", args={}, tool_call_id="c1")
+        call = {"tool_name": "demo_thing_create", "args": {}, "tool_call_id": "c1"}
+        self.assertEqual(pin_hook(**call), {"action": "modify", "args": {approval.PIN_ARGUMENT: PIN}})
+        self.assertEqual(pin_hook(**call), MODIFY_EMPTY)
+
+    def test_the_pin_hook_overwrites_a_value_the_model_sent(self) -> None:
+        _, pin_hook = self.hooks()
+        result = pin_hook(tool_name="demo_thing_create", args={approval.PIN_ARGUMENT: PIN}, tool_call_id="c1")
+        self.assertEqual(result, MODIFY_EMPTY)
+
+    def test_the_pin_hook_gives_empty_for_a_missing_call_id(self) -> None:
+        _, pin_hook = self.hooks()
+        for call in ({}, {"tool_call_id": ""}, {"tool_call_id": None}, {"tool_call_id": 3}):
+            with self.subTest(call=call):
+                self.assertEqual(pin_hook(tool_name="demo_widget_update", args={}, **call), MODIFY_EMPTY)
+
+    def test_the_pin_hook_leaves_reads_and_other_tools_alone(self) -> None:
+        _, pin_hook = self.hooks()
+        self.assertIsNone(pin_hook(tool_name="demo_thing_read", args={}, tool_call_id="c1"))
+        self.assertIsNone(pin_hook(tool_name="write_file", args={}, tool_call_id="c1"))
+
+    def test_the_pin_hook_never_raises(self) -> None:
+        tool = listing.ToolInfo.from_listing(LISTING[1])
+
+        class Broken(approval.PinStash):
+            def take(self, call_id: str) -> str | None:
+                raise RuntimeError("boom")
+
+        result = approval.make_pin_hook([tool], Broken())(tool_name="demo_thing_create", args={}, tool_call_id="c1")
+        self.assertEqual(result, MODIFY_EMPTY)
+
+    def test_the_stash_drops_the_oldest_beyond_its_limit(self) -> None:
+        stash = approval.PinStash(limit=2)
+        for call_id in ("a", "b", "c"):
+            stash.put(call_id, call_id * 64)
+        self.assertIsNone(stash.take("a"))
+        self.assertEqual(stash.take("b"), "b" * 64)
+        self.assertEqual(stash.take("c"), "c" * 64)
+        self.assertEqual(approval.PIN_STASH_LIMIT, 256)
+
+    def test_the_stash_is_safe_across_threads(self) -> None:
+        stash = approval.PinStash()
+        taken: list[str | None] = []
+
+        def work(index: int) -> None:
+            for step in range(50):
+                call_id = f"{index}-{step}"
+                stash.put(call_id, PIN)
+                taken.append(stash.take(call_id))
+
+        threads = [threading.Thread(target=work, args=(index,)) for index in range(8)]
+        for thread in threads:
+            thread.start()
+        for thread in threads:
+            thread.join()
+        self.assertEqual(taken, [PIN] * 400)
 
 
 class DisplayLanguageTest(unittest.TestCase):

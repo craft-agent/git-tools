@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import json
+import re
+import threading
 import uuid
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -22,12 +24,23 @@ ANY_RESOURCE = card.ANY_RESOURCE
 #: The Hermes hook that can hold a tool call for the person's approval.
 HOOK_NAME = "pre_tool_call"
 
+#: The argument the pin hook sets on a call for the handler to read: it carries the pin of what the approval showed.
+#: No tool argument starts with ``_``, so it never collides with one, and the handler removes it before the call runs.
+PIN_ARGUMENT = f"_{project.PLUGIN_NAME}_pin"
+
+#: What a pin looks like: 64 lowercase hexadecimal characters.
+PIN_PATTERN = re.compile(r"[0-9a-f]{64}")
+
+#: How many pins the stash keeps; the oldest goes when a new one comes in beyond this.
+PIN_STASH_LIMIT = 256
+
 
 @dataclass(frozen=True)
 class Target:
     """What one ``target`` run says of a call: its resources, description, translated title and intent, and the card's words.
 
     A ``title`` or ``intent`` of ``None`` is the tool's registered one, or none, and the ``words`` default to English.
+    A ``pin`` of ``None`` is none given (or a malformed one); it comes only with a description.
     """
 
     resources: list[str]
@@ -35,6 +48,37 @@ class Target:
     title: str | None = None
     words: card.Words = card.ENGLISH_WORDS
     intent: str | None = None
+    pin: str | None = None
+
+
+def parse_pin(value: Any) -> str | None:
+    """``value`` when it is a pin (64 lowercase hex characters), else ``None``."""
+    return value if isinstance(value, str) and PIN_PATTERN.fullmatch(value) else None
+
+
+class PinStash:
+    """The pins of calls waiting between the approval hook and the pin hook, by the model's ``tool_call_id``.
+
+    Thread-safe and bounded: when full, the oldest pin is dropped.
+    """
+
+    def __init__(self, limit: int = PIN_STASH_LIMIT) -> None:
+        self._limit = limit
+        self._lock = threading.Lock()
+        self._pins: dict[str, str] = {}
+
+    def put(self, call_id: str, pin: str) -> None:
+        """Keep ``pin`` for ``call_id``, dropping the oldest entries beyond the limit."""
+        with self._lock:
+            self._pins.pop(call_id, None)
+            self._pins[call_id] = pin
+            while len(self._pins) > self._limit:
+                del self._pins[next(iter(self._pins))]
+
+    def take(self, call_id: str) -> str | None:
+        """The pin kept for ``call_id``, removed; ``None`` when there is none."""
+        with self._lock:
+            return self._pins.pop(call_id, None)
 
 
 def _non_blank(value: Any) -> str | None:
@@ -102,9 +146,10 @@ def resolve_target(
         title = card.parse_line(document.get("title"))
         intent = card.parse_line(document.get("intent"))
         words = card.parse_words(document.get("words"))
+        pin = parse_pin(document.get("pin"))
         if isinstance(resources, list) and resources and all(isinstance(item, str) and item for item in resources):
-            return Target(resources, description, title, words, intent)
-        return Target([ANY_RESOURCE], description, title, words, intent)
+            return Target(resources, description, title, words, intent, pin)
+        return Target([ANY_RESOURCE], description, title, words, intent, pin)
     except Exception:  # an approval is asked for either way; only its resources are lost
         return Target([ANY_RESOURCE], None)
 
@@ -140,12 +185,15 @@ def make_hook(
     surface: Callable[[], str | None] = lambda: None,
     language: str | None = None,
     harness_language: Callable[[], str | None] = lambda: display_language(),
+    pins: PinStash | None = None,
 ) -> Callable[..., dict[str, str] | None]:
     """The ``pre_tool_call`` hook: it sends every call of these tools but a read to the person's approval.
 
     Whether a person is there to ask, and what happens when none is, is
     Hermes' own gate to decide. ``language`` is the plugin's ``language``
-    setting; ``harness_language`` is read on every call.
+    setting; ``harness_language`` is read on every call. When ``pins`` is
+    given, the pin ``target`` answered is kept in it under the call's
+    ``tool_call_id`` for the pin hook; the decision is the same either way.
     """
     by_id = {tool.id: tool for tool in tools}
 
@@ -154,6 +202,13 @@ def make_hook(
         if tool is None or tool.write_class == READ_CLASS:
             return None
         target = resolve_target(runtime, tool.id, args, language, harness_language)
+        call_id = _non_blank(kwargs.get("tool_call_id"))
+        if pins is not None and call_id:
+            # An entry left by a call that never reached the pin hook must not stand for this one.
+            if target.pin:
+                pins.put(call_id, target.pin)
+            else:
+                pins.take(call_id)
         resources = target.resources
         key = rule_key(tool.id, resources)
         if ANY_RESOURCE in resources:
@@ -161,6 +216,30 @@ def make_hook(
             # grant for every resource; a key no later call repeats leaves nothing reusable.
             key = f"{key}:once-{uuid.uuid4().hex}"
         return {"action": "approve", "message": _message(tool, target, surface), "rule_key": key}
+
+    return hook
+
+
+def make_pin_hook(tools: list[ToolInfo], pins: PinStash) -> Callable[..., dict[str, Any] | None]:
+    """The second ``pre_tool_call`` hook: it hands each non-read call the pin its approval showed.
+
+    The result modifies the call's args so that ``PIN_ARGUMENT`` is always set, to the pin
+    kept by the approval hook or to ``""`` when there is none, so a value the model sent
+    itself never stands. Any other tool, and a read, is left alone. It never raises.
+    """
+    by_id = {tool.id: tool for tool in tools}
+
+    def hook(tool_name: str = "", args: Any = None, **kwargs: Any) -> dict[str, Any] | None:
+        tool = by_id.get(tool_name)
+        if tool is None or tool.write_class == READ_CLASS:
+            return None
+        pin = ""
+        try:
+            call_id = _non_blank(kwargs.get("tool_call_id"))
+            pin = (pins.take(call_id) if call_id else None) or ""
+        except Exception:
+            pass
+        return {"action": "modify", "args": {PIN_ARGUMENT: pin}}
 
     return hook
 
@@ -182,7 +261,13 @@ def session_surface(ctx: PluginContext) -> str | None:
 def register_approval(
     ctx: PluginContext, runtime: Runtime, tools: list[ToolInfo], language: str | None = None
 ) -> None:
-    """Hold every non-read call of ``tools`` for approval, with the card in ``language`` (the plugin's setting)."""
+    """Hold every non-read call of ``tools`` for approval, with the card in ``language`` (the plugin's setting).
+
+    Two hooks, in this order, since Hermes runs them in registration order: the approval hook
+    stashes the pin of what the card shows, then the pin hook gives it to the call.
+    """
+    pins = PinStash()
     ctx.register_hook(
-        HOOK_NAME, make_hook(runtime, tools, surface=lambda: session_surface(ctx), language=language)
+        HOOK_NAME, make_hook(runtime, tools, surface=lambda: session_surface(ctx), language=language, pins=pins)
     )
+    ctx.register_hook(HOOK_NAME, make_pin_hook(tools, pins))
