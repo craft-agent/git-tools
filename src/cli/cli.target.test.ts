@@ -2,6 +2,7 @@ import { afterEach, describe, expect, test } from "bun:test"
 import { mkdtempSync, realpathSync, rmSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
+import { PIN_PATTERN } from "../core"
 import { EXIT_FAILED, EXIT_OK } from "./cli"
 import { ADD_ID, DESCRIBED_ID, ENGLISH_WORDS, HANGING_DESCRIBE_ID, READ_ID, cli, json } from "./testing"
 
@@ -39,6 +40,7 @@ describe("target", () => {
         facts: [{ label: "Area", value: "north" }],
         text: { label: "Body", body: "Body<U+202E> line\nnext" },
       },
+      pin: expect.stringMatching(PIN_PATTERN),
     })
   })
 

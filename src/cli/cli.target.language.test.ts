@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test"
+import { PIN_PATTERN } from "../core"
 import { PROJECT } from "../project"
 import { EXIT_OK, EXIT_USAGE } from "./cli"
 import { ADD_ID, DESCRIBED_ID, ENGLISH_WORDS, TRANSLATIONS, cli, json } from "./testing"
@@ -15,6 +16,7 @@ const ENGLISH = {
     facts: [{ label: "Area", value: "north" }],
     text: { label: "Body", body: "Body<U+202E> line\nnext" },
   },
+  pin: expect.stringMatching(PIN_PATTERN),
 }
 const JAPANESE = {
   resources: ["north"],
@@ -25,6 +27,7 @@ const JAPANESE = {
     facts: [{ label: "エリア", value: "north" }],
     text: { label: "本文", body: "Body<U+202E> line\nnext" },
   },
+  pin: expect.stringMatching(PIN_PATTERN),
 }
 
 /** Runs `target` for the described fixture with the fixture translations, over `flags` and `env`. */
