@@ -2,7 +2,7 @@ import { z } from "zod"
 import { ToolError, isAbortError } from "../errors"
 import { exec } from "../exec"
 import { DEFAULT_GIT_TIMEOUT_MS, git, gitEnv } from "../git"
-import { DESTINATION_PREFIX, dedupe, type Finding, findingSchema, makeFinding, scanDiff } from "./secret-diff"
+import { SCAN_DIFF_OPTIONS, dedupe, type Finding, findingSchema, makeFinding, scanDiff } from "./secret-diff"
 
 /** How many characters of a secret gitleaks reports are kept. */
 const GITLEAKS_SECRET_LENGTH = 16
@@ -56,14 +56,7 @@ function validateScope(scope: ScanScope): void {
 }
 
 function diffArguments(scope: ScanScope): string[] {
-  const args = [
-    "diff",
-    "--no-color",
-    "--no-ext-diff",
-    "--unified=0",
-    "--src-prefix=a/",
-    `--dst-prefix=${DESTINATION_PREFIX}`,
-  ]
+  const args = ["diff", ...SCAN_DIFF_OPTIONS]
   if (scope.target === "staged") args.push("--cached")
   if (scope.target === "range") args.push(scope.range!.trim())
   args.push("--", ...(scope.paths ?? []))

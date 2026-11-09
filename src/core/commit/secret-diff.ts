@@ -7,6 +7,20 @@ const NULL_DEVICE = "/dev/null"
 /** The prefix `git diff` puts on the new side's paths; the diff is asked for with it and parsed by it. */
 export const DESTINATION_PREFIX = "b/"
 
+/** The prefix `git diff` puts on the old side's paths; the diff is asked for with it and parsed by it. */
+export const SOURCE_PREFIX = "a/"
+
+/** The `git diff` options that make its output plain text with the two prefixes the parsers expect. */
+export const PLAIN_DIFF_OPTIONS = [
+  "--no-color",
+  "--no-ext-diff",
+  `--src-prefix=${SOURCE_PREFIX}`,
+  `--dst-prefix=${DESTINATION_PREFIX}`,
+]
+
+/** The `git diff` options for the output `scanDiff` reads: plain text with no context lines. */
+export const SCAN_DIFF_OPTIONS = [...PLAIN_DIFF_OPTIONS, "--unified=0"]
+
 /** One secret found on an added line. */
 export const findingSchema = z.object({
   file: z.string().describe("The path of the file, relative to the repository root."),
