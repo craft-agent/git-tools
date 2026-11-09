@@ -25,15 +25,16 @@ HOOK_NAME = "pre_tool_call"
 
 @dataclass(frozen=True)
 class Target:
-    """What one ``target`` run says of a call: its resources, description, translated title and the card's words.
+    """What one ``target`` run says of a call: its resources, description, translated title and intent, and the card's words.
 
-    A ``title`` of ``None`` is the tool's registered one, and the ``words`` default to English.
+    A ``title`` or ``intent`` of ``None`` is the tool's registered one, or none, and the ``words`` default to English.
     """
 
     resources: list[str]
     description: card.Description | None
     title: str | None = None
     words: card.Words = card.ENGLISH_WORDS
+    intent: str | None = None
 
 
 def _non_blank(value: Any) -> str | None:
@@ -98,11 +99,12 @@ def resolve_target(
             return Target([ANY_RESOURCE], None)
         resources = document.get("resources")
         description = card.parse_description(document.get("description"))
-        title = card.parse_title(document.get("title"))
+        title = card.parse_line(document.get("title"))
+        intent = card.parse_line(document.get("intent"))
         words = card.parse_words(document.get("words"))
         if isinstance(resources, list) and resources and all(isinstance(item, str) and item for item in resources):
-            return Target(resources, description, title, words)
-        return Target([ANY_RESOURCE], description, title, words)
+            return Target(resources, description, title, words, intent)
+        return Target([ANY_RESOURCE], description, title, words, intent)
     except Exception:  # an approval is asked for either way; only its resources are lost
         return Target([ANY_RESOURCE], None)
 
@@ -113,22 +115,23 @@ def rule_key(tool_id: str, resources: list[str]) -> str:
 
 
 def _message(tool: ToolInfo, target: Target, surface: Callable[[], str | None]) -> str:
-    """The card's message: the title, its targets and its description, fitted to the session's surface.
+    """The card's message: the stand-in line, its targets and its description, fitted to the session's surface.
 
-    The title is the one ``target`` translated, else the tool's registered one.
-    A hook that raises asks nothing, so a card that cannot be built falls back
-    to the one without a description, with the same title and words, and that
-    one to the title alone.
+    The stand-in line, which shows where no headline stands, is the first of
+    the intent ``target`` translated, its translated title, the tool's listed
+    intent and its registered title. A hook that raises asks nothing, so a
+    card that cannot be built falls back to the one without a description,
+    with the same line and words, and that one to the line alone.
     """
-    title = target.title or tool.title
+    stand_in = target.intent or target.title or tool.intent or tool.title
     try:
-        return card.build_message(title, target.resources, target.description, surface(), target.words)
+        return card.build_message(stand_in, target.resources, target.description, surface(), target.words)
     except Exception:
         pass
     try:
-        return card.build_message(title, target.resources, None, None, target.words)
+        return card.build_message(stand_in, target.resources, None, None, target.words)
     except Exception:
-        return title
+        return stand_in
 
 
 def make_hook(

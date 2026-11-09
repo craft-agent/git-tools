@@ -240,8 +240,8 @@ def _is_notice(raw: Any) -> bool:
     return "{" not in rest and "}" not in rest
 
 
-def parse_title(raw: Any) -> str | None:
-    """The translated title the command line printed, or ``None`` for anything but a non-blank string."""
+def parse_line(raw: Any) -> str | None:
+    """The translated title or intent the command line printed, or ``None`` for anything but a non-blank string."""
     return raw if _is_word(raw) else None
 
 
@@ -367,7 +367,7 @@ def _head_fits(surface: Surface, first: str, targets: list[str], words: Words) -
 
 
 def build_message(
-    title: str,
+    stand_in: str,
     resources: list[str],
     description: Description | None,
     surface: str | None,
@@ -375,9 +375,10 @@ def build_message(
 ) -> str:
     """The message of the card, in the shape of ``approvalPrompt`` in ``src/entry/description.ts``.
 
-    The headline (the ``title`` without one); a Details section with a
-    ``Target`` line per resource, unless the only resource is ``*`` (what cannot
-    be told), then one line per fact; and the text under its own label. A
+    The headline (``stand_in`` without one: the line the caller chose, an
+    intent or a title); a Details section with a ``Target`` line per resource,
+    unless the only resource is ``*`` (what cannot be told), then one line per
+    fact; and the text under its own label. A
     section with nothing to show is left out. The plugin's own words (the
     Details heading, the ``Target`` label and the notice of the facts not
     shown) are ``words``.
@@ -395,10 +396,10 @@ def build_message(
     shown = _shown_words(target, words)
     named = [] if resources == [ANY_RESOURCE] else resources
     targets = [f"{shown.target}: {target.escape(visible(resource))}" for resource in named]
-    first = target.escape(visible(title))
+    first = target.escape(visible(stand_in))
     if description and description.headline:
         headline = target.escape(visible(description.headline))
-        # A headline that would push a target past the cut gives way to the title: the targets are what an
+        # A headline that would push a target past the cut gives way to the stand-in: the targets are what an
         # "always" answer stores, so they must stay in sight.
         if _head_fits(target, headline, targets, shown) or not _head_fits(target, first, targets, shown):
             first = headline

@@ -530,6 +530,73 @@ class ApprovalWordsTest(FakeCliCase):
         self.assertEqual(decision["message"], CREATE)
 
 
+LISTED_INTENT = "About to create a thing"
+TARGET_INTENT = "About to create the thing target one"
+TARGET_TITLE = "Create the thing target one"
+
+
+class ApprovalIntentTest(FakeCliCase):
+    def decide(self, listed_intent: Any = LISTED_INTENT, code: int = 0, **fields: Any) -> dict[str, str]:
+        """The decision for a call of ``demo_thing_create``, listed with ``listed_intent`` and answered with ``fields``."""
+        entries = [
+            {**entry, "intent": listed_intent} if entry["id"] == "demo_thing_create" else entry for entry in LISTING
+        ]
+        self.reply("list", stdout=json.dumps(entries))
+        self.reply("target demo_thing_create", code=code, stdout=json.dumps({"resources": ["target/one"], **fields}))
+        return self.register().hooks[0][1](tool_name="demo_thing_create", args={})
+
+    def assert_card(self, decision: dict[str, str], line: str) -> None:
+        self.assertEqual(
+            decision,
+            {
+                "action": "approve",
+                "message": f"{line}{DETAILS}Target: target/one",
+                "rule_key": key("demo_thing_create", "target/one"),
+            },
+        )
+
+    def test_the_translated_intent_of_the_answer_comes_first(self) -> None:
+        self.assert_card(self.decide(title=TARGET_TITLE, intent=TARGET_INTENT), TARGET_INTENT)
+
+    def test_without_an_intent_in_the_answer_the_translated_title_comes_next(self) -> None:
+        self.assert_card(self.decide(title=TARGET_TITLE), TARGET_TITLE)
+
+    def test_a_failing_target_falls_to_the_listed_intent(self) -> None:
+        decision = self.decide(code=1, title=TARGET_TITLE, intent=TARGET_INTENT)
+        self.assertEqual(decision["message"], LISTED_INTENT)
+        self.assertRegex(decision["rule_key"], r":once-[0-9a-f]{32}$")
+
+    def test_a_target_without_title_or_intent_falls_to_the_listed_intent(self) -> None:
+        self.assert_card(self.decide(), LISTED_INTENT)
+
+    def test_with_no_intent_anywhere_the_listed_title_is_the_line(self) -> None:
+        for listed in (None, "", "  ", 3):
+            with self.subTest(listed=listed):
+                self.assert_card(self.decide(listed_intent=listed), CREATE)
+
+    def test_a_bad_intent_in_the_answer_falls_through_to_the_next_source(self) -> None:
+        for intent in (None, "", "  ", 3, ["i"], {"i": 1}):
+            with self.subTest(intent=intent):
+                self.assert_card(self.decide(title=TARGET_TITLE, intent=intent), TARGET_TITLE)
+                self.assert_card(self.decide(intent=intent), LISTED_INTENT)
+
+    def test_the_last_resort_card_is_the_line_alone(self) -> None:
+        self.reply("target demo_thing_create", stdout=json.dumps({"resources": ["target/one"], "title": TARGET_TITLE}))
+        self.reply("list", stdout=json.dumps([{**LISTING[1], "intent": LISTED_INTENT}]))
+        hook = self.register().hooks[0][1]
+        with mock.patch.object(approval.card, "build_message", side_effect=RuntimeError("boom")):
+            self.assertEqual(hook(tool_name="demo_thing_create", args={})["message"], TARGET_TITLE)
+        self.reply("target demo_thing_create", stdout=json.dumps({"resources": ["target/one"]}))
+        self.write_fixture()
+        with mock.patch.object(approval.card, "build_message", side_effect=RuntimeError("boom")):
+            self.assertEqual(hook(tool_name="demo_thing_create", args={})["message"], LISTED_INTENT)
+
+    def test_a_headline_is_still_shown_with_the_intent_standing_by(self) -> None:
+        description = {"headline": "Create the thing x", "facts": [{"label": "Size", "value": "1"}]}
+        decision = self.decide(intent=TARGET_INTENT, description=description)
+        self.assertEqual(decision["message"], f"Create the thing x{DETAILS}Target: target/one\nSize: 1")
+
+
 class DisplayLanguageTest(unittest.TestCase):
     def hermes_says(self, get_language: Any) -> Any:
         """Put an ``agent.i18n`` whose ``get_language`` is ``get_language`` where ``import`` finds it."""

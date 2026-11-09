@@ -204,11 +204,11 @@ class ParseWordsTest(unittest.TestCase):
             with self.subTest(raw=raw):
                 self.assertIs(card.parse_words(raw), card.ENGLISH_WORDS)
 
-    def test_a_title_is_a_non_blank_string_or_nothing(self) -> None:
-        self.assertEqual(card.parse_title("メモを作成する"), "メモを作成する")
+    def test_a_title_or_intent_is_a_non_blank_string_or_nothing(self) -> None:
+        self.assertEqual(card.parse_line("メモを作成する"), "メモを作成する")
         for raw in (None, "", "  ", 3, ["t"], {"title": "t"}):
             with self.subTest(raw=raw):
-                self.assertIsNone(card.parse_title(raw))
+                self.assertIsNone(card.parse_line(raw))
 
 
 class SurfaceTest(unittest.TestCase):
@@ -328,6 +328,21 @@ class BuildMessageTest(unittest.TestCase):
                 message = card.build_message("Title", ["target/one"], described(headline=headline), surface)
                 self.assertEqual(message, f"Title{DETAILS}Target: target/one")
         self.assertTrue(card.build_message("Title", ["target/one"], described(headline=headline), "cli").startswith("H"))
+
+    def test_an_intent_as_the_stand_in_line_draws_the_card_without_a_description(self) -> None:
+        message = card.build_message("About to create a thing", ["a"], None, "cli")
+        self.assertEqual(message, f"About to create a thing{DETAILS}Target: a")
+
+    def test_the_headline_wins_over_an_intent_and_gives_way_to_it_past_the_cut(self) -> None:
+        intent = "About to create a thing"
+        self.assertEqual(
+            card.build_message(intent, ["a"], described(headline="Create the thing x"), "cli"),
+            f"Create the thing x{DETAILS}Target: a",
+        )
+        for surface in BUDGETED:
+            with self.subTest(surface=surface):
+                message = card.build_message(intent, ["target/one"], described(headline="H" * 490), surface)
+                self.assertEqual(message, f"{intent}{DETAILS}Target: target/one")
 
     def test_a_long_headline_stays_when_the_title_would_not_fit_either(self) -> None:
         resources = [f"target/{n}" for n in range(40)]
