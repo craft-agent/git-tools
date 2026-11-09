@@ -42,6 +42,7 @@ async function stagedFiles(root: string, signal: AbortSignal | undefined): Promi
 export const commitStage = defineTool({
   id: "git_commit_stage",
   title: "Stage chosen hunks",
+  intent: "About to stage chosen hunks",
   description: [
     "Stage exactly the named hunks of a git_commit_read hunks listing into the index.",
     "Pass the listing's digest with the ids and the same paths: the call recomputes the diff and stages nothing when it differs from the listing, so a stale listing never stages other hunks.",

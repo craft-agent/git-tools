@@ -60,6 +60,7 @@ async function resolveFixupTarget(root: string, ref: string, signal: AbortSignal
 export const commitCreate = defineTool({
   id: "git_commit_create",
   title: "Commit the staged changes",
+  intent: "About to commit the staged changes",
   description: [
     "Commit exactly what is staged, with the message it was given; nothing that is not staged goes in.",
     "The message is linted first, as git_commit_read lint does (the built-in rules and the repository's commitlint), and the staged diff is scanned for credentials, as git_commit_read secrets does.",

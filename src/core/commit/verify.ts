@@ -117,6 +117,7 @@ async function discardWorktree(root: string, parent: string, tree: string): Prom
 export const commitVerify = defineTool({
   id: "git_commit_verify",
   title: "Check each commit of the branch",
+  intent: "About to run a check at each commit",
   description: [
     "Check that every commit after base passes on its own: each one is checked out, oldest first, in a throwaway worktree (its checkout hooks off) and command is run there, after an optional one-time setup.",
     "It stops at the first failing commit unless keep_going is set, and checks at most 30 commits; pass a nearer base for a longer branch.",

@@ -42,6 +42,7 @@ async function hasStagedChanges(root: string, signal: AbortSignal | undefined): 
 export const commitAmend = defineTool({
   id: "git_commit_amend",
   title: "Amend the last commit",
+  intent: "About to amend the last commit",
   description: [
     "Replace HEAD with a commit holding the staged changes and the message given, or HEAD's own message when none is given; with nothing staged it rewords.",
     "The message is checked, the staged diff scanned, and the repository's hooks run exactly as git_commit_create does, with the same check_failed details.",
