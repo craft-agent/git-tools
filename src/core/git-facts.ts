@@ -16,9 +16,15 @@ export function filesFact(count: number): CallFact {
   return { label: "Files", value: { text: count === 1 ? "{files} file" : "{files} files", values: { files: count } } }
 }
 
+/** The `Branch` fact: the branch a change lands on. */
+export function branchFact(name: string): CallFact {
+  return { label: "Branch", value: name }
+}
+
 /** The translations of the labels and the value templates of the facts above. */
 export const GIT_FACT_TRANSLATIONS: Translations = {
   ja: {
+    Branch: "ブランチ",
     Lines: "行数",
     "{added} added, {removed} removed": "追加 {added} 行、削除 {removed} 行",
     Files: "ファイル数",
