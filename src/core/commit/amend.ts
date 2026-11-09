@@ -1,10 +1,19 @@
 import { z } from "zod"
 import { ToolError } from "../errors"
 import { git, gitResult } from "../git"
-import { checkRewrite, currentBranch, needsForcePush } from "../rewrite"
-import { defineTool, type ToolContext } from "../tool"
+import { branchFact, filesFact, linesFact } from "../git-facts"
+import { checkRewrite, currentBranch, needsForcePush, needsForcePushAfterAmend, shortSha } from "../rewrite"
+import { type CallDescription, type CallFact, defineTool, type ToolContext } from "../tool"
 import { workingTree } from "../tree"
-import { commitCheckInput, commitOutput, messageLimits, requireRewriteAllowed, runCommit } from "./commit-run"
+import { acceptedFindingsFact, indexPins, stagedChanges } from "./commit-describe"
+import {
+  commitCheckInput,
+  commitOutput,
+  messageLimits,
+  normalizeMessage,
+  requireRewriteAllowed,
+  runCommit,
+} from "./commit-run"
 
 const input = z.object({
   message: z
@@ -63,6 +72,13 @@ async function amendMessage(
   return args.message ?? (await commitMessage(root, amended, signal))
 }
 
+/** What the amend changes about HEAD, as the `Change` fact's value template. */
+function changeText(staged: boolean, messageChanged: boolean): string {
+  if (staged && messageChanged) return "staged changes and message"
+  if (staged) return "staged changes"
+  return messageChanged ? "message only" : "no change"
+}
+
 /** Replaces the last commit with the staged changes and a message, with the checks of a new commit. */
 export const commitAmend = defineTool({
   id: "git_commit_amend",
@@ -81,6 +97,37 @@ export const commitAmend = defineTool({
   input,
   output,
   targets: async (_args: Args, ctx: ToolContext) => [await workingTree(ctx)],
+  async describe(args: Args, ctx: ToolContext): Promise<CallDescription> {
+    const root = await workingTree(ctx)
+    const { signal } = ctx
+    const amended = await resolveHead(root, signal)
+    await requireSomethingToAmend(root, args, signal)
+
+    const subject = (await git(["log", "-1", "--format=%s", amended], { cwd: root, signal })).trim()
+    const message = await normalizeMessage(root, await amendMessage(root, args, amended, signal), signal)
+    const old = await normalizeMessage(root, await commitMessage(root, amended, signal), signal)
+    const staged = await hasStagedChanges(root, signal)
+    const branch = await currentBranch(root, signal)
+    const accepted = await acceptedFindingsFact(root, args.accept_findings, signal)
+
+    const facts: CallFact[] = []
+    if (branch !== null && (await needsForcePushAfterAmend(root, branch, amended, signal))) {
+      facts.push({ label: "Push", value: { text: "needs a force push" } })
+    }
+    if (accepted) facts.push(accepted)
+    facts.push({ label: "Change", value: { text: changeText(staged, message !== old) } })
+    if (branch !== null) facts.push(branchFact(branch))
+    if (staged) {
+      const { files, added, removed } = await stagedChanges(root, signal)
+      facts.push(filesFact(files), linesFact(added, removed))
+    }
+    return {
+      headline: { text: "About to amend {commit}", values: { commit: `${shortSha(amended)} ${subject}` } },
+      facts,
+      text: { label: "Commit message", body: message },
+      pins: await indexPins(root, signal),
+    }
+  },
   async execute(args: Args, ctx: ToolContext) {
     const root = await workingTree(ctx)
     const { signal } = ctx

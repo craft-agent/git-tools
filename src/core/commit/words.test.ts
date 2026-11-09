@@ -53,12 +53,32 @@ async function createDescriptions() {
   ]
 }
 
+/** A pushed branch, described amending its last commit with each kind of change: a new message, staged changes, both, and neither. */
+async function amendDescriptions() {
+  const repo = await tempRepo()
+  repos.push(repo)
+  await repo.git(["switch", "-c", "feat"])
+  await repo.commit("feat: add a", { "a.txt": "a\n" })
+  await repo.git(["push", "-u", "origin", "feat"])
+  const describeAmend = (args: Parameters<typeof commitAmend.execute>[0]) =>
+    callDescription(commitAmend, args, { cwd: repo.dir })
+  const reworded = await describeAmend({ message: "feat: add a, reworded" })
+  const unchanged = await describeAmend({ message: "feat: add a" })
+  repo.write("a.txt", "a changed\n")
+  await repo.git(["add", "a.txt"])
+  return [reworded, unchanged, await describeAmend({}), await describeAmend({ message: "feat: add a, reworded" })]
+}
+
 /** The words the commit tools write in English: their titles, their intents and the words their descriptions write beyond the shared facts'. */
 async function commitWords(): Promise<string[]> {
   const toolWords = COMMIT_TOOLS.flatMap((tool) =>
     tool.intent === undefined ? [tool.title] : [tool.title, tool.intent],
   )
-  const descriptionWords = [...(await stageDescriptions()), ...(await createDescriptions())].flatMap(wordsOf)
+  const descriptionWords = [
+    ...(await stageDescriptions()),
+    ...(await createDescriptions()),
+    ...(await amendDescriptions()),
+  ].flatMap(wordsOf)
   return [...new Set([...toolWords, ...descriptionWords.filter((word) => !SHARED_WORDS.has(word))])]
 }
 
