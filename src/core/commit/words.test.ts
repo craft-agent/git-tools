@@ -69,6 +69,23 @@ async function amendDescriptions() {
   return [reworded, unchanged, await describeAmend({}), await describeAmend({ message: "feat: add a, reworded" })]
 }
 
+/** A branch of two commits after `main`, described checking them in each way: with a setup and directory, and with keep_going. */
+async function verifyDescriptions() {
+  const repo = await tempRepo()
+  repos.push(repo)
+  await repo.git(["switch", "-c", "feat"])
+  await repo.commit("feat: add a", { "sub/a.txt": "a\n" })
+  await repo.commit("feat: add b", { "b.txt": "b\n" })
+  const describeVerify = (args: Parameters<typeof commitVerify.execute>[0]) =>
+    callDescription(commitVerify, args, { cwd: repo.dir })
+  const base = "main"
+  const timeout_sec = 600
+  return [
+    await describeVerify({ command: "true", base, timeout_sec }),
+    await describeVerify({ command: "true", base, timeout_sec, setup: "true", dir: "sub", keep_going: true }),
+  ]
+}
+
 /** The words the commit tools write in English: their titles, their intents and the words their descriptions write beyond the shared facts'. */
 async function commitWords(): Promise<string[]> {
   const toolWords = COMMIT_TOOLS.flatMap((tool) =>
@@ -78,6 +95,7 @@ async function commitWords(): Promise<string[]> {
     ...(await stageDescriptions()),
     ...(await createDescriptions()),
     ...(await amendDescriptions()),
+    ...(await verifyDescriptions()),
   ].flatMap(wordsOf)
   return [...new Set([...toolWords, ...descriptionWords.filter((word) => !SHARED_WORDS.has(word))])]
 }

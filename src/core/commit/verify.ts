@@ -5,8 +5,9 @@ import { z } from "zod"
 import { ToolError } from "../errors"
 import { exec, type ExecResult } from "../exec"
 import { git, gitEnv, gitResult } from "../git"
+import { commitsFact } from "../git-facts"
 import { currentBranch, resolveCommit, shortSha } from "../rewrite"
-import { confirmWrite, defineTool, type ToolContext } from "../tool"
+import { type CallDescription, type CallFact, confirmWrite, defineTool, type ToolContext } from "../tool"
 import { defaultBranchRef, workingTree } from "../tree"
 
 /** The most commits one call checks. */
@@ -156,6 +157,29 @@ export const commitVerify = defineTool({
   input,
   output,
   targets: async (_args: Args, ctx: ToolContext) => [await workingTree(ctx)],
+  async describe(args: Args, ctx: ToolContext): Promise<CallDescription> {
+    const root = await workingTree(ctx)
+    const { signal } = ctx
+    const { dir, base, commits } = await resolveRun(root, args, signal)
+    const branch = (await currentBranch(root, signal)) ?? "HEAD"
+    const subject = (await git(["log", "-1", "--format=%s", base], { cwd: root, signal })).trim()
+    const head = (await git(["rev-parse", "HEAD"], { cwd: root, signal })).trim()
+
+    const facts: CallFact[] = [commitsFact(commits.length), { label: "Base", value: `${shortSha(base)} ${subject}` }]
+    const setup = args.setup?.trim()
+    if (setup) facts.push({ label: "Setup", value: args.setup! })
+    if (dir !== ".") facts.push({ label: "Directory", value: dir })
+    facts.push(
+      { label: "On failure", value: { text: args.keep_going ? "check every commit" : "stop at the first failure" } },
+      { label: "Time limit", value: { text: "{seconds} s per run", values: { seconds: args.timeout_sec } } },
+    )
+    return {
+      headline: { text: "About to run a check at each commit of {branch}", values: { branch } },
+      facts,
+      text: { label: "Command", body: args.command },
+      pins: { head, base },
+    }
+  },
   async execute(args: Args, ctx: ToolContext) {
     const root = await workingTree(ctx)
     const { signal } = ctx
