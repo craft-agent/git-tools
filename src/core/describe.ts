@@ -19,6 +19,8 @@ export const MAX_HEADLINE_LENGTH = 120
 export const MAX_HEADLINE_VALUES = 8
 /** The code point budget of a headline value, including an ellipsis when cut. */
 export const MAX_HEADLINE_VALUE_LENGTH = 80
+/** How many pins a description may carry; one with more is bad. */
+export const MAX_PINS = 16
 
 /**
  * A `{name}` placeholder of a headline template, with its name captured, so
@@ -113,6 +115,18 @@ function isText(text: unknown): text is CallText {
   return isRecord(text) && typeof text.label === "string" && text.label.trim() !== "" && typeof text.body === "string"
 }
 
+/** The pins of an answer when they are a plain record of at most `MAX_PINS` nonblank names with string values, none when absent or empty, else `undefined`. */
+function pinsOf(pins: unknown): { pins?: Record<string, string> } | undefined {
+  if (pins === undefined) return {}
+  if (!isRecord(pins)) return undefined
+  const entries = Object.entries(pins)
+  if (entries.length > MAX_PINS) return undefined
+  if (!entries.every((entry): entry is [string, string] => entry[0].trim() !== "" && typeof entry[1] === "string")) {
+    return undefined
+  }
+  return entries.length === 0 ? {} : { pins: Object.fromEntries(entries) }
+}
+
 /**
  * The headline when it is well formed, else `undefined`: a nonblank template
  * within its budget whose every brace belongs to a `{name}` placeholder that
@@ -135,10 +149,12 @@ function headlineOf(headline: unknown): CallHeadline | undefined {
  * What a call will do, as an optional headline, short facts and an optional
  * text, within their code point budgets. A tool without a describer,
  * arguments the input schema rejects, a describer that fails, an answer of
- * another shape (a bad fact or text included) and an answer with no headline,
- * facts or text all give `undefined`, leaving approval to proceed without a
- * description. A bad headline alone is dropped, so the title stands in its
- * place. A cancellation is never turned into `undefined`; it is rethrown.
+ * another shape (a bad fact, text or pins included) and an answer with no
+ * headline, facts or text (pins alone show nothing) all give `undefined`,
+ * leaving approval to proceed without a description. A bad headline alone is
+ * dropped, so the title stands in its place. The pins, at most `MAX_PINS`
+ * nonblank names with string values, are kept as given, and none when empty.
+ * A cancellation is never turned into `undefined`; it is rethrown.
  */
 export async function callDescription(
   spec: Pick<ToolSpec, "input" | "describe">,
@@ -161,6 +177,8 @@ export async function callDescription(
   const entries: unknown[] = Array.from(answer.facts)
   if (!entries.every(isFact)) return undefined
   if (answer.text !== undefined && !isText(answer.text)) return undefined
+  const kept = pinsOf(answer.pins)
+  if (kept === undefined) return undefined
 
   const facts = entries.slice(0, MAX_FACTS).map(({ label, value }) => ({
     label: cut(label, MAX_LABEL_LENGTH),
@@ -172,5 +190,5 @@ export async function callDescription(
       ? undefined
       : { label: cut(answer.text.label, MAX_TEXT_LABEL_LENGTH), body: cut(answer.text.body, MAX_TEXT_LENGTH) }
   if (headline === undefined && facts.length === 0 && text === undefined) return undefined
-  return { ...(headline && { headline }), facts, ...(text && { text }) }
+  return { ...(headline && { headline }), facts, ...(text && { text }), ...kept }
 }

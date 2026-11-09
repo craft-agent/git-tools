@@ -21,8 +21,18 @@ export type CallHeadline = { text: string; values?: Record<string, string> }
 /** The text a call carries, under the tool's own label (`Note text`). */
 export type CallText = { label: string; body: string }
 
-/** What a call will do, as an approval prompt shows it: an optional headline, short facts, then an optional text. */
-export type CallDescription = { headline?: CallHeadline; facts: CallFact[]; text?: CallText }
+/**
+ * What a call will do, as an approval prompt shows it: an optional headline,
+ * short facts, then an optional text. `pins` are values the prompt does not
+ * show that the call must still find unchanged (a file's hash), by name; they
+ * go into the pin of the approval and nowhere else.
+ */
+export type CallDescription = {
+  headline?: CallHeadline
+  facts: CallFact[]
+  text?: CallText
+  pins?: Record<string, string>
+}
 
 export type ToolContext = {
   /** The working directory the call runs in. */
