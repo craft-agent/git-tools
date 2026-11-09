@@ -90,3 +90,20 @@ export async function defaultBranchRef(root: string, signal?: AbortSignal): Prom
   }
   return null
 }
+
+/** The checked-out branch, or null when HEAD is detached. */
+export async function currentBranch(root: string, signal?: AbortSignal): Promise<string | null> {
+  const head = await gitResult(["symbolic-ref", "--quiet", "--short", "HEAD"], { cwd: root, signal })
+  return head.code === 0 ? head.stdout.trim() || null : null
+}
+
+/** Whether `ancestor` is reachable from `descendant` (a commit counts as its own ancestor). */
+export async function isAncestor(
+  root: string,
+  ancestor: string,
+  descendant: string,
+  signal?: AbortSignal,
+): Promise<boolean> {
+  const result = await gitResult(["merge-base", "--is-ancestor", ancestor, descendant], { cwd: root, signal })
+  return result.code === 0
+}
