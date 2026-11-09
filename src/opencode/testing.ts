@@ -112,6 +112,36 @@ export function fixtureSpecs(events: string[]): ToolSpec[] {
   ]
 }
 
+export const INTENT_ID = "demo_thing_touch"
+export const INTENT_LABEL_ID = "demo_thing_mark"
+export const INTENT = "About to touch the thing"
+
+/** Japanese words for the intent fixtures' intent and headline. */
+export const INTENT_TRANSLATIONS: Translations = {
+  ja: { [INTENT]: "モノに触れようとしています", "Mark the area {area}": "エリア {area} に印を付けようとしています" },
+}
+
+/** The approval prompts of the intent fixtures for `north`: the intent stands for the headline, or the headline stands. */
+export const ENGLISH_INTENT = `${INTENT}\n\n--- Details ---\n\nTarget: north`
+export const JAPANESE_INTENT = "モノに触れようとしています\n\n--- 詳細 ---\n\n対象: north"
+export const ENGLISH_INTENT_LABEL = 'Mark the area "north"\n\n--- Details ---\n\nTarget: north'
+export const JAPANESE_INTENT_LABEL = 'エリア "north" に印を付けようとしています\n\n--- 詳細 ---\n\n対象: north'
+
+/** Two add tools of `alpha` with an intent: one without `describe`, one with a headline. */
+export function intentSpecs(events: string[]): ToolSpec[] {
+  return [
+    defineTool({ ...fixture(INTENT_ID, "alpha", "add", events), intent: INTENT }),
+    defineTool({
+      ...fixture(INTENT_LABEL_ID, "alpha", "add", events),
+      intent: INTENT,
+      describe: (args) => ({
+        headline: { text: "Mark the area {area}", values: { area: String(args.area ?? "here") } },
+        facts: [],
+      }),
+    }),
+  ]
+}
+
 /** A new directory, by real path, that `cleanups` removes. */
 export function tempDir(cleanups: (() => void)[]): string {
   const dir = realpathSync(mkdtempSync(join(tmpdir(), "opencode-dir-")))

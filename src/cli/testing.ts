@@ -141,6 +141,30 @@ export const TRANSLATIONS: Translations = {
   },
 }
 
+export const INTENT_ID = "demo_thing_touch"
+export const INTENT = "About to touch the thing"
+
+/** The Japanese of the intent fixture's intent. */
+export const INTENT_TRANSLATIONS: Translations = { ja: { [INTENT]: "モノに触れようとしています" } }
+
+/** The tools that carry an intent, to add after `specs`, which has none. */
+export const intentSpecs: ToolSpec[] = [
+  defineTool({
+    id: INTENT_ID,
+    title: INTENT_ID,
+    intent: INTENT,
+    description: INTENT_ID,
+    toolset: "alpha",
+    class: "add",
+    input: writeInput,
+    output,
+    targets: areaTargets,
+    async execute(args, ctx) {
+      return { tool: INTENT_ID, cwd: ctx.cwd, count: args.count, own_dir: ctx.ownDir }
+    },
+  }),
+]
+
 export type Run = { code: number; stdout: string; stderr: string }
 
 /** Runs the command line over the fixture specs and collects what it writes. */

@@ -65,6 +65,18 @@ describe("defineTool", () => {
     expect(() => defineTool(given as unknown as Parameters<typeof defineTool>[0])).toThrow(/object output schema/)
   })
 
+  test("accepts an intent that is a fixed phrase", () => {
+    expect(() => defineTool({ ...base, id: "demo_thing_create", intent: "About to create a thing" })).not.toThrow()
+  })
+
+  test.each(["", "   "])("rejects the blank intent %j", (intent) => {
+    expect(() => defineTool({ ...base, id: "demo_thing_create", intent })).toThrow(/intent that is not blank/)
+  })
+
+  test.each(["About to create {name}", "About } to create", "About { to create"])("rejects the intent %j", (intent) => {
+    expect(() => defineTool({ ...base, id: "demo_thing_create", intent })).toThrow(/intent without braces/)
+  })
+
   test("takes a targets resolver that reads the parsed arguments and the context", async () => {
     const given = defineTool({
       ...base,

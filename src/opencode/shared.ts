@@ -8,7 +8,7 @@ import {
   type Translations,
   type Translator,
 } from "../core"
-import { approvalPrompt, type ShownDescription } from "../entry/description"
+import { approvalPrompt, standIn, type ShownDescription } from "../entry/description"
 import { errorText } from "../entry/errors"
 import { ANY_RESOURCE } from "../entry/permission"
 import { PROJECT_PROFILE, type EntryProfile } from "../entry/profile"
@@ -37,7 +37,7 @@ export function persistableResources(resources: string[]): string[] {
 
 /** What the harness is told about a call it is asked to allow. */
 export function permissionMetadata(
-  spec: Pick<ToolSpec, "title" | "class">,
+  spec: Pick<ToolSpec, "title" | "intent" | "class">,
   args: unknown,
   resources: string[],
   description?: ShownDescription,
@@ -46,7 +46,7 @@ export function permissionMetadata(
   return {
     arguments: args,
     class: spec.class,
-    message: approvalPrompt(t.word(spec.title), resources, description, promptWords(t)),
+    message: approvalPrompt(standIn(spec, t), resources, description, promptWords(t)),
   }
 }
 

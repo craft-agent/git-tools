@@ -115,6 +115,7 @@ function describeSpec(spec: ToolSpec) {
   return {
     id: spec.id,
     title: spec.title,
+    ...(spec.intent !== undefined && { intent: spec.intent }),
     description: spec.description,
     toolset: spec.toolset,
     class: spec.class,
@@ -181,6 +182,7 @@ async function targetOf(command: Extract<Command, { name: "target" }>, io: CliIo
     writeJson(io, {
       resources,
       title: visible(t.word(spec.title)),
+      ...(spec.intent !== undefined && { intent: visible(t.word(spec.intent)) }),
       words: promptWords(t),
       ...(description !== undefined && { description }),
     })
@@ -201,7 +203,8 @@ function errorDetail(error: unknown): string {
  * The command line of the package, for callers that are not a harness's own
  * plugin: `list` answers with the selected tools, `run` runs one with the
  * arguments on standard input, and `target` answers with what a call would
- * write to (`{"resources": [...]}`), the tool's `title` and the plugin's own
+ * write to (`{"resources": [...]}`), the tool's `title`, its `intent` when it
+ * has one (`list` carries it too, in English), and the plugin's own
  * `words` (`{"details", "target", "more"}`) in the prompt language, plus a
  * `description` when the tool gives one:
  * `{"headline"?: string, "facts": [...], "text"?: {"label", "body"}}`, as the

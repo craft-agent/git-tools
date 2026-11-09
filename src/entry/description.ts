@@ -145,18 +145,24 @@ export async function permissionDescription(
 /** The line that opens a section of the prompt. */
 const sectionHeading = (name: string) => `--- ${name} ---`
 
+/** The line a prompt shows where no headline stands: the tool's intent, else its title, translated through `t`. */
+export function standIn(spec: Pick<ToolSpec, "title" | "intent">, t: Translator): string {
+  return t.word(spec.intent ?? spec.title)
+}
+
 /**
  * The whole text of an approval prompt, in the one shape of every native
- * plugin: the headline (the title without one); a Details section with a
+ * plugin: the headline (`firstLine`, the stand-in, without one); a Details section with a
  * `Target` line per resource, unless the only resource is `*` (what cannot be
  * told), then one line per fact; and a section of the text under its own
- * label. A section with nothing to show is left out. The title is the
- * caller's, already translated; `words` are the plugin's own words (see
- * `promptWords`). The title and the resources are made `visible` here; the
- * description comes from `permissionDescription`, which has done the same.
+ * label. A section with nothing to show is left out. The stand-in is the
+ * caller's, already translated (see `standIn`); `words` are the plugin's own
+ * words (see `promptWords`). The stand-in and the resources are made
+ * `visible` here; the description comes from `permissionDescription`, which
+ * has done the same.
  */
 export function approvalPrompt(
-  title: string,
+  firstLine: string,
   resources: string[],
   description: ShownDescription | undefined,
   words: PromptWords = ENGLISH_PROMPT_WORDS,
@@ -167,7 +173,7 @@ export function approvalPrompt(
       : resources.map((resource) => `${words.target}: ${visible(resource)}`)
   const details = [...targets, ...(description?.facts ?? []).map(({ label, value }) => `${label}: ${value}`)]
 
-  const lines = [description?.headline ?? visible(title)]
+  const lines = [description?.headline ?? visible(firstLine)]
   if (details.length > 0) lines.push("", sectionHeading(words.details), "", ...details)
   if (description?.text) lines.push("", sectionHeading(description.text.label), "", description.text.body)
   return lines.join("\n")
