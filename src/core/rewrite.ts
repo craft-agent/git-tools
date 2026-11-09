@@ -2,13 +2,15 @@
  * The one rule for rewriting commits (amend, fixup, rebase): a branch's own
  * commits may be rewritten even once pushed (the push then needs a force push),
  * but never the default branch, commits already on it, or commits another
- * remote branch holds too. Whether the hosting service protects the pushed
- * branch against force pushes is not read here; a pushed branch on GitHub gets
- * a warning that it was not checked.
+ * remote branch holds too. When a pushed branch is on GitHub, whether GitHub
+ * protects it against force pushes is read as well, and a protected branch is
+ * refused; a read that fails is a warning, since the rewrite itself stays local
+ * and GitHub refuses the force push on its own.
  */
 
 import { z } from "zod"
-import { ToolError } from "./errors"
+import { isToolError, ToolError } from "./errors"
+import { forcePushProtection, githubRepo, type ForcePushProtection } from "./gh"
 import { git, gitResult } from "./git"
 import { defaultBranchRef } from "./tree"
 
@@ -21,10 +23,7 @@ const MAX_NAMED_BRANCHES = 5
 /** Where git keeps the remote-tracking branches. */
 const REMOTE_REFS_PREFIX = "refs/remotes/"
 
-const REWRITE_RULES = ["detached", "default_branch", "merged", "shared"] as const
-
-/** A remote URL on github.com: `https://`, `ssh://git@` and `git@github.com:` forms. */
-const GITHUB_URL_PATTERN = /^(?:[a-z][a-z0-9+.-]*:\/\/)?(?:[^@/]+@)?github\.com(?::\d+)?[:/]/i
+const REWRITE_RULES = ["detached", "default_branch", "merged", "shared", "protected"] as const
 
 /** The verdict of the rewrite rule on a range of commits. */
 export const rewriteCheckSchema = z.object({
@@ -202,17 +201,48 @@ export async function remoteBranchesContaining(
     .map((line) => (line.startsWith(REMOTE_REFS_PREFIX) ? line.slice(REMOTE_REFS_PREFIX.length) : line))
 }
 
-async function githubWarnings(root: string, holding: RemoteRef[], signal?: AbortSignal): Promise<string[]> {
+/**
+ * Reads, for each of `holding` on a GitHub remote, whether GitHub blocks force
+ * pushes to it: one read per repository and branch name. A protected branch is
+ * a refusal, a read that fails a warning; a remote not on GitHub is skipped.
+ */
+async function readProtection(
+  root: string,
+  holding: RemoteRef[],
+  signal?: AbortSignal,
+): Promise<{ refusals: RewriteRefusal[]; warnings: string[] }> {
+  const refusals: RewriteRefusal[] = []
   const warnings: string[] = []
+  const reads = new Map<string, ForcePushProtection | ToolError>()
   for (const own of holding) {
     const url = await gitResult(["remote", "get-url", own.remote], { cwd: root, signal })
-    if (url.code === 0 && GITHUB_URL_PATTERN.test(url.stdout.trim())) {
+    const repo = url.code === 0 ? githubRepo(url.stdout) : null
+    if (!repo) continue
+
+    const key = `${repo.owner}/${repo.name}#${own.name}`.toLowerCase()
+    let read = reads.get(key)
+    if (!read) {
+      try {
+        read = await forcePushProtection(repo, own.name, { cwd: root, signal })
+      } catch (error) {
+        if (!isToolError(error)) throw error
+        read = error
+      }
+      reads.set(key, read)
+    }
+
+    if (isToolError(read)) {
       warnings.push(
-        `${own.ref} is on GitHub; whether it is protected against force pushes was not checked, so a force push may still be refused there.`,
+        `Could not read whether ${own.ref} is protected against force pushes on GitHub (${read.message}); a force push may still be refused there.`,
       )
+    } else if (read.protected) {
+      refusals.push({
+        rule: "protected",
+        message: `${own.ref} cannot be force-pushed: ${read.reason}. Make a new commit instead.`,
+      })
     }
   }
-  return warnings
+  return { refusals, warnings }
 }
 
 /**
@@ -297,7 +327,9 @@ export async function checkRewrite(
     })
   }
 
-  const warnings = refusals.length === 0 ? await githubWarnings(root, holding, signal) : []
+  const protection =
+    refusals.length === 0 ? await readProtection(root, holding, signal) : { refusals: [], warnings: [] }
+  refusals.push(...protection.refusals)
   const published = holding.map((candidate) => candidate.ref)
   return {
     allowed: refusals.length === 0,
@@ -305,6 +337,6 @@ export async function checkRewrite(
     published,
     needs_force_push: published.length > 0,
     refusals,
-    warnings,
+    warnings: protection.warnings,
   }
 }

@@ -119,7 +119,6 @@ export const commitCreate = defineTool({
   ].join(" "),
   toolset: "commit",
   class: "add",
-  openWorld: false,
   input,
   output,
   targets: async (_args: Args, ctx: ToolContext) => [await workingTree(ctx)],

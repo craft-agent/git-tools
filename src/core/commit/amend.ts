@@ -93,7 +93,6 @@ export const commitAmend = defineTool({
   ].join(" "),
   toolset: "commit",
   class: "overwrite",
-  openWorld: false,
   input,
   output,
   targets: async (_args: Args, ctx: ToolContext) => [await workingTree(ctx)],

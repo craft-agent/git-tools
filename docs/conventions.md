@@ -354,6 +354,15 @@ changes a rule above, it says so. The discussion behind them is on
   squash-merged branch landed — it reads that from GitHub, and only when
   `origin` is on GitHub. Elsewhere the rule falls back to what git alone can
   prove, and refuses or keeps rather than guesses.
+- **How a safety read goes.** It runs through a runner of its own for the
+  GitHub CLI (`gh`), built on `exec` with the same allowlisted environment as
+  the git runner, and every read has a time limit. The rewrite rule reads
+  whether GitHub blocks force pushes (branch protection or a ruleset) with one
+  `gh api graphql` query per repository and branch the rewrite holds on a
+  GitHub remote, and 8 s to answer. A branch that is protected is a refusal. A
+  read that fails (`gh` missing or not logged in, no access, a time-out, a
+  branch GitHub does not have) is a warning, not a refusal: the rewrite stays
+  local, and GitHub refuses the force push itself.
 
 ### Domains and names
 

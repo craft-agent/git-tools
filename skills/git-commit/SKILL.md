@@ -113,11 +113,13 @@ The rule for rewriting: a branch's own commits may be rewritten even once
 pushed, but never on the default branch, never a commit already on the
 default branch, and never one another remote branch holds. A detached HEAD is
 refused too. When the rewritten commits were pushed, `needs_force_push` is
-true: the branch then has to be pushed with a lease. Whether the hosting
-service protects the branch against force pushes is not checked here; a
-branch pushed to GitHub gets a warning saying so. Amending and fixups apply
-the rule themselves and fail with `rewrite_refused`, its `details.refusals`
-saying why.
+true: the branch then has to be pushed with a lease. A branch pushed to
+GitHub is also checked for protection against force pushes (branch
+protection or a ruleset); a protected one is refused (`protected`), and when
+that check cannot be made (`gh` missing or not logged in, no access) there is
+a warning instead, since GitHub may still refuse the force push. Amending and
+fixups apply the rule themselves and fail with `rewrite_refused`, its
+`details.refusals` saying why.
 
 ## Checking each commit
 

@@ -95,7 +95,6 @@ export const commitRead = defineTool({
   ].join(" "),
   toolset: "commit",
   class: "read",
-  openWorld: false,
   input,
   output,
   async execute(args: Args, ctx: ToolContext) {
