@@ -38,6 +38,31 @@ async function hasStagedChanges(root: string, signal: AbortSignal | undefined): 
   return result.code !== 0
 }
 
+/** Throws `invalid_argument` when the call gives the amend neither staged changes nor a new message. */
+async function requireSomethingToAmend(root: string, args: Args, signal: AbortSignal | undefined): Promise<void> {
+  if (args.message === undefined && !(await hasStagedChanges(root, signal))) {
+    throw new ToolError(
+      "invalid_argument",
+      "Nothing is staged and no new message was given; an amend needs one or both.",
+    )
+  }
+}
+
+/** The full message of a commit, as git stores it. */
+async function commitMessage(root: string, commit: string, signal: AbortSignal | undefined): Promise<string> {
+  return git(["log", "-1", "--format=%B", commit], { cwd: root, signal })
+}
+
+/** The message the amended commit is made with: the one given, or the message of the commit `amended`. */
+async function amendMessage(
+  root: string,
+  args: Args,
+  amended: string,
+  signal: AbortSignal | undefined,
+): Promise<string> {
+  return args.message ?? (await commitMessage(root, amended, signal))
+}
+
 /** Replaces the last commit with the staged changes and a message, with the checks of a new commit. */
 export const commitAmend = defineTool({
   id: "git_commit_amend",
@@ -61,16 +86,11 @@ export const commitAmend = defineTool({
     const { signal } = ctx
 
     const amended = await resolveHead(root, signal)
-    if (args.message === undefined && !(await hasStagedChanges(root, signal))) {
-      throw new ToolError(
-        "invalid_argument",
-        "Nothing is staged and no new message was given; an amend needs one or both.",
-      )
-    }
+    await requireSomethingToAmend(root, args, signal)
     const check = await checkRewrite(root, amended, { signal })
     requireRewriteAllowed(check)
 
-    const message = args.message ?? (await git(["log", "-1", "--format=%B", amended], { cwd: root, signal }))
+    const message = await amendMessage(root, args, amended, signal)
     const landed = await runCommit(
       root,
       {
