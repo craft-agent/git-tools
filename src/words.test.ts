@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test"
 import { COMMIT_TRANSLATIONS } from "./core/commit/words"
 import { templatePlaceholders } from "./core/describe"
 import { FACT_TRANSLATIONS } from "./core/facts"
+import { GIT_FACT_TRANSLATIONS } from "./core/git-facts"
 import { REPO_TRANSLATIONS } from "./core/repo/words"
 import { translator } from "./core/words"
 import { ALL_TOOLS } from "./tools"
@@ -10,9 +11,10 @@ import { ALL_TRANSLATIONS } from "./words"
 const ja = translator(ALL_TRANSLATIONS, "ja")
 
 describe("ALL_TRANSLATIONS", () => {
-  test("joins the Japanese tables of the facts, the repo and the commit tools", () => {
+  test("joins the Japanese tables of the facts, the git facts, the repo and the commit tools", () => {
     expect(ALL_TRANSLATIONS.ja).toEqual({
       ...FACT_TRANSLATIONS.ja,
+      ...GIT_FACT_TRANSLATIONS.ja,
       ...REPO_TRANSLATIONS.ja,
       ...COMMIT_TRANSLATIONS.ja,
     })
@@ -20,7 +22,9 @@ describe("ALL_TRANSLATIONS", () => {
   })
 
   test("gives no English word to two tables", () => {
-    const keys = [FACT_TRANSLATIONS, REPO_TRANSLATIONS, COMMIT_TRANSLATIONS].flatMap((table) => Object.keys(table.ja!))
+    const keys = [FACT_TRANSLATIONS, GIT_FACT_TRANSLATIONS, REPO_TRANSLATIONS, COMMIT_TRANSLATIONS].flatMap((table) =>
+      Object.keys(table.ja!),
+    )
     expect(new Set(keys).size).toBe(keys.length)
   })
 

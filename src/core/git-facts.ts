@@ -1,0 +1,28 @@
+/**
+ * The facts the git tools share in a call's description, in the form of
+ * `facts.ts`: a function that takes what the tool resolved and returns a
+ * `CallFact`, and a table that translates its label and value template.
+ */
+import type { CallFact } from "./tool"
+import type { Translations } from "./words"
+
+/** The `Lines` fact: how many lines a change adds and removes, as `3 added, 1 removed`. */
+export function linesFact(added: number, removed: number): CallFact {
+  return { label: "Lines", value: { text: "{added} added, {removed} removed", values: { added, removed } } }
+}
+
+/** The `Files` fact: how many files a change touches, as `1 file` or `3 files`. */
+export function filesFact(count: number): CallFact {
+  return { label: "Files", value: { text: count === 1 ? "{files} file" : "{files} files", values: { files: count } } }
+}
+
+/** The translations of the labels and the value templates of the facts above. */
+export const GIT_FACT_TRANSLATIONS: Translations = {
+  ja: {
+    Lines: "行数",
+    "{added} added, {removed} removed": "追加 {added} 行、削除 {removed} 行",
+    Files: "ファイル数",
+    "{files} file": "{files} 個",
+    "{files} files": "{files} 個",
+  },
+}
