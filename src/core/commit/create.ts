@@ -45,12 +45,48 @@ async function requireStaged(root: string, signal: AbortSignal | undefined): Pro
   if (result.code !== 1) throw classifyGitFailure(args, result)
 }
 
-/** The commit a fixup folds into: a commit of this branch the rewrite rule lets be rewritten. */
-async function resolveFixupTarget(root: string, ref: string, signal: AbortSignal | undefined) {
-  const target = await resolveCommit(root, ref, signal)
+/** Throws `invalid_argument` unless exactly one of `message` and `fixup` is given. */
+function requireMessageOrFixup(args: Args): void {
+  if (args.message !== undefined && args.fixup !== undefined) {
+    throw new ToolError(
+      "invalid_argument",
+      "Pass message for a new commit, or fixup with the commit it fixes; not both.",
+    )
+  }
+  if (args.message === undefined && args.fixup === undefined) {
+    throw new ToolError(
+      "invalid_argument",
+      "Pass message for a new commit, or fixup with the commit it fixes; neither was given.",
+    )
+  }
+}
+
+/** Throws `invalid_argument` unless `target`, the commit `ref` names, is a commit of this branch. */
+async function requireAncestorOfHead(
+  root: string,
+  ref: string,
+  target: string,
+  signal: AbortSignal | undefined,
+): Promise<void> {
   if (!(await isAncestor(root, target, "HEAD", signal))) {
     throw new ToolError("invalid_argument", `${ref} is not a commit of this branch; a fixup can only target one.`)
   }
+}
+
+/** The subject line of a commit. */
+async function commitSubject(root: string, commit: string, signal: AbortSignal | undefined): Promise<string> {
+  return (await git(["log", "-1", "--format=%s", commit], { cwd: root, signal })).trim()
+}
+
+/** The message git gives a fixup of a commit with this subject. */
+function fixupMessage(subject: string): string {
+  return `fixup! ${subject}\n`
+}
+
+/** The commit a fixup folds into: a commit of this branch the rewrite rule lets be rewritten. */
+async function resolveFixupTarget(root: string, ref: string, signal: AbortSignal | undefined) {
+  const target = await resolveCommit(root, ref, signal)
+  await requireAncestorOfHead(root, ref, target, signal)
   const check = await checkRewrite(root, target, { signal })
   requireRewriteAllowed(check)
   return { target, warnings: check.warnings }
@@ -82,18 +118,7 @@ export const commitCreate = defineTool({
     const root = await workingTree(ctx)
     const { signal } = ctx
 
-    if (args.message !== undefined && args.fixup !== undefined) {
-      throw new ToolError(
-        "invalid_argument",
-        "Pass message for a new commit, or fixup with the commit it fixes; not both.",
-      )
-    }
-    if (args.message === undefined && args.fixup === undefined) {
-      throw new ToolError(
-        "invalid_argument",
-        "Pass message for a new commit, or fixup with the commit it fixes; neither was given.",
-      )
-    }
+    requireMessageOrFixup(args)
     await requireStaged(root, signal)
 
     const base = {
@@ -106,8 +131,8 @@ export const commitCreate = defineTool({
     }
 
     const { target, warnings } = await resolveFixupTarget(root, args.fixup!, signal)
-    const subject = (await git(["log", "-1", "--format=%s", target], { cwd: root, signal })).trim()
-    const landed = await runCommit(root, { ...base, message: `fixup! ${subject}\n`, lintRules: "commitlint" }, signal)
+    const subject = await commitSubject(root, target, signal)
+    const landed = await runCommit(root, { ...base, message: fixupMessage(subject), lintRules: "commitlint" }, signal)
     return {
       ...landed,
       fixup_of: target,
