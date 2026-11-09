@@ -1,6 +1,15 @@
 import { describe, expect, test } from "bun:test"
 import { z } from "zod"
-import { PIN_PATTERN, translator, type CallDescription, type ToolContext, type ToolSpec } from "../core"
+import {
+  PIN_PATTERN,
+  callDescription,
+  pinOf,
+  translator,
+  type CallDescription,
+  type ToolContext,
+  type ToolSpec,
+} from "../core"
+import { MAX_FACTS, MAX_TEXT_LENGTH, MAX_VALUE_LENGTH } from "../core/describe"
 import { shownDescription } from "./description"
 import { approvalOf, checkPin } from "./pin"
 
@@ -14,6 +23,8 @@ type State = {
   hash: string
   area: string
   describe: "answer" | "throw" | "hang" | "bad" | "none"
+  body?: string
+  facts?: CallDescription["facts"]
 }
 
 function fixture(state: State) {
@@ -23,7 +34,8 @@ function fixture(state: State) {
     if (state.describe === "bad") return { facts: "nope" } as unknown as CallDescription
     return {
       headline: { text: "Write {name}", values: { name: "todo" } },
-      facts: [{ label: "Size", value: { text: "{bytes} bytes", values: { bytes: state.size } } }],
+      facts: state.facts ?? [{ label: "Size", value: { text: "{bytes} bytes", values: { bytes: state.size } } }],
+      ...(state.body !== undefined && { text: { label: "Note text", body: state.body } }),
       pins: { hash: state.hash },
     }
   }
@@ -107,6 +119,65 @@ describe("checkPin", () => {
       name: "ToolError",
       code: "stale",
       message: `${ID} did not run: what its approval showed changed before it could run. Call it again to be asked again.`,
+    })
+  })
+
+  describe("content past the prompt's budgets", () => {
+    const STALE = { name: "ToolError", code: "stale" }
+    const factsOf = (count: number, tail = "") =>
+      Array.from({ length: count }, (_, index) => ({ label: `Fact ${index + 1}`, value: `value ${index + 1}${tail}` }))
+
+    /** The state's approval, then the state changed by `change`, then the check against it. */
+    async function checkLong(start: Partial<State>, change: (state: State) => void) {
+      const state = { ...fresh(), ...start }
+      const { pin } = await approvalOf(fixture(state), {}, CTX, 50)
+      change(state)
+      return checkPin(fixture(state), {}, CTX, pin, 50).catch((caught: unknown) => caught)
+    }
+
+    test("throws stale when the body changes past the text budget, and the prompt shows only the budget", async () => {
+      const body = "a".repeat(MAX_TEXT_LENGTH + 500)
+      const changeAt = MAX_TEXT_LENGTH + 400
+      const approval = await approvalOf(fixture({ ...fresh(), body }), {}, CTX)
+      const shown = approval.description?.text?.body ?? ""
+      expect(Array.from(shown)).toHaveLength(MAX_TEXT_LENGTH)
+      expect(shown.endsWith("…")).toBe(true)
+      const error = await checkLong(
+        { body },
+        (state) => (state.body = `${body.slice(0, changeAt)}b${body.slice(changeAt + 1)}`),
+      )
+      expect(error).toMatchObject(STALE)
+    })
+
+    test("throws stale when a fact value changes past the value budget", async () => {
+      const facts = (tail: string) => [{ label: "Big", value: `${"v".repeat(MAX_VALUE_LENGTH + 99)}${tail}` }]
+      const error = await checkLong({ facts: facts("x") }, (state) => (state.facts = facts("y")))
+      expect(error).toMatchObject(STALE)
+    })
+
+    test("throws stale when the fact past the fact budget changes, and the prompt shows only the budget", async () => {
+      const approval = await approvalOf(fixture({ ...fresh(), facts: factsOf(MAX_FACTS + 1) }), {}, CTX)
+      expect(approval.description?.facts).toHaveLength(MAX_FACTS)
+      const error = await checkLong({ facts: factsOf(MAX_FACTS + 1) }, (state) => {
+        state.facts = [...factsOf(MAX_FACTS), { label: `Fact ${MAX_FACTS + 1}`, value: "other" }]
+      })
+      expect(error).toMatchObject(STALE)
+    })
+
+    test("passes when a long description did not change", async () => {
+      const error = await checkLong(
+        { body: "a".repeat(MAX_TEXT_LENGTH + 500), facts: factsOf(MAX_FACTS + 1, "x".repeat(MAX_VALUE_LENGTH + 100)) },
+        () => {},
+      )
+      expect(error).toBeUndefined()
+    })
+
+    test("keeps the pin of the cut description when nothing was cut", async () => {
+      const state = fresh()
+      const approval = await approvalOf(fixture(state), {}, CTX)
+      const cutOne = await callDescription(fixture(state), {}, CTX)
+      expect(cutOne).toBeDefined()
+      expect(approval.pin).toBe(pinOf(approval.resources, cutOne as CallDescription))
     })
   })
 
