@@ -171,7 +171,12 @@ Every tool belongs to one class, and the class sets its MCP annotations.
   summary of it; a summary the tool can compute is a fact (`Size`, `Lines`).
 - **Facts are short and ordered by what they decide.** A label is a noun of
   one or two words, in English like the tool's title, and a value carries
-  its unit (`42 bytes`). The fact that changes the person's answer comes
+  its unit (`42 bytes`). A value with a unit or other words of the tool's is
+  a template the tool picks with the values it holds (`{bytes} bytes` with
+  `bytes: 42`), so the unit is the tool's word and the number the call's
+  data; the tool picks the English form for the count (`{bytes} byte` for
+  one), and numbers are shown as written, without digit grouping. A plain
+  string value has no words of the tool's. The fact that changes the person's answer comes
   first (the kind of target, whether it overwrites); amounts come last. A
   fact never repeats the headline or a target. `src/core/facts.ts` holds the
   facts every package can use (`sizeFact`); a package adds its own beside its
@@ -183,7 +188,8 @@ Every tool belongs to one class, and the class sets its MCP annotations.
   target past the cut gives way to the title, since the targets are what an
   "always" answer stores. A description keeps a
   headline template of 120 characters with values of 80, its first eight
-  facts with labels of 40 characters and values of 200, and a text label of
+  facts with labels of 40 characters and values of 200 (a value template of
+  200 with at most eight values, the filled value cut to 200), and a text label of
   40 with a text of 2000; anything longer is cut with `…`. Nothing in the text
   can come before the facts, since the text is the last section.
 - **Characters other people wrote are shown, never obeyed.** A target's name
@@ -213,16 +219,18 @@ Every tool belongs to one class, and the class sets its MCP annotations.
   so the MCP server takes no `language`.
 - **Translations are tables keyed by the English words.** The plugin's own
   words (`Details`, `Target`, `(+N more)`) and a tool's (its title, its
-  headline templates, its fact labels and its text label) are written in
+  headline templates, its fact labels, its value templates and its text
+  label) are written in
   English in the code. Per language, a package gives one table from those
   English words to their translation (`src/words.ts`), and the entry point
   looks each word up as it draws the prompt, so a tool's code does not change.
   A translated template must hold the same placeholders as the English one
   and keep within its limits, or the English one is used, so a translation
   cannot move the line between the tool's words and the call's data. Values
-  are the call's data and are never translated; a value's unit (`42 bytes`)
-  stays as the tool wrote it. A translation is marked like every other piece
-  of the prompt.
+  are the call's data and are never translated: a value template is looked
+  up and its values filled in after (`{bytes} バイト`), and a plain string
+  value stays as the tool wrote it. A translation is marked like every other
+  piece of the prompt.
 - **`confirm: "elicitation"` adds the tool's own form** for administrative
   tools, where the client offers form-mode elicitation. It is for people who
   switch the client's approvals off: the tool states what will happen in plain
