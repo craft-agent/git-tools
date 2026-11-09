@@ -146,6 +146,29 @@ export async function needsForcePush(root: string, branch: string, signal?: Abor
 }
 
 /**
+ * Whether replacing the commit `amended` (HEAD) with an amended one, which
+ * keeps its parent, would leave a push to the branch's own remote branches
+ * needing a force push: some own remote branch is not contained in that
+ * parent. A root commit has no parent, so any own remote branch makes it true.
+ * Reads local refs only.
+ */
+export async function needsForcePushAfterAmend(
+  root: string,
+  branch: string,
+  amended: string,
+  signal?: AbortSignal,
+): Promise<boolean> {
+  const own = await ownRemoteRefs(root, branch, signal)
+  if (own.length === 0) return false
+  const parent = await gitResult(["rev-parse", "--verify", "--quiet", `${amended}^`], { cwd: root, signal })
+  if (parent.code !== 0) return true
+  for (const candidate of own) {
+    if (!(await isAncestor(root, `${REMOTE_REFS_PREFIX}${candidate.ref}`, parent.stdout.trim(), signal))) return true
+  }
+  return false
+}
+
+/**
  * The commits a rewrite replaces (reachable from HEAD, not from `exclude`) and
  * their roots: the ones whose parents all lie outside. A ref holds a commit of
  * the range exactly when it holds one of the roots, merged-in side branches

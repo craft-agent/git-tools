@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, test } from "bun:test"
 import { tempRepo, type TempRepo } from "../testing/git-repo"
-import { checkRewrite, currentBranch, needsForcePush, ownRemoteRefs } from "./rewrite"
+import { checkRewrite, currentBranch, needsForcePush, needsForcePushAfterAmend, ownRemoteRefs } from "./rewrite"
 
 const repos: TempRepo[] = []
 
@@ -175,5 +175,25 @@ describe("the branch and its remote refs", () => {
     expect(await needsForcePush(repo.dir, "feat")).toBe(false)
     await repo.git(["commit", "--amend", "-m", "feat: one, reworded"])
     expect(await needsForcePush(repo.dir, "feat")).toBe(true)
+  })
+
+  test("needsForcePushAfterAmend is true only when a pushed branch holds the commit being replaced", async () => {
+    const { repo, sha } = await withFeatCommit()
+    expect(await needsForcePushAfterAmend(repo.dir, "feat", sha)).toBe(false)
+
+    await repo.git(["push", "-u", "origin", "feat"])
+    expect(await needsForcePushAfterAmend(repo.dir, "feat", sha)).toBe(true)
+
+    const second = await repo.commit("feat: two", { "two.txt": "2\n" })
+    expect(await needsForcePushAfterAmend(repo.dir, "feat", second)).toBe(false)
+  })
+
+  test("needsForcePushAfterAmend is true for a root commit once the branch is pushed, and false before", async () => {
+    const repo = await fixture({ initialCommit: false })
+    const root = await repo.commit("feat: root", { "a.txt": "a\n" })
+    expect(await needsForcePushAfterAmend(repo.dir, "main", root)).toBe(false)
+
+    await repo.git(["push", "-u", "origin", "main"])
+    expect(await needsForcePushAfterAmend(repo.dir, "main", root)).toBe(true)
   })
 })
