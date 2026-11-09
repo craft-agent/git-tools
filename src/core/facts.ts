@@ -5,8 +5,12 @@
  * that carries its unit.
  */
 import type { CallFact } from "./tool"
+import type { Translations } from "./words"
 
 /** The `Size` fact: how many bytes the call writes, as `1 byte` or `42 bytes`. */
 export function sizeFact(bytes: number): CallFact {
   return { label: "Size", value: `${bytes} ${bytes === 1 ? "byte" : "bytes"}` }
 }
+
+/** The translations of the labels of the facts above. */
+export const FACT_TRANSLATIONS: Translations = { ja: { Size: "サイズ" } }
