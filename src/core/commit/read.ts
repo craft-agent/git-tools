@@ -4,14 +4,11 @@ import { defineTool, type ToolContext } from "../tool"
 import { workingTree } from "../tree"
 import { hunksSchema, readHunks } from "./hunks"
 import { checkMessage, lintSchema } from "./lint"
-import { DEFAULT_BODY_WRAP, DEFAULT_SUBJECT_MAX } from "./message-rules"
+import { DEFAULT_BODY_WRAP, DEFAULT_SUBJECT_MAX, MAX_WIDTH, MIN_WIDTH } from "./message-rules"
 import { SCAN_TARGETS, scanSecrets, secretsSchema } from "./secrets"
 
 const METHODS = ["lint", "secrets", "hunks"] as const
 type Method = (typeof METHODS)[number]
-
-const MIN_WIDTH = 20
-const MAX_WIDTH = 200
 
 const input = z.object({
   method: z

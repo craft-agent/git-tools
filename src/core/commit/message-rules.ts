@@ -2,6 +2,10 @@
 export const DEFAULT_SUBJECT_MAX = 72
 /** The body width in columns that draws a warning when no width is given. */
 export const DEFAULT_BODY_WRAP = 72
+/** The narrowest subject limit or body width a caller may ask for. */
+export const MIN_WIDTH = 20
+/** The widest subject limit or body width a caller may ask for. */
+export const MAX_WIDTH = 200
 /** The lowest subject target, and the target when the history gives too little to infer one. */
 export const SUBJECT_TARGET_MIN = 50
 /** The highest subject target, however long the history's subjects run. */

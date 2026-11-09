@@ -199,19 +199,25 @@ export const lintSchema = z.object({
 /**
  * Checks a commit message with the built-in rules, the history's profile and
  * the repository's commitlint, and sorts the findings into errors and warnings.
+ * With `rules` set to `"commitlint"` the built-in rules are left out, for a
+ * message git generated rather than an author wrote.
  */
 export async function checkMessage(
   root: string,
   message: string,
   limits: { subjectMax: number; bodyWrap: number },
   signal?: AbortSignal,
+  rules: "all" | "commitlint" = "all",
 ): Promise<z.output<typeof lintSchema>> {
   const profile = await historyProfile(root, signal)
-  const violations = lintMessage(message, {
-    ...limits,
-    subjectTarget: profile.subject_target.target,
-    conventional: profile.conventional,
-  })
+  const violations =
+    rules === "all"
+      ? lintMessage(message, {
+          ...limits,
+          subjectTarget: profile.subject_target.target,
+          conventional: profile.conventional,
+        })
+      : []
   const checked = await commitlint(root, message, signal)
   violations.push(...checked.violations)
   const findings = (severity: Violation["severity"]) =>
