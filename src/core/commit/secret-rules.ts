@@ -205,21 +205,23 @@ function isEnvFile(file: string): boolean {
   return ENV_FILE_PATTERN.test(file) && !ENV_TEMPLATE_PATTERN.test(file)
 }
 
-function prefixMatches(content: string): RuleMatch[] {
-  const matches: RuleMatch[] = []
+function prefixMatches(content: string): (RuleMatch & { value: string })[] {
+  const matches: (RuleMatch & { value: string })[] = []
   for (const { rule, pattern, ignore } of PREFIX_RULES) {
     for (const match of content.matchAll(pattern)) {
       if (ignore?.test(match[0])) continue
-      matches.push({ rule, redacted: redact(match[0]) })
+      matches.push({ rule, redacted: redact(match[0]), value: match[0] })
     }
   }
   return matches
 }
 
-function genericMatches(content: string): RuleMatch[] {
+/** Values assigned to secret-looking names; a value a prefix rule already found is not reported twice. */
+function genericMatches(content: string, found: readonly string[]): RuleMatch[] {
   const matches: RuleMatch[] = []
   for (const { groups } of content.matchAll(ASSIGNMENT_PATTERN)) {
     const { name, value } = groups as { name: string; value: string }
+    if (found.some((known) => value.includes(known))) continue
     if (value.length > VALUE_LENGTH_MAX || !isSecretName(name)) continue
     if (isNonSecretValue(value) || shannonEntropy(value) < GENERIC_ENTROPY_MIN) continue
     matches.push({ rule: GENERIC_SECRET_RULE, redacted: redact(value) })
@@ -245,11 +247,15 @@ function envMatch(content: string): RuleMatch | undefined {
  */
 export function scanLine(file: string, content: string): RuleMatch[] {
   if (content.includes(INLINE_ALLOW)) return []
-  const matches = prefixMatches(content)
+  const prefixed = prefixMatches(content)
+  const matches: RuleMatch[] = prefixed.map(({ rule, redacted }) => ({ rule, redacted }))
   if (isHeuristicSkipped(file)) return matches
-  const generic = genericMatches(content)
+  const generic = genericMatches(
+    content,
+    prefixed.map(({ value }) => value),
+  )
   matches.push(...generic)
-  if (generic.length === 0 && isEnvFile(file)) {
+  if (prefixed.length === 0 && generic.length === 0 && isEnvFile(file)) {
     const env = envMatch(content)
     if (env) matches.push(env)
   }

@@ -28,6 +28,12 @@ describe("scanDiff known prefixes", () => {
     expect(rulesOf("yarn.lock", PREFIXED["github-pat"]!)).toEqual(["github-pat"])
   })
 
+  test("a prefixed key assigned to a secret-looking name is reported once", () => {
+    const value = PREFIXED["github-pat"]!
+    expect(rulesOf("src/a.ts", `const apiToken = "${value}"`)).toEqual(["github-pat"])
+    expect(rulesOf(".env", `GITHUB_TOKEN=${value}`)).toEqual(["github-pat"])
+  })
+
   test("a wrong length does not fire", () => {
     expect(rulesOf("a.ts", `v = ${["gh", "p_"].join("")}${randomish(20)}`)).toEqual([])
   })
