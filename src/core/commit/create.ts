@@ -1,10 +1,19 @@
 import { z } from "zod"
 import { ToolError } from "../errors"
 import { classifyGitFailure, git, gitResult } from "../git"
-import { checkRewrite, isAncestor, resolveCommit, shortSha } from "../rewrite"
-import { defineTool, type ToolContext } from "../tool"
+import { branchFact, filesFact, linesFact } from "../git-facts"
+import { checkRewrite, currentBranch, isAncestor, resolveCommit, shortSha } from "../rewrite"
+import { type CallDescription, type CallHeadline, defineTool, type ToolContext } from "../tool"
 import { workingTree } from "../tree"
-import { commitCheckInput, commitOutput, messageLimits, requireRewriteAllowed, runCommit } from "./commit-run"
+import { acceptedFindingsFact, indexPins, stagedChanges } from "./commit-describe"
+import {
+  commitCheckInput,
+  commitOutput,
+  messageLimits,
+  normalizeMessage,
+  requireRewriteAllowed,
+  runCommit,
+} from "./commit-run"
 
 const input = z.object({
   message: z
@@ -114,6 +123,43 @@ export const commitCreate = defineTool({
   input,
   output,
   targets: async (_args: Args, ctx: ToolContext) => [await workingTree(ctx)],
+  async describe(args: Args, ctx: ToolContext): Promise<CallDescription> {
+    const root = await workingTree(ctx)
+    const { signal } = ctx
+    requireMessageOrFixup(args)
+    await requireStaged(root, signal)
+
+    let headline: CallHeadline
+    let message: string
+    if (args.message !== undefined) {
+      message = await normalizeMessage(root, args.message, signal)
+      headline = { text: "About to commit {subject}", values: { subject: message.split("\n")[0]! } }
+    } else {
+      const target = await resolveCommit(root, args.fixup!, signal)
+      await requireAncestorOfHead(root, args.fixup!, target, signal)
+      const subject = await commitSubject(root, target, signal)
+      message = fixupMessage(subject)
+      headline = {
+        text: "About to commit a fixup of {commit}",
+        values: { commit: `${shortSha(target)} ${subject}` },
+      }
+    }
+
+    const accepted = await acceptedFindingsFact(root, args.accept_findings, signal)
+    const branch = await currentBranch(root, signal)
+    const { files, added, removed } = await stagedChanges(root, signal)
+    return {
+      headline,
+      facts: [
+        ...(accepted ? [accepted] : []),
+        ...(branch === null ? [] : [branchFact(branch)]),
+        filesFact(files),
+        linesFact(added, removed),
+      ],
+      text: { label: "Commit message", body: message },
+      pins: await indexPins(root, signal),
+    }
+  },
   async execute(args: Args, ctx: ToolContext) {
     const root = await workingTree(ctx)
     const { signal } = ctx

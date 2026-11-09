@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, test } from "bun:test"
 import { tempRepo, type TempRepo } from "../../testing/git-repo"
+import { PREFIXED } from "../../testing/secret-fixtures"
 import { callDescription, templatePlaceholders } from "../describe"
 import { FACT_TRANSLATIONS } from "../facts"
 import { GIT_FACT_TRANSLATIONS } from "../git-facts"
@@ -37,12 +38,27 @@ async function stageDescriptions() {
   return [await describeHunks([1]), await describeHunks([1, 2])]
 }
 
+/** A repository with a staged credential, described committing it with a message, as a fixup and with its finding accepted. */
+async function createDescriptions() {
+  const repo = await tempRepo()
+  repos.push(repo)
+  repo.write("a.txt", `id ${PREFIXED["github-pat"]}\n`)
+  await repo.git(["add", "a.txt"])
+  const describeCreate = (args: Parameters<typeof commitCreate.execute>[0]) =>
+    callDescription(commitCreate, args, { cwd: repo.dir })
+  return [
+    await describeCreate({ message: "feat: add a" }),
+    await describeCreate({ fixup: "HEAD" }),
+    await describeCreate({ message: "feat: add a", accept_findings: ["a.txt:1:github-pat"] }),
+  ]
+}
+
 /** The words the commit tools write in English: their titles, their intents and the words their descriptions write beyond the shared facts'. */
 async function commitWords(): Promise<string[]> {
   const toolWords = COMMIT_TOOLS.flatMap((tool) =>
     tool.intent === undefined ? [tool.title] : [tool.title, tool.intent],
   )
-  const descriptionWords = (await stageDescriptions()).flatMap(wordsOf)
+  const descriptionWords = [...(await stageDescriptions()), ...(await createDescriptions())].flatMap(wordsOf)
   return [...new Set([...toolWords, ...descriptionWords.filter((word) => !SHARED_WORDS.has(word))])]
 }
 
