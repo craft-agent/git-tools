@@ -91,7 +91,11 @@ export function requireRewriteAllowed(check: RewriteCheck): void {
 }
 
 /** The message the way git would clean it (trailing blanks, runs of blank lines), so what is checked is what lands. */
-async function normalizeMessage(root: string, message: string, signal: AbortSignal | undefined): Promise<string> {
+export async function normalizeMessage(
+  root: string,
+  message: string,
+  signal: AbortSignal | undefined,
+): Promise<string> {
   const normalized = await git(["stripspace"], {
     cwd: root,
     signal,

@@ -408,6 +408,41 @@ changes a rule above, it says so. The discussion behind them is on
   hunks it names, so a listing that went stale never stages other hunks.
 - Either throws `stale` when what it pinned has changed.
 
+### Approval prompts of git tools
+
+- **Every write tool states its intent**, and a domain that adds a write tool
+  adds its intent with it, so no git write is asked for under its title
+  alone.
+- **Each domain keeps its words beside its tools**, in a `words.ts` of its
+  directory: the titles, the intents, and the headline templates, fact
+  labels, value templates and text labels its `describe` writes.
+  `src/words.ts` joins them with the shared facts, and no English word is in
+  two tables. Each domain's test checks that its table holds exactly the words
+  its tools write, so a word the tools stop using does not linger.
+- **The facts the git tools add**, beside the shared `Size`. A fact any
+  domain could show lives in `src/core/git-facts.ts`; a domain's own fact
+  stays beside its tools:
+
+  | Fact                | Value                                     | Shown by                            |
+  | ------------------- | ----------------------------------------- | ----------------------------------- |
+  | `Push`              | `needs a force push`, only when it does   | amending                            |
+  | `Accepted findings` | the fingerprints of the findings let pass | committing, amending                |
+  | `Change`            | `message only`, `staged changes`, …       | amending                            |
+  | `Branch`            | the branch's name                         | committing, amending                |
+  | `Files`             | `{files} files`                           | staging hunks, committing, amending |
+  | `Hunks`             | `{hunks} of {total}`                      | staging hunks                       |
+  | `Lines`             | `{added} added, {removed} removed`        | staging hunks, committing, amending |
+  | `Commits`           | `{commits} commits`                       | checking each commit                |
+  | `Base`              | the base's short sha and subject          | checking each commit                |
+  | `Setup`             | the setup command, as given               | checking each commit                |
+  | `Directory`         | where the commands run, when not the root | checking each commit                |
+  | `On failure`        | `stop at the first failure`, or not       | checking each commit                |
+  | `Time limit`        | `{seconds} s per run`                     | checking each commit                |
+
+  A fact the person's answer turns on comes first: amending a commit the
+  branch has pushed says so before anything else, since the next push must
+  then force.
+
 ### Results and errors of git operations
 
 - **An operation that paused is a result.** A rebase, or a rebase of stacked

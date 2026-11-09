@@ -1,10 +1,11 @@
 import { z } from "zod"
 import { ToolError } from "../errors"
 import { git } from "../git"
-import { defineTool, type ToolContext } from "../tool"
+import { filesFact, linesFact } from "../git-facts"
+import { type CallDescription, defineTool, type ToolContext } from "../tool"
 import { workingTree } from "../tree"
 import { parseNumstat } from "./commit-landed"
-import { buildPatch, diffDigest, parseHunks, unstagedDiff } from "./hunks"
+import { buildPatch, diffDigest, type Hunk, parseHunks, unstagedDiff } from "./hunks"
 
 const input = z.object({
   digest: z.string().describe("The digest of the git_commit_read hunks listing the ids come from."),
@@ -38,10 +39,48 @@ async function stagedFiles(root: string, signal: AbortSignal | undefined): Promi
   return parseNumstat(await git(["diff", "--cached", "--numstat", "-z", "--no-renames"], { cwd: root, signal }))
 }
 
+/**
+ * The hunks the call names, in ascending id order, with the number of hunks in
+ * the whole diff. Throws `stale` when the diff differs from the listing, and
+ * `invalid_argument` for an unknown id or a binary hunk.
+ */
+async function selectHunks(
+  root: string,
+  args: Args,
+  signal: AbortSignal | undefined,
+): Promise<{ selected: Hunk[]; total: number }> {
+  const diff = await unstagedDiff(root, args.paths, signal)
+  if (diffDigest(diff) !== args.digest) {
+    throw new ToolError(
+      "stale",
+      "The unstaged changes differ from that listing (different paths, or files changed or staged since); list the hunks again and use its ids and digest.",
+    )
+  }
+  const hunks = parseHunks(diff)
+  const ids = [...new Set(args.hunks)].sort((a, b) => a - b)
+  const unknown = ids.filter((id) => id > hunks.length)
+  if (unknown.length > 0) {
+    throw new ToolError(
+      "invalid_argument",
+      `Unknown hunk id(s): ${unknown.join(", ")}; the listing has ${hunks.length}. List the hunks again and use its ids.`,
+    )
+  }
+  const selected = ids.map((id) => hunks[id - 1]!)
+  const binary = selected.filter((hunk) => hunk.binary)
+  if (binary.length > 0) {
+    throw new ToolError(
+      "invalid_argument",
+      `Hunk(s) ${binary.map((hunk) => hunk.id).join(", ")} (${binary.map((hunk) => hunk.file).join(", ")}) is a binary file; stage it whole with git add.`,
+    )
+  }
+  return { selected, total: hunks.length }
+}
+
 /** Stages the hunks of a git_commit_read hunks listing that the call names. */
 export const commitStage = defineTool({
   id: "git_commit_stage",
   title: "Stage chosen hunks",
+  intent: "About to stage chosen hunks",
   description: [
     "Stage exactly the named hunks of a git_commit_read hunks listing into the index.",
     "Pass the listing's digest with the ids and the same paths: the call recomputes the diff and stages nothing when it differs from the listing, so a stale listing never stages other hunks.",
@@ -52,39 +91,36 @@ export const commitStage = defineTool({
   class: "idempotent",
   openWorld: false,
   targets: async (_args: Args, ctx: ToolContext) => [await workingTree(ctx)],
+  async describe(args: Args, ctx: ToolContext): Promise<CallDescription> {
+    const root = await workingTree(ctx)
+    const { selected, total } = await selectHunks(root, args, ctx.signal)
+    const files = [...new Set(selected.map((hunk) => hunk.file))]
+    const [only] = files
+    return {
+      ...(files.length === 1 && only !== undefined
+        ? { headline: { text: "About to stage hunks of {file}", values: { file: only } } }
+        : {}),
+      facts: [
+        ...(files.length === 1 ? [] : [filesFact(files.length)]),
+        { label: "Hunks", value: { text: "{hunks} of {total}", values: { hunks: selected.length, total } } },
+        linesFact(
+          selected.reduce((sum, hunk) => sum + hunk.added, 0),
+          selected.reduce((sum, hunk) => sum + hunk.removed, 0),
+        ),
+      ],
+      text: { label: "Hunks to stage", body: buildPatch(selected) },
+    }
+  },
   input,
   output,
   async execute(args: Args, ctx: ToolContext) {
     const root = await workingTree(ctx)
-    const diff = await unstagedDiff(root, args.paths, ctx.signal)
-    if (diffDigest(diff) !== args.digest) {
-      throw new ToolError(
-        "stale",
-        "The unstaged changes differ from that listing (different paths, or files changed or staged since); list the hunks again and use its ids and digest.",
-      )
-    }
-    const hunks = parseHunks(diff)
-    const ids = [...new Set(args.hunks)].sort((a, b) => a - b)
-    const unknown = ids.filter((id) => id > hunks.length)
-    if (unknown.length > 0) {
-      throw new ToolError(
-        "invalid_argument",
-        `Unknown hunk id(s): ${unknown.join(", ")}; the listing has ${hunks.length}. List the hunks again and use its ids.`,
-      )
-    }
-    const selected = ids.map((id) => hunks[id - 1]!)
-    const binary = selected.filter((hunk) => hunk.binary)
-    if (binary.length > 0) {
-      throw new ToolError(
-        "invalid_argument",
-        `Hunk(s) ${binary.map((hunk) => hunk.id).join(", ")} (${binary.map((hunk) => hunk.file).join(", ")}) is a binary file; stage it whole with git add.`,
-      )
-    }
+    const { selected } = await selectHunks(root, args, ctx.signal)
     await git(["apply", "--cached", "--recount", "--whitespace=nowarn", "-"], {
       cwd: root,
       signal: ctx.signal,
       stdin: buildPatch(selected),
     })
-    return { root, staged: ids, files: await stagedFiles(root, ctx.signal) }
+    return { root, staged: selected.map((hunk) => hunk.id), files: await stagedFiles(root, ctx.signal) }
   },
 })
