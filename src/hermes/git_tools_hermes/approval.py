@@ -56,6 +56,15 @@ def parse_pin(value: Any) -> str | None:
     return value if isinstance(value, str) and PIN_PATTERN.fullmatch(value) else None
 
 
+def run_arguments(args: Any) -> dict[str, Any]:
+    """The arguments a call runs with: ``args`` without ``PIN_ARGUMENT``, or none when ``args`` is not a dict.
+
+    The approval describes these and the handler runs these, so a pin argument the model sent
+    itself can neither blank the card nor reach the tool.
+    """
+    return {key: value for key, value in args.items() if key != PIN_ARGUMENT} if isinstance(args, dict) else {}
+
+
 class PinStash:
     """The pins of calls waiting between the approval hook and the pin hook, by the model's ``tool_call_id``.
 
@@ -135,7 +144,7 @@ def resolve_target(
     try:
         result = runtime.run(
             ["target", tool_id, "--cwd", agent_cwd(), *language_flags(language, _known(harness_language))],
-            stdin=json.dumps(args if isinstance(args, dict) else {}),
+            stdin=json.dumps(run_arguments(args)),
             timeout=TARGET_TIMEOUT_SECONDS,
         )
         document = json.loads(result.stdout) if result.code == 0 else None

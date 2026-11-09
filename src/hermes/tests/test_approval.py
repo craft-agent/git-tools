@@ -682,6 +682,40 @@ class ApprovalPinTest(FakeCliCase):
         result = pin_hook(tool_name="demo_thing_create", args={approval.PIN_ARGUMENT: PIN}, tool_call_id="c1")
         self.assertEqual(result, MODIFY_EMPTY)
 
+    def test_the_arguments_that_run_leave_out_the_pin_argument(self) -> None:
+        args = {"target": "target/one", approval.PIN_ARGUMENT: PIN}
+        self.assertEqual(approval.run_arguments(args), {"target": "target/one"})
+        self.assertIn(approval.PIN_ARGUMENT, args)
+        for junk in (None, [], "x", 3):
+            with self.subTest(junk=junk):
+                self.assertEqual(approval.run_arguments(junk), {})
+
+    def test_the_approval_describes_the_arguments_without_a_pin_argument_the_model_sent(self) -> None:
+        self.answer(pin=PIN)
+        approve, _ = self.hooks()
+        for value in ("", PIN, None):
+            with self.subTest(value=value):
+                self.log.unlink(missing_ok=True)
+                args = {"target": "target/one", approval.PIN_ARGUMENT: value}
+                approve(tool_name="demo_thing_create", args=args, tool_call_id="c1")
+                [call] = [call for call in self.calls() if call["argv"][0] == "target"]
+                self.assertEqual(json.loads(call["stdin"]), {"target": "target/one"})
+
+    def test_a_pin_argument_the_model_sent_runs_only_what_the_card_described(self) -> None:
+        self.answer(pin=PIN)
+        self.reply("run demo_thing_create", stdout='{"result":{}}')
+        ctx = self.register()
+        approve, pin_hook = ctx.hooks[0][1], ctx.hooks[1][1]
+        args = {"target": "target/one", approval.PIN_ARGUMENT: ""}
+        call = {"tool_name": "demo_thing_create", "args": args, "tool_call_id": "c1"}
+        self.assertEqual(approve(**call)["message"], f"{CREATE}{DETAILS}Target: target/one")
+        ctx.tools["demo_thing_create"]["handler"]({**args, **pin_hook(**call)["args"]})
+        calls = self.calls()
+        [described] = [call for call in calls if call["argv"][0] == "target"]
+        [ran] = [call for call in calls if call["argv"][0] == "run"]
+        self.assertEqual(json.loads(ran["stdin"]), json.loads(described["stdin"]))
+        self.assertEqual(ran["argv"][-1], f"--pin={PIN}")
+
     def test_the_pin_hook_gives_empty_for_a_missing_call_id(self) -> None:
         _, pin_hook = self.hooks()
         for call in ({}, {"tool_call_id": ""}, {"tool_call_id": None}, {"tool_call_id": 3}):
