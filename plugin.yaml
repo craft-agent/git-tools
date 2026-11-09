@@ -5,6 +5,7 @@ manifest_version: 1
 requires_hermes: ">=0.22"
 provides_tools:
   - git_commit_read
+  - git_commit_stage
   - git_repo_read
 provides_hooks:
   - pre_tool_call
