@@ -141,7 +141,7 @@ Every tool belongs to one class, and the class sets its MCP annotations.
   tool's prompt the same way:
 
   ```text
-  Create the note "todo"
+  About to create "todo.md"
 
   --- Details ---
 
@@ -153,17 +153,25 @@ Every tool belongs to one class, and the class sets its MCP annotations.
   # Todo
   ```
 
-  The headline says what the call does; the Details name each target on a
-  `Target` line, then the tool's facts; the last section is the text the call
-  carries, under the tool's own label. A section with nothing to show is
-  left out, so a tool without `describe` shows its title and its targets, and
-  one whose targets cannot be told shows its title alone. The harness names
-  the tool beside the prompt, so the prompt does not repeat its id.
+  The headline says what the agent is about to do, as its next step; the
+  Details name each target on a `Target` line, then the tool's facts; the
+  last section is the text the call carries, under the tool's own label. A
+  section with nothing to show is left out, so a tool without `describe`
+  shows its intent and its targets, and one whose targets cannot be told
+  shows its intent alone. The harness names the tool beside the prompt, so
+  the prompt does not repeat its id.
+
+- **A write tool states its intent.** Besides its title, which names the
+  tool wherever tools are listed, a write tool gives an `intent`: a fixed
+  phrase in the headline's tone that carries no value (`About to create a
+note`). The prompt shows it wherever no headline can stand: a tool without
+  `describe`, a headline that is dropped, and one that gives way to keep the
+  targets within the budget. A tool without an intent shows its title there.
 
 - **The tool's words are fixed; what the call carries is data.** A model
   chooses the arguments and nothing else, and a prompt is only as good as the
-  person's trust in its lines. The headline is the tool's title, or a
-  template the tool picks (`Create the note {name}`) whose values the entry
+  person's trust in its lines. The headline is the tool's intent, or a
+  template the tool picks (`About to create {file}`) whose values the entry
   point quotes, so where the tool's words end and the call's data begins is
   always visible. A value comes from what the tool resolved, never from a
   model's account of it (the record's real name, not the name the model
@@ -185,7 +193,7 @@ Every tool belongs to one class, and the class sets its MCP annotations.
   harnesses cut a prompt from its end at a few hundred characters, so the
   headline, the targets and the facts are kept within the budget of where the
   prompt is shown, and the text is what is cut. A headline that would push a
-  target past the cut gives way to the title, since the targets are what an
+  target past the cut gives way to the intent, since the targets are what an
   "always" answer stores. A description keeps a
   headline template of 120 characters with values of 80, its first eight
   facts with labels of 40 characters and values of 200 (a value template of
@@ -219,7 +227,7 @@ Every tool belongs to one class, and the class sets its MCP annotations.
   so the MCP server takes no `language`.
 - **Translations are tables keyed by the English words.** The plugin's own
   words (`Details`, `Target`, `(+N more)`) and a tool's (its title, its
-  headline templates, its fact labels, its value templates and its text
+  intent, its headline templates, its fact labels, its value templates and its text
   label) are written in
   English in the code. Per language, a package gives one table from those
   English words to their translation (`src/words.ts`), and the entry point
