@@ -66,7 +66,10 @@ def run_arguments(args: Any) -> dict[str, Any]:
 
 
 class PinStash:
-    """The pins of calls waiting between the approval hook and the pin hook, by the model's ``tool_call_id``.
+    """The pins of calls waiting between the approval hook and the pin hook, by session and the model's ``tool_call_id``.
+
+    One plugin serves every session, and providers may number calls per response, so a ``tool_call_id`` alone can
+    repeat across sessions.
 
     Thread-safe and bounded: when full, the oldest pin is dropped.
     """
@@ -74,20 +77,20 @@ class PinStash:
     def __init__(self, limit: int = PIN_STASH_LIMIT) -> None:
         self._limit = limit
         self._lock = threading.Lock()
-        self._pins: dict[str, str] = {}
+        self._pins: dict[tuple[str, str], str] = {}
 
-    def put(self, call_id: str, pin: str) -> None:
-        """Keep ``pin`` for ``call_id``, dropping the oldest entries beyond the limit."""
+    def put(self, session_id: str, call_id: str, pin: str) -> None:
+        """Keep ``pin`` for ``call_id`` of ``session_id``, dropping the oldest entries beyond the limit."""
         with self._lock:
-            self._pins.pop(call_id, None)
-            self._pins[call_id] = pin
+            self._pins.pop((session_id, call_id), None)
+            self._pins[(session_id, call_id)] = pin
             while len(self._pins) > self._limit:
                 del self._pins[next(iter(self._pins))]
 
-    def take(self, call_id: str) -> str | None:
-        """The pin kept for ``call_id``, removed; ``None`` when there is none."""
+    def take(self, session_id: str, call_id: str) -> str | None:
+        """The pin kept for ``call_id`` of ``session_id``, removed; ``None`` when there is none."""
         with self._lock:
-            return self._pins.pop(call_id, None)
+            return self._pins.pop((session_id, call_id), None)
 
 
 def _non_blank(value: Any) -> str | None:
@@ -202,7 +205,8 @@ def make_hook(
     Hermes' own gate to decide. ``language`` is the plugin's ``language``
     setting; ``harness_language`` is read on every call. When ``pins`` is
     given, the pin ``target`` answered is kept in it under the call's
-    ``tool_call_id`` for the pin hook; the decision is the same either way.
+    session and ``tool_call_id`` for the pin hook; the decision is the same
+    either way.
     """
     by_id = {tool.id: tool for tool in tools}
 
@@ -212,12 +216,13 @@ def make_hook(
             return None
         target = resolve_target(runtime, tool.id, args, language, harness_language)
         call_id = _non_blank(kwargs.get("tool_call_id"))
+        session_id = _non_blank(kwargs.get("session_id")) or ""
         if pins is not None and call_id:
             # An entry left by a call that never reached the pin hook must not stand for this one.
             if target.pin:
-                pins.put(call_id, target.pin)
+                pins.put(session_id, call_id, target.pin)
             else:
-                pins.take(call_id)
+                pins.take(session_id, call_id)
         resources = target.resources
         key = rule_key(tool.id, resources)
         if ANY_RESOURCE in resources:
@@ -245,7 +250,8 @@ def make_pin_hook(tools: list[ToolInfo], pins: PinStash) -> Callable[..., dict[s
         pin = ""
         try:
             call_id = _non_blank(kwargs.get("tool_call_id"))
-            pin = (pins.take(call_id) if call_id else None) or ""
+            session_id = _non_blank(kwargs.get("session_id")) or ""
+            pin = (pins.take(session_id, call_id) if call_id else None) or ""
         except Exception:
             pass
         return {"action": "modify", "args": {PIN_ARGUMENT: pin}}
