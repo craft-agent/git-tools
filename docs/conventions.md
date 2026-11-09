@@ -432,6 +432,12 @@ changes a rule above, it says so. The discussion behind them is on
   | `Files`             | `{files} files`                           | staging hunks, committing, amending |
   | `Hunks`             | `{hunks} of {total}`                      | staging hunks                       |
   | `Lines`             | `{added} added, {removed} removed`        | staging hunks, committing, amending |
+  | `Commits`           | `{commits} commits`                       | checking each commit                |
+  | `Base`              | the base's short sha and subject          | checking each commit                |
+  | `Setup`             | the setup command, as given               | checking each commit                |
+  | `Directory`         | where the commands run, when not the root | checking each commit                |
+  | `On failure`        | `stop at the first failure`, or not       | checking each commit                |
+  | `Time limit`        | `{seconds} s per run`                     | checking each commit                |
 
   A fact the person's answer turns on comes first: amending a commit the
   branch has pushed says so before anything else, since the next push must
