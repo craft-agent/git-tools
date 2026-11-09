@@ -21,6 +21,14 @@ export function branchFact(name: string): CallFact {
   return { label: "Branch", value: name }
 }
 
+/** The `Commits` fact: how many commits a call covers, as `1 commit` or `3 commits`. */
+export function commitsFact(count: number): CallFact {
+  return {
+    label: "Commits",
+    value: { text: count === 1 ? "{commits} commit" : "{commits} commits", values: { commits: count } },
+  }
+}
+
 /** The translations of the labels and the value templates of the facts above. */
 export const GIT_FACT_TRANSLATIONS: Translations = {
   ja: {
@@ -30,5 +38,8 @@ export const GIT_FACT_TRANSLATIONS: Translations = {
     Files: "ファイル数",
     "{files} file": "{files} 個",
     "{files} files": "{files} 個",
+    Commits: "コミット数",
+    "{commits} commit": "{commits} 件",
+    "{commits} commits": "{commits} 件",
   },
 }

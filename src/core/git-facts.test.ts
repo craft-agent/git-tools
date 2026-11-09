@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test"
-import { branchFact, filesFact, GIT_FACT_TRANSLATIONS, linesFact } from "./git-facts"
+import { branchFact, commitsFact, filesFact, GIT_FACT_TRANSLATIONS, linesFact } from "./git-facts"
 import type { CallFact } from "./tool"
 import { translator } from "./words"
 
@@ -23,6 +23,13 @@ describe("filesFact", () => {
   })
 })
 
+describe("commitsFact", () => {
+  test("labels the fact Commits and picks the English form for the count", () => {
+    expect(commitsFact(1)).toEqual({ label: "Commits", value: { text: "{commits} commit", values: { commits: 1 } } })
+    expect(commitsFact(3)).toEqual({ label: "Commits", value: { text: "{commits} commits", values: { commits: 3 } } })
+  })
+})
+
 describe("branchFact", () => {
   test("labels the fact Branch and keeps the name as a plain string", () => {
     expect(branchFact("feat/x")).toEqual({ label: "Branch", value: "feat/x" })
@@ -31,7 +38,14 @@ describe("branchFact", () => {
 
 describe("GIT_FACT_TRANSLATIONS", () => {
   const ja = translator(GIT_FACT_TRANSLATIONS, "ja")
-  const facts: CallFact[] = [linesFact(3, 1), filesFact(1), filesFact(2), branchFact("main")]
+  const facts: CallFact[] = [
+    linesFact(3, 1),
+    filesFact(1),
+    filesFact(2),
+    commitsFact(1),
+    commitsFact(2),
+    branchFact("main"),
+  ]
   const labels = [...new Set(facts.map((fact) => fact.label))]
   const templates = facts.flatMap((fact) => (typeof fact.value === "string" ? [] : [fact.value.text]))
 
