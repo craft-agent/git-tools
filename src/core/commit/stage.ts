@@ -1,7 +1,8 @@
 import { z } from "zod"
 import { ToolError } from "../errors"
 import { git } from "../git"
-import { defineTool, type ToolContext } from "../tool"
+import { filesFact, linesFact } from "../git-facts"
+import { type CallDescription, defineTool, type ToolContext } from "../tool"
 import { workingTree } from "../tree"
 import { parseNumstat } from "./commit-landed"
 import { buildPatch, diffDigest, type Hunk, parseHunks, unstagedDiff } from "./hunks"
@@ -90,6 +91,26 @@ export const commitStage = defineTool({
   class: "idempotent",
   openWorld: false,
   targets: async (_args: Args, ctx: ToolContext) => [await workingTree(ctx)],
+  async describe(args: Args, ctx: ToolContext): Promise<CallDescription> {
+    const root = await workingTree(ctx)
+    const { selected, total } = await selectHunks(root, args, ctx.signal)
+    const files = [...new Set(selected.map((hunk) => hunk.file))]
+    const [only] = files
+    return {
+      ...(files.length === 1 && only !== undefined
+        ? { headline: { text: "About to stage hunks of {file}", values: { file: only } } }
+        : {}),
+      facts: [
+        ...(files.length === 1 ? [] : [filesFact(files.length)]),
+        { label: "Hunks", value: { text: "{hunks} of {total}", values: { hunks: selected.length, total } } },
+        linesFact(
+          selected.reduce((sum, hunk) => sum + hunk.added, 0),
+          selected.reduce((sum, hunk) => sum + hunk.removed, 0),
+        ),
+      ],
+      text: { label: "Hunks to stage", body: buildPatch(selected) },
+    }
+  },
   input,
   output,
   async execute(args: Args, ctx: ToolContext) {
