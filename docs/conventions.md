@@ -408,6 +408,18 @@ changes a rule above, it says so. The discussion behind them is on
   hunks it names, so a listing that went stale never stages other hunks.
 - Either throws `stale` when what it pinned has changed.
 
+### Approval prompts of git tools
+
+- **Every write tool states its intent**, and a domain that adds a write tool
+  adds its intent with it, so no git write is asked for under its title
+  alone.
+- **Each domain keeps its words beside its tools**, in a `words.ts` of its
+  directory: the titles, the intents, and the headline templates, fact
+  labels, value templates and text labels its `describe` writes.
+  `src/words.ts` joins them with the shared facts, and no English word is in
+  two tables. Each domain's test checks that its table holds exactly the words
+  its tools write, so a word the tools stop using does not linger.
+
 ### Results and errors of git operations
 
 - **An operation that paused is a result.** A rebase, or a rebase of stacked
