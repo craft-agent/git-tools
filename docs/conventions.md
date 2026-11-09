@@ -194,7 +194,9 @@ note`). The prompt shows it wherever no headline can stand: a tool without
   headline, the targets and the facts are kept within the budget of where the
   prompt is shown, and the text is what is cut. A headline that would push a
   target past the cut gives way to the intent, since the targets are what an
-  "always" answer stores. A description keeps a
+  "always" answer stores. Facts that do not fit are counted on a notice
+  line, which stays even when the head alone fills the budget: a person
+  must know that something was left out. A description keeps a
   headline template of 120 characters with values of 80, its first eight
   facts with labels of 40 characters and values of 200 (a value template of
   200 with at most eight values, the filled value cut to 200), and a text label of
@@ -205,9 +207,11 @@ note`). The prompt shows it wherever no headline can stand: a tool without
   forge a line of the prompt or hide part of a value; each is shown as
   `<U+XXXX>`, and a quote inside a headline value as `\"`. Where the prompt
   renders markup, everything but the plugin's own section lines is escaped,
-  so a name cannot draw a link or a mention. A surface the plugin does not
-  know gets the strictest budget and escaping, so a new one is safe before it
-  is known.
+  so a name cannot draw a link or a mention. The budget and the escaping are
+  those of the surface the harness names: a surface it names that the plugin
+  does not know is one the harness does not cut, and gets neither, since
+  another surface's escapes would show there as written. Only a prompt whose
+  surface cannot be told gets the strictest budget and escaping of all.
 - **A description never stands between a call and its approval.** A tool
   without `describe`, a `describe` that fails, returns another shape or takes
   longer than 10 s gives the prompt it would have given without one. The
