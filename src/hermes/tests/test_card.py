@@ -10,8 +10,9 @@ from support import IMPL, ROOT_NAME
 card = importlib.import_module(f"{ROOT_NAME}.{IMPL}.card")
 
 TITLE = "Create a thing"
-BUDGETED = ("telegram", "slack", "discord", "whatsapp", None)
-ALL_SURFACES = ("cli", "tui", *BUDGETED)
+BUDGETED = ("telegram", "slack", "discord", None)
+PLAIN = ("cli", "tui", "desktop", "acp", "whatsapp")
+ALL_SURFACES = (*PLAIN, *BUDGETED)
 DETAILS = "\n\n--- Details ---\n\n"
 JAPANESE = card.Words(details="詳細", target="対象", more="（ほか {count} 件）")
 
@@ -212,11 +213,13 @@ class ParseWordsTest(unittest.TestCase):
 
 
 class SurfaceTest(unittest.TestCase):
-    def test_the_command_line_surfaces_have_no_budget_and_no_escaping(self) -> None:
-        for name in ("cli", "tui"):
-            surface = card.surface_for(name)
-            self.assertIsNone(surface.budget)
-            self.assertEqual(surface.escape("<&>[x](y) @everyone"), "<&>[x](y) @everyone")
+    def test_the_surfaces_hermes_does_not_cut_have_no_budget_and_no_escaping(self) -> None:
+        for name in (*PLAIN, "unheard-of", "Matrix"):
+            with self.subTest(name=name):
+                surface = card.surface_for(name)
+                self.assertIs(surface, card.PLAIN_SURFACE)
+                self.assertIsNone(surface.budget)
+                self.assertEqual(surface.escape("<&>[x](y) @everyone a-b"), "<&>[x](y) @everyone a-b")
 
     def test_telegram_measures_the_html_escaped_text_in_utf16_units_and_escapes_nothing(self) -> None:
         surface = card.surface_for("telegram")
@@ -236,8 +239,14 @@ class SurfaceTest(unittest.TestCase):
         )
         self.assertEqual(surface.escape("&lt;"), "&amp;lt;")
 
-    def test_every_other_name_and_none_get_the_strictest(self) -> None:
-        for name in ("discord", "desktop", "acp", "whatsapp", "", "unheard-of", None, 5, b"cli"):
+    def test_discord_counts_characters_and_escapes_its_markup_only(self) -> None:
+        surface = card.surface_for("discord")
+        self.assertEqual(surface.budget, 300)
+        self.assertEqual(surface.measure("😀&"), 2)
+        self.assertEqual(surface.escape("x<y & a-b @everyone"), "x\\<y & a\\-b \\@everyone")
+
+    def test_a_surface_that_cannot_be_told_gets_the_strictest(self) -> None:
+        for name in ("", None, 5, b"cli"):
             with self.subTest(name=name):
                 self.assertIs(card.surface_for(name), card.STRICTEST_SURFACE)
         self.assertEqual(card.STRICTEST_SURFACE.budget, 300)
@@ -248,6 +257,7 @@ class SurfaceTest(unittest.TestCase):
         self.assertIs(card.surface_for("CLI"), card.surface_for("cli"))
         self.assertIs(card.surface_for("Telegram"), card.surface_for("telegram"))
         self.assertIs(card.surface_for("SLACK"), card.surface_for("slack"))
+        self.assertIs(card.surface_for("Discord"), card.surface_for("discord"))
 
     def test_strictest_escapes_slack_entities_then_discord_markup(self) -> None:
         escape = card.STRICTEST_SURFACE.escape
@@ -419,16 +429,32 @@ class BuildMessageTest(unittest.TestCase):
         )
         self.assertEqual(card.build_message("A_B", ["x_y"], None, "discord"), f"A\\_B{DETAILS}Target: x\\_y")
 
-    def test_an_unknown_or_missing_surface_gets_the_strictest_rules_and_budget(self) -> None:
+    def test_discord_shows_no_slack_entities(self) -> None:
+        message = card.build_message(TITLE, ["a-b"], described(("Kind", "x<y & z\u202e")), "discord")
+        self.assertEqual(message, f"{TITLE}{DETAILS}Target: a\\-b\nKind: x\\<y & z\\<U+202E\\>")
+
+    def test_a_surface_hermes_does_not_cut_shows_every_fact_as_written(self) -> None:
         facts = [(f"Label {n}", "[v]" * 30) for n in range(20)]
-        expected = card.build_message(TITLE, ["a_b"], described(*facts), "discord")
-        for surface in (None, "desktop", "acp", 5):
+        for surface in ("desktop", "acp", "whatsapp", "unheard-of"):
             with self.subTest(surface=surface):
-                message = card.build_message(TITLE, ["a_b"], described(*facts), surface)
-                self.assertEqual(message, expected)
-                self.assertLessEqual(len(message), 300)
+                message = card.build_message(TITLE, ["a-b", "c#(d)"], described(*facts), surface)
+                self.assertEqual(
+                    message,
+                    "\n".join(
+                        [TITLE, "", "--- Details ---", "", "Target: a-b", "Target: c#(d)"]
+                        + [f"{label}: {value}" for label, value in facts]
+                    ),
+                )
+
+    def test_a_missing_surface_gets_the_strictest_rules_and_budget(self) -> None:
+        facts = [(f"Label {n}", "[v]" * 30) for n in range(20)]
+        for surface in (None, "", 5):
+            with self.subTest(surface=surface):
+                message = card.build_message(TITLE, ["a_b<c>"], described(*facts), surface)
+                self.assertLessEqual(card.STRICTEST_SURFACE.measure(message), 300)
                 self.assertIn("\\[v\\]", message)
-                self.assertIn("Target: a\\_b", message)
+                self.assertIn("Target: a\\_b&lt;c&gt;", message)
+                self.assertTrue(message.endswith(" more)"))
 
     def test_telegram_is_not_escaped(self) -> None:
         message = card.build_message("H", ["<b>&"], described(("a", "<b>&[x](y)@all")), "telegram")
@@ -448,13 +474,14 @@ class BuildMessageTest(unittest.TestCase):
                 self.assertEqual(shown, [f"{label}: {value}" for label, value in facts[: len(shown)]])
                 self.assertEqual(lines[-1], f"(+{len(facts) - len(shown)} more)")
 
-    def test_targets_are_never_cut_or_dropped_and_leave_no_room_for_facts(self) -> None:
+    def test_targets_are_never_cut_or_dropped_and_leave_room_only_for_the_notice(self) -> None:
         resources = [f"target/{n:02d}" for n in range(50)]
         head = "\n".join([TITLE, "", "--- Details ---", "", *(f"Target: {r}" for r in resources)])
         for surface in BUDGETED:
             with self.subTest(surface=surface):
                 message = card.build_message(TITLE, resources, described(("A", "a"), ("B", "b")), surface)
-                self.assertEqual(message, head)
+                self.assertEqual(message, f"{head}\n(+2 more)")
+                self.assertEqual(card.build_message(TITLE, resources, None, surface), head)
 
     def test_facts_that_all_fit_have_no_more_line(self) -> None:
         facts = [("a", "b"), ("c", "d")]
@@ -489,12 +516,16 @@ class BuildMessageTest(unittest.TestCase):
         message = card.build_message("H", ["*"], described(("A", "a" * 275), ("B", "b" * 100)), "discord")
         self.assertEqual(message, f"H{DETAILS}(+2 more)")
 
-    def test_a_head_over_the_budget_shows_no_fact_and_no_notice(self) -> None:
+    def test_a_head_over_the_budget_shows_no_fact_but_the_notice(self) -> None:
         title = "x" * 400
         message = card.build_message(title, ["t"], described(("A", "a"), ("B", "b"), text=("Note", "t")), "discord")
-        self.assertEqual(message, f"{title}{DETAILS}Target: t\n\n--- Note ---\n\nt")
+        self.assertEqual(message, f"{title}{DETAILS}Target: t\n(+2 more)\n\n--- Note ---\n\nt")
         message = card.build_message(title, ["t"], described(("A", "a")), "discord")
-        self.assertEqual(message, f"{title}{DETAILS}Target: t")
+        self.assertEqual(message, f"{title}{DETAILS}Target: t\n(+1 more)")
+        message = card.build_message(title, ["*"], described(("A", "a")), "discord")
+        self.assertEqual(message, f"{title}{DETAILS}(+1 more)")
+        message = card.build_message(title, ["t"], described(text=("Note", "t")), "discord")
+        self.assertEqual(message, f"{title}{DETAILS}Target: t\n\n--- Note ---\n\nt")
 
     def test_facts_that_all_drop_leave_the_frame_with_the_notice_when_it_fits(self) -> None:
         title = "x" * 270
@@ -502,19 +533,20 @@ class BuildMessageTest(unittest.TestCase):
         self.assertEqual(message, f"{title}{DETAILS}(+2 more)")
         self.assertEqual(len(message), 298)
 
-    def test_facts_that_all_drop_leave_no_details_when_the_notice_does_not_fit_either(self) -> None:
+    def test_facts_that_all_drop_keep_the_notice_when_it_does_not_fit_either(self) -> None:
         title = "x" * 299
-        self.assertEqual(card.build_message(title, ["*"], described(("A", "b")), "discord"), title)
+        message = card.build_message(title, ["*"], described(("A", "b")), "discord")
+        self.assertEqual(message, f"{title}{DETAILS}(+1 more)")
         self.assertEqual(
             card.build_message(title, ["*"], described(("A", "b"), text=("Note", "t")), "discord"),
-            f"{title}\n\n--- Note ---\n\nt",
+            f"{title}{DETAILS}(+1 more)\n\n--- Note ---\n\nt",
         )
 
-    def test_a_head_that_leaves_no_room_for_the_notice_shows_no_fact(self) -> None:
+    def test_a_head_that_leaves_no_room_for_the_notice_shows_no_fact_but_the_notice(self) -> None:
         # The head is 20 characters and "Target: " 8, so the resource makes it 298: no room for a line or the notice.
         resource = "r" * 270
-        message = card.build_message("H", [resource], described(("A", "b")), "discord")
-        self.assertEqual(message, f"H{DETAILS}Target: {resource}")
+        message = card.build_message("H", [resource], described(("A", "b"), ("C", "d")), "discord")
+        self.assertEqual(message, f"H{DETAILS}Target: {resource}\n(+2 more)")
 
     def test_the_text_follows_in_full_and_is_not_counted_against_the_budget(self) -> None:
         facts = [(f"Label {n}", "v" * 30) for n in range(40)]
@@ -554,7 +586,7 @@ class BuildMessageTest(unittest.TestCase):
         self.assertLessEqual(card.surface_for("telegram").measure(self.head_of(message)), 500)
 
     def test_escapes_are_measured_and_never_split_by_a_cut(self) -> None:
-        for surface, escaped in (("slack", "&lt;"), ("discord", "&lt;")):
+        for surface, escaped in (("slack", "&lt;"), ("discord", "\\<"), (None, "&lt;")):
             with self.subTest(surface=surface):
                 target = card.surface_for(surface)
                 message = card.build_message("H", ["*"], described(("A", "<" * 1000)), surface)
@@ -640,10 +672,10 @@ class BuildMessageTest(unittest.TestCase):
         self.assertEqual(message, f"H\n\n--- {'&' * 30} ---\n\n{'&' * 30}: a\n{'&' * 30} 10")
         self.assertLessEqual(card.surface_for("telegram").measure(message), 500)
 
-    def test_a_translated_heading_that_over_fills_the_head_shows_no_fact(self) -> None:
+    def test_a_translated_heading_that_over_fills_the_head_shows_no_fact_but_the_notice(self) -> None:
         words = card.Words(details="詳" * 290, target="対象", more="（ほか {count} 件）")
         message = card.build_message("H", ["t"], described(("A", "a")), "discord", words)
-        self.assertEqual(message, f"H\n\n--- {'詳' * 290} ---\n\n対象: t")
+        self.assertEqual(message, f"H\n\n--- {'詳' * 290} ---\n\n対象: t\n（ほか 1 件）")
 
     def test_translated_words_are_escaped_for_the_surface_but_not_the_frames_or_the_colon(self) -> None:
         words = card.Words(details="詳_細", target="対*象", more="[ほか {count} 件]")
