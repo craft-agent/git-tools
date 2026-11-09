@@ -310,7 +310,8 @@ def _fit_facts(
     the budget is measured on them as joined, with the words as given. N
     counts the facts after the last one shown, whole or cut. When the head
     alone is over the budget, or leaves no room for the notice, no fact is
-    shown.
+    shown and the notice still is, past the budget: facts are never left out
+    without a word.
     """
     budget = surface.budget
 
@@ -327,7 +328,7 @@ def _fit_facts(
 
     head = compose([])
     if not fits(head):
-        return head
+        return compose(_more(len(facts), words))
     shown: list[str] = []
     omitted = 0
     for index, (label, value) in enumerate(facts):
@@ -348,8 +349,7 @@ def _fit_facts(
     while shown and not fits(compose([*shown, *_more(omitted, words)])):
         shown.pop()
         omitted += 1
-    lines = compose([*shown, *_more(omitted, words)])
-    return lines if fits(lines) else head
+    return compose([*shown, *_more(omitted, words)])
 
 
 def _cut_value(value: str, fits: Callable[[str], bool]) -> str | None:
