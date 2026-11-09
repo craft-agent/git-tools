@@ -213,6 +213,24 @@ note`). The prompt shows it wherever no headline can stand: a tool without
   longer than 10 s gives the prompt it would have given without one. The
   approval is asked either way, and the targets are never lost with the
   description.
+- **A call runs on what its prompt showed.** What a person approves is what
+  was true when the prompt was drawn; between the answer and the run, a file
+  the call reads can be rewritten or a target can change kind. So a native
+  plugin pins the prompt of every call whose tool has `describe`: the
+  targets and the description, before translation, as one hash. Right
+  before the call runs, the entry point resolves both again, and a call
+  whose hash differs, or whose description can no longer be told, fails with
+  `stale` without running; the person is asked again on the next call. A
+  call whose prompt showed no description pins nothing and runs as before,
+  and so does every call of a tool without `describe`. A `describe` may also
+  give `pins`, values the prompt does not show that the call must still find
+  unchanged (a file's hash, beside a size that can stay the same); they go
+  into the hash and nowhere else. A `describe` therefore gives the same
+  answer for the same state: a value that changes on every call, such as the
+  time, makes every call `stale`. The check narrows the gap between the
+  answer and the run to the moment before `execute`; a tool that must close
+  it entirely still checks inside `execute`. An MCP client draws the call's
+  arguments, not a description, so the MCP server pins nothing.
 - **The prompt speaks the language set for the harness.** A native plugin
   draws its prompt in the language of the `language` setting, else in the
   harness's own display language where it has one (Hermes's
