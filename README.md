@@ -138,8 +138,8 @@ Add the server to the host's MCP configuration. Flags go in `args`:
 
 Each toolset comes with a skill that tells an agent how to use its tools.
 There is one toolset per domain; `repo`, `commit` and `rebase` are on by
-default, `worktree` and `push` are opt-in. `repo` is in place; the others are
-being built.
+default, `worktree` and `push` are opt-in. `repo` and `commit` are in place;
+the others are being built.
 
 | Toolset    | Covers                                                                   |
 | ---------- | ------------------------------------------------------------------------ |
@@ -160,6 +160,19 @@ skill says when to use each method.
 |                 | `conflicts`   | what a merge, rebase, cherry-pick or revert left: its sides, and each conflicted file's marker regions or its lockfile command                             |
 |                 | `conventions` | recent commit subjects with their conventional types and scopes, and the commit config files and pull request template in the tree                         |
 |                 | `origin`      | the commit a change came from, by sha, blame or pickaxe, with its full message                                                                             |
+
+### `commit`
+
+One read tool for the checks before a commit, and four write tools. The
+`git-commit` skill says how they fit together.
+
+| Tool                | Class             | Does                                                                                                                                                                                                                                                                                                  |
+| ------------------- | ----------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `git_commit_read`   | read              | `lint`: a candidate message against the neutral rules and the repository's commitlint; `secrets`: credentials in the staged changes, the unstaged changes or a range; `hunks`: the unstaged hunks with the digest of their diff; `amend`: whether to correct a commit by amend, fixup or a new commit |
+| `git_commit_stage`  | idempotent change | stages the hunks of a listing, pinned by its digest                                                                                                                                                                                                                                                   |
+| `git_commit_create` | add               | commits what is staged with the checked message, or a fixup of an earlier commit                                                                                                                                                                                                                      |
+| `git_commit_amend`  | overwrite         | replaces HEAD with the staged changes and a message, under the rule for rewriting commits                                                                                                                                                                                                             |
+| `git_commit_verify` | administrative    | runs a command at each commit of the branch in a throwaway worktree                                                                                                                                                                                                                                   |
 
 ## Adding a tool
 
