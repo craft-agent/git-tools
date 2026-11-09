@@ -450,21 +450,24 @@ changes a rule above, it says so. The discussion behind them is on
   domain could show lives in `src/core/git-facts.ts`; a domain's own fact
   stays beside its tools:
 
-  | Fact                | Value                                     | Shown by                            |
-  | ------------------- | ----------------------------------------- | ----------------------------------- |
-  | `Push`              | `needs a force push`, only when it does   | amending                            |
-  | `Accepted findings` | the fingerprints of the findings let pass | committing, amending                |
-  | `Change`            | `message only`, `staged changes`, …       | amending                            |
-  | `Branch`            | the branch's name                         | committing, amending                |
-  | `Files`             | `{files} files`                           | staging hunks, committing, amending |
-  | `Hunks`             | `{hunks} of {total}`                      | staging hunks                       |
-  | `Lines`             | `{added} added, {removed} removed`        | staging hunks, committing, amending |
-  | `Commits`           | `{commits} commits`                       | checking each commit                |
-  | `Base`              | the base's short sha and subject          | checking each commit                |
-  | `Setup`             | the setup command, as given               | checking each commit                |
-  | `Directory`         | where the commands run, when not the root | checking each commit                |
-  | `On failure`        | `stop at the first failure`, or not       | checking each commit                |
-  | `Time limit`        | `{seconds} s per run`                     | checking each commit                |
+  | Fact                | Value                                     | Shown by                                               |
+  | ------------------- | ----------------------------------------- | ------------------------------------------------------ |
+  | `Push`              | `needs a force push`, only when it does   | amending, rebasing                                     |
+  | `Accepted findings` | the fingerprints of the findings let pass | committing, amending                                   |
+  | `Change`            | `message only`, `staged changes`, …       | amending                                               |
+  | `Branch`            | the branch's name                         | committing, amending                                   |
+  | `Files`             | `{files} files`                           | staging hunks, committing, amending, resuming a rebase |
+  | `Hunks`             | `{hunks} of {total}`                      | staging hunks                                          |
+  | `Lines`             | `{added} added, {removed} removed`        | staging hunks, committing, amending                    |
+  | `Commits`           | `{commits} commits`                       | checking each commit, rebasing                         |
+  | `Layers`            | the branches moved or put back, `a → b`   | rebasing, resuming a rebase                            |
+  | `After`             | the layer branch whose layers landed      | rebasing                                               |
+  | `Fixups`            | `{fixups} to fold`                        | rebasing                                               |
+  | `Base`              | the base's short sha and subject          | checking each commit                                   |
+  | `Setup`             | the setup command, as given               | checking each commit                                   |
+  | `Directory`         | where the commands run, when not the root | checking each commit                                   |
+  | `On failure`        | `stop at the first failure`, or not       | checking each commit                                   |
+  | `Time limit`        | `{seconds} s per run`                     | checking each commit                                   |
 
   A fact the person's answer turns on comes first: amending a commit the
   branch has pushed says so before anything else, since the next push must
