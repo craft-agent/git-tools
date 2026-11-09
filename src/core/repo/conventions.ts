@@ -10,7 +10,8 @@ export const MAX_SAMPLE = 200
 const SUBJECTS_MAX = 15
 const CONVENTIONAL_SUBJECT_PATTERN = /^(\w+)(?:\(([^)]+)\))?!?:\s/
 
-const CONFIG_FILES = [
+/** The file names commitlint reads its configuration from, relative to the working tree root. */
+export const COMMITLINT_CONFIG_FILES = [
   "commitlint.config.js",
   "commitlint.config.cjs",
   "commitlint.config.mjs",
@@ -20,6 +21,10 @@ const CONFIG_FILES = [
   ".commitlintrc.js",
   ".commitlintrc.yml",
   ".commitlintrc.yaml",
+]
+
+const CONFIG_FILES = [
+  ...COMMITLINT_CONFIG_FILES,
   ".gitmessage",
   ".czrc",
   ".cz.json",
