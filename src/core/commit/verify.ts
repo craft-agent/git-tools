@@ -106,6 +106,30 @@ async function resolveBase(root: string, given: string | undefined, signal: Abor
   return (await git(["merge-base", "HEAD", ref], { cwd: root, signal })).trim()
 }
 
+/** The directory, the base and the commits after it that a call checks, or `invalid_argument` when it has none to check. */
+async function resolveRun(
+  root: string,
+  args: Args,
+  signal: AbortSignal | undefined,
+): Promise<{ dir: string; base: string; commits: string[] }> {
+  const dir = checkDir(args.dir)
+
+  const base = await resolveBase(root, args.base, signal)
+  const commits = (await git(["rev-list", "--reverse", `${base}..HEAD`], { cwd: root, signal }))
+    .split("\n")
+    .filter(Boolean)
+  if (commits.length === 0) {
+    throw new ToolError("invalid_argument", `No commits after ${shortSha(base)} up to HEAD.`)
+  }
+  if (commits.length > COMMITS_MAX) {
+    throw new ToolError(
+      "invalid_argument",
+      `${commits.length} commits follow ${shortSha(base)}; at most ${COMMITS_MAX} are checked at once, so pass a nearer base.`,
+    )
+  }
+  return { dir, base, commits }
+}
+
 /** Removes the throwaway worktree and its directory; a failure here never hides the result. */
 async function discardWorktree(root: string, parent: string, tree: string): Promise<void> {
   await gitResult(["worktree", "remove", "--force", tree], { cwd: root, hooks: false }).catch(() => undefined)
@@ -135,21 +159,7 @@ export const commitVerify = defineTool({
   async execute(args: Args, ctx: ToolContext) {
     const root = await workingTree(ctx)
     const { signal } = ctx
-    const dir = checkDir(args.dir)
-
-    const base = await resolveBase(root, args.base, signal)
-    const commits = (await git(["rev-list", "--reverse", `${base}..HEAD`], { cwd: root, signal }))
-      .split("\n")
-      .filter(Boolean)
-    if (commits.length === 0) {
-      throw new ToolError("invalid_argument", `No commits after ${shortSha(base)} up to HEAD.`)
-    }
-    if (commits.length > COMMITS_MAX) {
-      throw new ToolError(
-        "invalid_argument",
-        `${commits.length} commits follow ${shortSha(base)}; at most ${COMMITS_MAX} are checked at once, so pass a nearer base.`,
-      )
-    }
+    const { dir, base, commits } = await resolveRun(root, args, signal)
 
     const branch = (await currentBranch(root, signal)) ?? "HEAD"
     await confirmWrite(
