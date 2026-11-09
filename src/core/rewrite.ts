@@ -2,17 +2,23 @@
  * The one rule for rewriting commits (amend, fixup, rebase): a branch's own
  * commits may be rewritten even once pushed (the push then needs a force push),
  * but never the default branch, commits already on it, or commits another
- * remote branch holds too. When a pushed branch is on GitHub, whether GitHub
- * protects it against force pushes is read as well, and a protected branch is
- * refused; a read that fails is a warning, since the rewrite itself stays local
- * and GitHub refuses the force push on its own.
+ * remote branch holds too. On a stack of layer branches, the remote branches of
+ * every layer count as the branch's own, and a rewrite that would leave layers
+ * above it on the old commits is refused, unless it is a rebase of the whole
+ * stack. When a pushed branch is on GitHub, whether GitHub protects it against
+ * force pushes is read as well, and a protected branch is refused; a read that
+ * fails is a warning, since the rewrite itself stays local and GitHub refuses
+ * the force push on its own.
  */
 
 import { z } from "zod"
 import { isToolError, ToolError } from "./errors"
 import { forcePushProtection, githubRepo, type ForcePushProtection } from "./gh"
 import { git, gitResult } from "./git"
-import { defaultBranchRef } from "./tree"
+import { forkDetails, layersAbove, readStack, stackBranches, topBranch, type ForkDetails, type Stack } from "./stack"
+import { currentBranch, defaultBranchRef, isAncestor } from "./tree"
+
+export { currentBranch, isAncestor } from "./tree"
 
 /** How many hex characters of a commit id the messages show. */
 const SHORT_SHA_LENGTH = 12
@@ -23,7 +29,7 @@ const MAX_NAMED_BRANCHES = 5
 /** Where git keeps the remote-tracking branches. */
 const REMOTE_REFS_PREFIX = "refs/remotes/"
 
-const REWRITE_RULES = ["detached", "default_branch", "merged", "shared", "protected"] as const
+const REWRITE_RULES = ["detached", "default_branch", "merged", "shared", "protected", "layers_above"] as const
 
 /** The verdict of the rewrite rule on a range of commits. */
 export const rewriteCheckSchema = z.object({
@@ -31,7 +37,9 @@ export const rewriteCheckSchema = z.object({
   branch: z.string().nullable().describe("The checked-out branch; null when HEAD is detached."),
   published: z
     .array(z.string())
-    .describe("The branch's own remote branches (such as origin/feat) that already hold the commits being rewritten."),
+    .describe(
+      "The remote branches (such as origin/feat) of the branch and of its stack's layers that already hold the commits being rewritten.",
+    ),
   needs_force_push: z
     .boolean()
     .describe("True when the commits are published, so pushing the rewritten branch needs a force push with a lease."),
@@ -70,23 +78,6 @@ export async function resolveCommit(root: string, rev: string, signal?: AbortSig
     throw new ToolError("not_found", `${rev} is not a commit in this clone; fetch it, or name another commit.`)
   }
   return resolved.stdout.trim()
-}
-
-/** The checked-out branch, or null when HEAD is detached. */
-export async function currentBranch(root: string, signal?: AbortSignal): Promise<string | null> {
-  const head = await gitResult(["symbolic-ref", "--quiet", "--short", "HEAD"], { cwd: root, signal })
-  return head.code === 0 ? head.stdout.trim() || null : null
-}
-
-/** Whether `ancestor` is reachable from `descendant` (a commit counts as its own ancestor). */
-export async function isAncestor(
-  root: string,
-  ancestor: string,
-  descendant: string,
-  signal?: AbortSignal,
-): Promise<boolean> {
-  const result = await gitResult(["merge-base", "--is-ancestor", ancestor, descendant], { cwd: root, signal })
-  return result.code === 0
 }
 
 async function remoteNames(root: string, signal?: AbortSignal): Promise<string[]> {
@@ -168,13 +159,13 @@ export async function needsForcePushAfterAmend(
 }
 
 /**
- * The commits a rewrite replaces (reachable from HEAD, not from `exclude`) and
+ * The commits a rewrite replaces (reachable from `tip`, not from `exclude`) and
  * their roots: the ones whose parents all lie outside. A ref holds a commit of
  * the range exactly when it holds one of the roots, merged-in side branches
  * included.
  */
-async function rangeRoots(root: string, exclude: string[], signal?: AbortSignal): Promise<string[]> {
-  const out = await git(["rev-list", "--parents", "HEAD", "--not", ...exclude], { cwd: root, signal })
+async function rangeRoots(root: string, tip: string, exclude: string[], signal?: AbortSignal): Promise<string[]> {
+  const out = await git(["rev-list", "--parents", tip, "--not", ...exclude], { cwd: root, signal })
   const rows = out
     .split("\n")
     .filter(Boolean)
@@ -245,19 +236,86 @@ async function readProtection(
   return { refusals, warnings }
 }
 
+/** The branches named in a message, at most `MAX_NAMED_BRANCHES` of them. */
+function namedBranches(branches: string[]): string {
+  const more = branches.length - MAX_NAMED_BRANCHES
+  return `${branches.slice(0, MAX_NAMED_BRANCHES).join(", ")}${more > 0 ? ` and ${more} more` : ""}`
+}
+
+/**
+ * The refusals for a rewrite at a layer that has layers above it and, when it
+ * rewrites HEAD itself (`amending`), other branches on its tip, which a fixup
+ * committed here would leave to the rebase of the stack.
+ */
+function layersAboveRefusals(stack: Stack, amending: boolean): RewriteRefusal[] {
+  const refusals: RewriteRefusal[] = []
+  const above = layersAbove(stack).flatMap((layer) => layer.branches)
+  if (above.length > 0) {
+    refusals.push({
+      rule: "layers_above",
+      message: `Rewriting here would leave ${namedBranches(above)} on the old commits. Check out ${topBranch(stack)}, commit the fix there as a fixup, and rebase the stack.`,
+    })
+  }
+  const { branches, tip } = stack.layers[stack.position]!
+  if (amending && branches.length > 1) {
+    refusals.push({
+      rule: "layers_above",
+      message: `${namedBranches(branches.slice(1))} point at this commit too; amending it would leave them on the old one. Commit the fix as a fixup of ${shortSha(tip)} instead, then rebase the stack.`,
+    })
+  }
+  return refusals
+}
+
+/** The refusal for a line that forks above the current branch. */
+function forkRefusal(details: ForkDetails, branch: string): RewriteRefusal {
+  return {
+    rule: "layers_above",
+    message: `Rewriting here would leave the branches above ${branch} on the old commits, and they fork (the candidate tops are ${namedBranches(details.candidate_tops)}). Check out the one the stack ends at, commit the fix there as a fixup, and rebase the stack.`,
+  }
+}
+
+/**
+ * Reads the stack the rule uses. A line that forks above the branch comes back
+ * as `fork`; it is rethrown for a rewrite of the whole stack, which cannot tell
+ * which line is meant.
+ */
+async function readStackForRule(
+  root: string,
+  wholeStack: boolean,
+  signal?: AbortSignal,
+): Promise<{ stack: Stack | null; fork: ForkDetails | null }> {
+  try {
+    return { stack: await readStack(root, { signal }), fork: null }
+  } catch (error) {
+    const fork = isToolError(error) && error.code === "invalid_argument" ? forkDetails(error) : null
+    if (wholeStack || !fork) throw error
+    return { stack: null, fork }
+  }
+}
+
 /**
  * Checks a rewrite of every commit after `base` up to HEAD; by default `oldest`
  * and everything after it, leaving out what the default branch holds (a fold
  * keeps the base and never replays what was merged in from it). `oldest` should
  * be an ancestor of HEAD. An `oldest` or `base` that is no commit throws
  * `not_found`.
+ *
+ * On a stack of layer branches, the remote branches of every layer count as the
+ * branch's own. A rewrite from HEAD is refused (`layers_above`) when layers
+ * above it would stay on the old commits, and, with `amending` (HEAD itself is
+ * replaced), when other branches on its tip would; a fixup committed on a
+ * branch whose tip others share is fine, since the rebase of the stack moves
+ * them. `wholeStack` is for a rewrite that moves every layer up to the top, and
+ * takes the commits it replaces from the top's tip instead; it ignores
+ * `amending`. A line that forks above the branch is a `layers_above` refusal,
+ * and an `invalid_argument` error with `wholeStack`.
  */
 export async function checkRewrite(
   root: string,
   oldest: string,
-  options: { base?: string; signal?: AbortSignal } = {},
+  options: { base?: string; signal?: AbortSignal; wholeStack?: boolean; amending?: boolean } = {},
 ): Promise<RewriteCheck> {
-  const { signal } = options
+  const { signal, wholeStack = false, amending = false } = options
   const oldestSha = await resolveCommit(root, oldest, signal)
   const baseSha = options.base === undefined ? undefined : await resolveCommit(root, options.base, signal)
 
@@ -279,6 +337,10 @@ export async function checkRewrite(
   }
 
   const refusals: RewriteRefusal[] = []
+  const { stack, fork } = await readStackForRule(root, wholeStack, signal)
+  if (fork) refusals.push(forkRefusal(fork, branch))
+  else if (stack && !wholeStack) refusals.push(...layersAboveRefusals(stack, amending))
+
   const defaultRef = await defaultBranchRef(root, signal)
   const remotes = await remoteNames(root, signal)
   const exclude =
@@ -288,7 +350,8 @@ export async function checkRewrite(
           ...(defaultRef ? [defaultRef] : []),
         ]
       : [baseSha]
-  const roots = await rangeRoots(root, exclude, signal)
+  const rewriteTip = stack && wholeStack ? stack.layers[stack.layers.length - 1]!.tip : "HEAD"
+  const roots = await rangeRoots(root, rewriteTip, exclude, signal)
 
   if (!defaultRef && remotes.length > 0) {
     refusals.push({
@@ -315,7 +378,9 @@ export async function checkRewrite(
     }
   }
 
-  const own = await ownRemoteRefs(root, branch, signal)
+  const own: RemoteRef[] = []
+  const lineBranches = stack ? stackBranches(stack) : (fork?.line_branches ?? [branch])
+  for (const name of lineBranches) own.push(...(await ownRemoteRefs(root, name, signal)))
   const ownRefs = new Set(own.map((candidate) => candidate.ref))
   const containing = await remoteBranchesContaining(root, roots, signal)
   const holding = own.filter((candidate) => containing.includes(candidate.ref))

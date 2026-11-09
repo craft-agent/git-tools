@@ -363,6 +363,16 @@ changes a rule above, it says so. The discussion behind them is on
   read that fails (`gh` missing or not logged in, no access, a time-out, a
   branch GitHub does not have) is a warning, not a refusal: the rewrite stays
   local, and GitHub refuses the force push itself.
+- **A stack is read from ancestry, and no record of it is kept.** It is the
+  current branch's line: the local branches between the remote default branch
+  and the top, below the current one, on its tip, or above it, grouped by tip
+  into layers. Where the branches above fork, the line is ambiguous and the
+  caller names the top. Because nothing is written to git config or a file,
+  a stack made by any tool, or by hand, reads the same. The rewrite rule
+  treats the remote branches of the layers as the branch's own, and refuses a
+  rewrite that would leave layers above on the old commits, or an amend that
+  would leave other branches on the old commit (`layers_above`); a lower layer
+  is fixed with a fixup committed on the top and a rebase of the whole stack.
 
 ### Domains and names
 
