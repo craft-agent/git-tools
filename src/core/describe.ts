@@ -1,5 +1,5 @@
 import { isAbortError } from "./errors"
-import type { CallDescription, CallFact, CallHeadline, CallText, ToolContext, ToolSpec } from "./tool"
+import type { CallDescription, CallFact, CallHeadline, CallText, CallValue, ToolContext, ToolSpec } from "./tool"
 
 /** How many facts an approval description keeps. */
 export const MAX_FACTS = 8
@@ -7,13 +7,15 @@ export const MAX_FACTS = 8
 export const MAX_LABEL_LENGTH = 40
 /** The code point budget of a fact's value, including an ellipsis when cut. */
 export const MAX_VALUE_LENGTH = 200
+/** The code point budget of a fact's value template; a longer one is invalid, since cutting could split a placeholder. */
+export const MAX_VALUE_TEMPLATE_LENGTH = 200
 /** The code point budget of the text's label, including an ellipsis when cut. */
 export const MAX_TEXT_LABEL_LENGTH = 40
 /** The code point budget of the text, including an ellipsis when cut. */
 export const MAX_TEXT_LENGTH = 2000
 /** The code point budget of a headline template; a longer one is dropped, since cutting could split a placeholder. */
 export const MAX_HEADLINE_LENGTH = 120
-/** How many values a headline may carry; a headline with more is dropped. */
+/** How many values a headline or a fact's value template may carry; one with more is bad. */
 export const MAX_HEADLINE_VALUES = 8
 /** The code point budget of a headline value, including an ellipsis when cut. */
 export const MAX_HEADLINE_VALUE_LENGTH = 80
@@ -26,7 +28,7 @@ export const MAX_HEADLINE_VALUE_LENGTH = 80
 export const HEADLINE_PLACEHOLDER = /\{([A-Za-z_][A-Za-z0-9_]*)\}/
 
 /** Keeps a string within its code point budget without splitting a surrogate pair. */
-function cut(text: string, limit: number): string {
+export function cut(text: string, limit: number): string {
   const points = Array.from(text)
   return points.length > limit ? `${points.slice(0, limit - 1).join("")}…` : text
 }
@@ -49,7 +51,39 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return prototype === Object.prototype || prototype === null
 }
 
-/** Whether a fact has a nonblank label and a text value. */
+/** The entries of a template's values, none when they are absent, else `undefined` when they are not a plain record of at most `MAX_HEADLINE_VALUES`. */
+function valueEntries(values: unknown): [string, unknown][] | undefined {
+  if (values === undefined) return []
+  if (!isRecord(values)) return undefined
+  const entries = Object.entries(values)
+  return entries.length > MAX_HEADLINE_VALUES ? undefined : entries
+}
+
+/** Whether a template is nonblank, within its code point budget, well formed, and has a value for every placeholder. */
+function isTemplate(text: string, limit: number, entries: [string, unknown][]): boolean {
+  if (text.trim() === "" || Array.from(text).length > limit) return false
+  const given = new Set(entries.map(([name]) => name))
+  const placeholders = templatePlaceholders(text)
+  return placeholders !== undefined && [...placeholders].every((name) => given.has(name))
+}
+
+/** Whether a value is a string or a finite number. */
+function isTemplateValue(value: unknown): value is string | number {
+  return typeof value === "string" || (typeof value === "number" && Number.isFinite(value))
+}
+
+/** Whether a fact's value is a template within `MAX_VALUE_TEMPLATE_LENGTH` whose values are strings or finite numbers. */
+function isCallValue(value: unknown): value is CallValue {
+  if (!isRecord(value) || typeof value.text !== "string") return false
+  const entries = valueEntries(value.values)
+  return (
+    entries !== undefined &&
+    entries.every(([, entry]) => isTemplateValue(entry)) &&
+    isTemplate(value.text, MAX_VALUE_TEMPLATE_LENGTH, entries)
+  )
+}
+
+/** Whether a fact has a nonblank label and a value that is a string or a well formed template. */
 function isFact(fact: unknown): fact is CallFact {
   return (
     typeof fact === "object" &&
@@ -59,8 +93,19 @@ function isFact(fact: unknown): fact is CallFact {
     typeof fact.label === "string" &&
     fact.label.trim() !== "" &&
     "value" in fact &&
-    typeof fact.value === "string"
+    (typeof fact.value === "string" || isCallValue(fact.value))
   )
+}
+
+/** A fact's value within its budgets: a string cut, a template kept with its string values cut and its numbers kept. */
+function cutValue(value: string | CallValue): string | CallValue {
+  if (typeof value === "string") return cut(value, MAX_VALUE_LENGTH)
+  const { text, values } = value
+  if (values === undefined) return { text }
+  const cutValues = Object.entries(values).map(
+    ([name, entry]) => [name, typeof entry === "string" ? cut(entry, MAX_VALUE_LENGTH) : entry] as const,
+  )
+  return { text, values: Object.fromEntries(cutValues) }
 }
 
 /** Whether the text has a nonblank label and a text body. */
@@ -78,15 +123,9 @@ function isText(text: unknown): text is CallText {
 function headlineOf(headline: unknown): CallHeadline | undefined {
   if (!isRecord(headline) || typeof headline.text !== "string") return undefined
   const { text, values } = headline
-  if (text.trim() === "" || Array.from(text).length > MAX_HEADLINE_LENGTH) return undefined
-  if (values !== undefined && !isRecord(values)) return undefined
-
-  const entries = Object.entries(values ?? {})
-  if (entries.length > MAX_HEADLINE_VALUES) return undefined
+  const entries = valueEntries(values)
+  if (entries === undefined || !isTemplate(text, MAX_HEADLINE_LENGTH, entries)) return undefined
   if (!entries.every((entry): entry is [string, string] => typeof entry[1] === "string")) return undefined
-  const given = new Set(entries.map(([name]) => name))
-  const placeholders = templatePlaceholders(text)
-  if (!placeholders || ![...placeholders].every((name) => given.has(name))) return undefined
 
   const cutValues = entries.map(([name, value]) => [name, cut(value, MAX_HEADLINE_VALUE_LENGTH)] as const)
   return values === undefined ? { text } : { text, values: Object.fromEntries(cutValues) }
@@ -125,7 +164,7 @@ export async function callDescription(
 
   const facts = entries.slice(0, MAX_FACTS).map(({ label, value }) => ({
     label: cut(label, MAX_LABEL_LENGTH),
-    value: cut(value, MAX_VALUE_LENGTH),
+    value: cutValue(value),
   }))
   const headline = answer.headline === undefined ? undefined : headlineOf(answer.headline)
   const text =

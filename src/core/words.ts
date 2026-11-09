@@ -16,10 +16,11 @@ export type Translator = {
   word(english: string, limit?: number): string
   /**
    * The translation of a template (`Create the note {name}`), else the English
-   * one. A translation is used only when it is well formed, within the
-   * headline budget and holds exactly the placeholders of the English one.
+   * one. A translation is used only when it is well formed, within `limit`
+   * code points (the headline budget by default) and holds exactly the
+   * placeholders of the English one.
    */
-  template(english: string): string
+  template(english: string, limit?: number): string
 }
 
 /** The translator that keeps every word in English. */
@@ -92,9 +93,9 @@ export function translator(translations: Translations, tag: string | undefined):
       if (translation === undefined) return english
       return limit === undefined || Array.from(translation).length <= limit ? translation : english
     },
-    template(english) {
+    template(english, limit = MAX_HEADLINE_LENGTH) {
       const translation = lookup(words, english)
-      if (translation === undefined || Array.from(translation).length > MAX_HEADLINE_LENGTH) return english
+      if (translation === undefined || Array.from(translation).length > limit) return english
       const expected = templatePlaceholders(english)
       const actual = templatePlaceholders(translation)
       return expected && actual && sameNames(expected, actual) ? translation : english

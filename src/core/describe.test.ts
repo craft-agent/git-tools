@@ -96,7 +96,7 @@ describe("callDescription", () => {
       text: { label: expected(MAX_TEXT_LABEL_LENGTH), body: expected(MAX_TEXT_LENGTH) },
     })
     expect(Array.from(result!.facts[0].label)).toHaveLength(MAX_LABEL_LENGTH)
-    expect(Array.from(result!.facts[0].value)).toHaveLength(MAX_VALUE_LENGTH)
+    expect(Array.from(result!.facts[0].value as string)).toHaveLength(MAX_VALUE_LENGTH)
     expect(Array.from(result!.text!.label)).toHaveLength(MAX_TEXT_LABEL_LENGTH)
     expect(Array.from(result!.text!.body)).toHaveLength(MAX_TEXT_LENGTH)
   })

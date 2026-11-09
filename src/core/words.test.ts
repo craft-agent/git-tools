@@ -157,6 +157,16 @@ describe("translator.template", () => {
     expect(ja.template("Missing {name}")).toBe("Missing {name}")
   })
 
+  test("takes the limit given in place of the headline budget", () => {
+    const move = TABLES.ja!["Move {name}"]!
+    const length = Array.from(move).length
+    expect(length).toBeGreaterThan(MAX_HEADLINE_LENGTH)
+    expect(ja.template("Move {name}")).toBe("Move {name}")
+    expect(ja.template("Move {name}", length)).toBe(move)
+    expect(ja.template("Move {name}", length - 1)).toBe("Move {name}")
+    expect(ja.template("Create the note {name}", 5)).toBe("Create the note {name}")
+  })
+
   test("keeps a malformed English template", () => {
     expect(ja.template("Show the {name")).toBe("Show the {name")
   })

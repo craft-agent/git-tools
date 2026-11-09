@@ -3,11 +3,14 @@ import {
   HEADLINE_PLACEHOLDER,
   MAX_LABEL_LENGTH,
   MAX_TEXT_LABEL_LENGTH,
+  MAX_VALUE_LENGTH,
+  MAX_VALUE_TEMPLATE_LENGTH,
   callDescription,
+  cut,
   type CallDescription,
-  type CallFact,
   type CallHeadline,
   type CallText,
+  type CallValue,
   type ToolContext,
   type ToolSpec,
   type Translator,
@@ -19,33 +22,64 @@ import { ENGLISH_PROMPT_WORDS, type PromptWords } from "./words"
 /** How long a description may take, in milliseconds, before the prompt goes without one. */
 export const DESCRIBE_TIMEOUT_MS = 10_000
 
+/** A fact as the prompt shows it: its value filled in and the characters made `visible`. */
+export type ShownFact = { label: string; value: string }
+
 /** A call's description as the prompt shows it: the headline rendered to one line, the characters made `visible`. */
-export type ShownDescription = { headline?: string; facts: CallFact[]; text?: CallText }
+export type ShownDescription = { headline?: string; facts: ShownFact[]; text?: CallText }
 
 /** Quotes a headline value: `visible`, then `\` and `"` escaped, inside double quotes. */
 function quoted(value: string): string {
   return `"${visible(value).replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"`
 }
 
-/** The headline with its template made `visible` and every placeholder replaced by its quoted value. */
-function renderedHeadline({ text, values = {} }: CallHeadline): string {
+/** A template with its literal parts passed through `literal` and every placeholder replaced by `slot` of its name. */
+function filled(text: string, literal: (part: string) => string, slot: (name: string) => string): string {
   return text
     .split(HEADLINE_PLACEHOLDER)
-    .map((part, index) => (index % 2 === 0 ? visible(part) : quoted(values[part] ?? "")))
+    .map((part, index) => (index % 2 === 0 ? literal(part) : slot(part)))
     .join("")
 }
 
+/** The headline with its template made `visible` and every placeholder replaced by its quoted value. */
+function renderedHeadline({ text, values = {} }: CallHeadline): string {
+  return filled(
+    text,
+    (part) => visible(part),
+    (name) => quoted(values[name] ?? ""),
+  )
+}
+
 /**
- * A description with the tool's words (the headline template and the labels)
- * translated, the headline rendered, and every label, value and text made
- * `visible`. The values and the text are the call's data and stay as they are.
+ * A fact's value as the prompt shows it. A string is made `visible`. A value
+ * template is translated, its placeholders are replaced by their values as
+ * written (unquoted, a number by `String`), the whole is cut to
+ * `MAX_VALUE_LENGTH` code points and then made `visible`: cutting the filled
+ * value first never splits a `<U+XXXX>` mark.
+ */
+function renderedValue(value: string | CallValue, t: Translator): string {
+  if (typeof value === "string") return visible(value)
+  const { text, values = {} } = value
+  const shown = filled(
+    t.template(text, MAX_VALUE_TEMPLATE_LENGTH),
+    (part) => part,
+    (name) => String(values[name] ?? ""),
+  )
+  return visible(cut(shown, MAX_VALUE_LENGTH))
+}
+
+/**
+ * A description with the tool's words (the headline and value templates and
+ * the labels) translated, the headline and the values rendered, and every
+ * label, value and text made `visible`. The values and the text are the
+ * call's data and stay as they are.
  */
 function shownDescription({ headline, facts, text }: CallDescription, t: Translator): ShownDescription {
   return {
     ...(headline && { headline: renderedHeadline({ ...headline, text: t.template(headline.text) }) }),
     facts: facts.map((fact) => ({
       label: visible(t.word(fact.label, MAX_LABEL_LENGTH)),
-      value: visible(fact.value),
+      value: renderedValue(fact.value, t),
     })),
     ...(text && {
       text: {

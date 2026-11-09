@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test"
 import { z } from "zod"
-import type { CallDescription, ToolContext, ToolSpec } from "../core"
+import { MAX_VALUE_LENGTH, type CallDescription, type ToolContext, type ToolSpec } from "../core"
 import { approvalPrompt, permissionDescription } from "./description"
 import { visible } from "./visible"
 
@@ -129,6 +129,39 @@ describe("permissionDescription", () => {
     const headline = { text: "Create {name}" }
     const result = await permissionDescription(answering({ headline, facts: [{ label: "A", value: "b" }] }), {}, CTX)
     expect(result).toEqual({ facts: [{ label: "A", value: "b" }] })
+  })
+
+  test("fills a value template with its values as written, unquoted and without grouping", async () => {
+    const facts = [
+      { label: "Size", value: { text: "{bytes} bytes", values: { bytes: 42 } } },
+      { label: "Big", value: { text: "{bytes} bytes", values: { bytes: 1234567 } } },
+      { label: "Name", value: { text: "{from} to {to}", values: { from: 'a"b\\c', to: "{from}" } } },
+      { label: "Plain", value: { text: "no values" } },
+    ]
+    const result = await permissionDescription(answering({ facts }), {}, CTX)
+    expect(result?.facts).toEqual([
+      { label: "Size", value: "42 bytes" },
+      { label: "Big", value: "1234567 bytes" },
+      { label: "Name", value: 'a"b\\c to {from}' },
+      { label: "Plain", value: "no values" },
+    ])
+  })
+
+  test("marks hidden characters in a value template and in its string values", async () => {
+    const value = { text: "Si\u202eze {name}", values: { name: "a\u200bb" } }
+    const result = await permissionDescription(answering({ facts: [{ label: "Size", value }] }), {}, CTX)
+    expect(result?.facts[0]?.value).toBe("Si<U+202E>ze a<U+200B>b")
+  })
+
+  test("cuts a filled value template to the value budget", async () => {
+    const value = { text: "{name} bytes", values: { name: "a".repeat(MAX_VALUE_LENGTH) } }
+    const result = await permissionDescription(answering({ facts: [{ label: "Size", value }] }), {}, CTX)
+    expect(result?.facts[0]?.value).toBe(`${"a".repeat(MAX_VALUE_LENGTH - 1)}…`)
+  })
+
+  test("gives a bad value template no description", async () => {
+    const value = { text: "{bytes} bytes" }
+    expect(await permissionDescription(answering({ facts: [{ label: "Size", value }] }), {}, CTX)).toBeUndefined()
   })
 
   test("gives the describer a signal and the rest of the context", async () => {

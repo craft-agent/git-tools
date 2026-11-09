@@ -30,6 +30,7 @@ export {
   type CallFact,
   type CallHeadline,
   type CallText,
+  type CallValue,
   type ConfirmRequest,
   type ToolAnnotations,
   type ToolContext,
@@ -38,7 +39,15 @@ export {
   type Toolsets,
   type WriteClass,
 } from "./tool"
-export { HEADLINE_PLACEHOLDER, MAX_LABEL_LENGTH, MAX_TEXT_LABEL_LENGTH, callDescription } from "./describe"
+export {
+  HEADLINE_PLACEHOLDER,
+  MAX_LABEL_LENGTH,
+  MAX_TEXT_LABEL_LENGTH,
+  MAX_VALUE_LENGTH,
+  MAX_VALUE_TEMPLATE_LENGTH,
+  callDescription,
+  cut,
+} from "./describe"
 export { sizeFact } from "./facts"
 export {
   ENGLISH,

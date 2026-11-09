@@ -1,6 +1,13 @@
 import { describe, expect, test } from "bun:test"
 import { z } from "zod"
-import { translator, type CallDescription, type ToolContext, type ToolSpec, type Translations } from "../core"
+import {
+  MAX_VALUE_TEMPLATE_LENGTH,
+  translator,
+  type CallDescription,
+  type ToolContext,
+  type ToolSpec,
+  type Translations,
+} from "../core"
 import { approvalPrompt, permissionDescription } from "./description"
 import { ENGLISH_PROMPT_WORDS, PLUGIN_TRANSLATIONS, promptTranslator, promptWords } from "./words"
 
@@ -11,6 +18,10 @@ const TABLE: Translations = {
   ja: {
     "Create the note {name}": "メモ用に {name} を作成する",
     "Open {name}": "{other} を開く",
+    "{bytes} bytes": "{bytes} バイト",
+    "{count} files": "{other} 件",
+    "{name} bytes": "{name} バイト\u202e",
+    "{long} bytes": `${"長".repeat(MAX_VALUE_TEMPLATE_LENGTH)} {long}`,
     Size: "サイズ",
     "Note text": "メモの本文",
     Title: "題名",
@@ -52,6 +63,69 @@ describe("permissionDescription in a language", () => {
     const description: CallDescription = { headline: { text: "Open {name}", values: { name: "a" } }, facts: [] }
     const result = await permissionDescription(answering(description), {}, CTX, undefined, ja)
     expect(result?.headline).toBe('Open "a"')
+  })
+
+  test("translates a value template and fills the values in after, unquoted", async () => {
+    const description: CallDescription = {
+      facts: [{ label: "Size", value: { text: "{bytes} bytes", values: { bytes: 42 } } }],
+    }
+    const result = await permissionDescription(answering(description), {}, CTX, undefined, ja)
+    expect(result).toEqual({ facts: [{ label: "サイズ", value: "42 バイト" }] })
+  })
+
+  test("never translates a value, even one that is a word of the table", async () => {
+    const description: CallDescription = {
+      facts: [{ label: "Size", value: { text: "{bytes} bytes", values: { bytes: "Size" } } }],
+    }
+    const result = await permissionDescription(answering(description), {}, CTX, undefined, ja)
+    expect(result?.facts[0]?.value).toBe("Size バイト")
+  })
+
+  test("keeps the English value template when the translation has other placeholders", async () => {
+    const description: CallDescription = {
+      facts: [{ label: "Files", value: { text: "{count} files", values: { count: 3 } } }],
+    }
+    const result = await permissionDescription(answering(description), {}, CTX, undefined, ja)
+    expect(result?.facts[0]?.value).toBe("3 files")
+  })
+
+  test("keeps the English value template when the translation is over the template budget", async () => {
+    const description: CallDescription = {
+      facts: [{ label: "Long", value: { text: "{long} bytes", values: { long: "x".repeat(20) } } }],
+    }
+    const result = await permissionDescription(answering(description), {}, CTX, undefined, ja)
+    expect(result?.facts[0]?.value).toBe(`${"x".repeat(20)} bytes`)
+  })
+
+  test("takes a value template translation longer than a headline's, within the value template budget", async () => {
+    const wide = translator({ ja: { "{bytes} bytes": `${"長".repeat(150)} {bytes}` } }, "ja")
+    const description: CallDescription = {
+      facts: [{ label: "Size", value: { text: "{bytes} bytes", values: { bytes: 5 } } }],
+    }
+    const result = await permissionDescription(answering(description), {}, CTX, undefined, wide)
+    expect(result?.facts[0]?.value).toBe(`${"長".repeat(150)} 5`)
+  })
+
+  test("marks hidden characters in a translated value template and cuts the filled value", async () => {
+    const description: CallDescription = {
+      facts: [{ label: "Size", value: { text: "{name} bytes", values: { name: "a\u200bb" } } }],
+    }
+    const result = await permissionDescription(answering(description), {}, CTX, undefined, ja)
+    expect(result?.facts[0]?.value).toBe("a<U+200B>b バイト<U+202E>")
+
+    const cutOff = translator({ ja: { "{bytes} bytes": "{bytes} バイト" } }, "ja")
+    const wide: CallDescription = {
+      facts: [{ label: "Size", value: { text: "{bytes} bytes", values: { bytes: "9".repeat(250) } } }],
+    }
+    const long = await permissionDescription(answering(wide), {}, CTX, undefined, cutOff)
+    expect(long?.facts[0]?.value).toBe(`${"9".repeat(199)}…`)
+  })
+
+  test("renders a value template without values or placeholders as its text", async () => {
+    const description: CallDescription = { facts: [{ label: "Kind", value: { text: "note" } }] }
+    expect(await permissionDescription(answering(description), {}, CTX, undefined, ja)).toEqual({
+      facts: [{ label: "Kind", value: "note" }],
+    })
   })
 
   test("keeps an untranslated word in English", async () => {
