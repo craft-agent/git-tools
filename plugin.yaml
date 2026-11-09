@@ -4,6 +4,7 @@ description: "Git tools for coding agents: state, commits, rewrites and stacked 
 manifest_version: 1
 requires_hermes: ">=0.22"
 provides_tools:
+  - git_commit_create
   - git_commit_read
   - git_commit_stage
   - git_repo_read
