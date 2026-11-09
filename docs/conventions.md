@@ -419,15 +419,17 @@ changes a rule above, it says so. The discussion behind them is on
   `src/words.ts` joins them with the shared facts, and no English word is in
   two tables. Each domain's test checks that its table holds exactly the words
   its tools write, so a word the tools stop using does not linger.
-- **The facts the git tools add**, beside the shared `Size`. A fact more
-  than one tool can show lives in `src/core/git-facts.ts`; one tool's own
-  fact stays in its `describe`:
+- **The facts the git tools add**, beside the shared `Size`. A fact any
+  domain could show lives in `src/core/git-facts.ts`; a domain's own fact
+  stays beside its tools:
 
-  | Fact    | Value                              | Shown by      |
-  | ------- | ---------------------------------- | ------------- |
-  | `Files` | `{files} files`                    | staging hunks |
-  | `Hunks` | `{hunks} of {total}`               | staging hunks |
-  | `Lines` | `{added} added, {removed} removed` | staging hunks |
+  | Fact                | Value                                     | Shown by                  |
+  | ------------------- | ----------------------------------------- | ------------------------- |
+  | `Accepted findings` | the fingerprints of the findings let pass | committing                |
+  | `Branch`            | the branch's name                         | committing                |
+  | `Files`             | `{files} files`                           | staging hunks, committing |
+  | `Hunks`             | `{hunks} of {total}`                      | staging hunks             |
+  | `Lines`             | `{added} added, {removed} removed`        | staging hunks, committing |
 
 ### Results and errors of git operations
 
