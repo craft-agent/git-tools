@@ -9,6 +9,31 @@ export type WriteClass = "read" | "add" | "idempotent" | "overwrite" | "administ
 
 export type ConfirmRequest = { tool: string; message: string }
 
+/** A fact's value as a template the tool picks, such as `{bytes} bytes`, and the values it holds; the entry point fills them in unquoted. */
+export type CallValue = { text: string; values?: Record<string, string | number> }
+
+/** One fact an approval prompt shows of a call, read as `Label: value`. */
+export type CallFact = { label: string; value: string | CallValue }
+
+/** A headline template the tool picks, such as `Create the note {name}`, and the values the entry point quotes into it. */
+export type CallHeadline = { text: string; values?: Record<string, string> }
+
+/** The text a call carries, under the tool's own label (`Note text`). */
+export type CallText = { label: string; body: string }
+
+/**
+ * What a call will do, as an approval prompt shows it: an optional headline,
+ * short facts, then an optional text. `pins` are values the prompt does not
+ * show that the call must still find unchanged (a file's hash), by name; they
+ * go into the pin of the approval and nowhere else.
+ */
+export type CallDescription = {
+  headline?: CallHeadline
+  facts: CallFact[]
+  text?: CallText
+  pins?: Record<string, string>
+}
+
 export type ToolContext = {
   /** The working directory the call runs in. */
   cwd: string
@@ -23,6 +48,8 @@ export type ToolSpec<I extends z.ZodObject<any> = z.ZodObject<any>, O extends z.
   /** `<prefix>_<domain>_<verb>`; a public interface, so it never changes once published. */
   id: string
   title: string
+  /** What the agent is about to do, as a fixed phrase without values (`About to create a note`); the approval prompt shows it where no headline can stand, and the title where the tool has none. */
+  intent?: string
   description: string
   toolset: string
   class: WriteClass
@@ -30,6 +57,12 @@ export type ToolSpec<I extends z.ZodObject<any> = z.ZodObject<any>, O extends z.
   openWorld?: boolean
   /** What the call writes to, as the permission rules of an entry point name it. */
   targets?(args: z.output<I>, ctx: ToolContext): string[] | Promise<string[]>
+  /**
+   * What the call will do, for the person approving it: a headline template
+   * (the intent, else the title, stands without one), facts such as the kind
+   * of target, and the text the call carries under the tool's own label.
+   */
+  describe?(args: z.output<I>, ctx: ToolContext): CallDescription | Promise<CallDescription>
   input: I
   output: O
   execute(args: z.output<I>, ctx: ToolContext): Promise<z.input<O>>
@@ -62,6 +95,12 @@ export function defineTool<I extends z.ZodObject<any>, O extends z.ZodObject<any
   }
   if (!(spec.output instanceof z.ZodObject)) {
     throw new Error(`Tool "${spec.id}" must have an object output schema, since a result is an object.`)
+  }
+  if (spec.intent !== undefined && spec.intent.trim() === "") {
+    throw new Error(`Tool "${spec.id}" must give an intent that is not blank, or none.`)
+  }
+  if (spec.intent !== undefined && /[{}]/.test(spec.intent)) {
+    throw new Error(`Tool "${spec.id}" must give an intent without braces: it carries no values.`)
   }
   return spec
 }

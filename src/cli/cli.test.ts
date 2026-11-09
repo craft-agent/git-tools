@@ -6,7 +6,9 @@ import {
   ADD_ID,
   ADMIN_ID,
   BROKEN_ID,
+  DESCRIBED_ID,
   DETAILED_ID,
+  HANGING_DESCRIBE_ID,
   MISSING_ID,
   PROFILE,
   READ_ID,
@@ -54,8 +56,17 @@ describe("list", () => {
       BROKEN_ID,
       SLOW_ID,
       DETAILED_ID,
+      DESCRIBED_ID,
+      HANGING_DESCRIBE_ID,
     ])
-    expect(await ids("--exclude-tools", `${READ_ID},${ADD_ID}`)).toEqual([MISSING_ID, BROKEN_ID, SLOW_ID, DETAILED_ID])
+    expect(await ids("--exclude-tools", `${READ_ID},${ADD_ID}`)).toEqual([
+      MISSING_ID,
+      BROKEN_ID,
+      SLOW_ID,
+      DETAILED_ID,
+      DESCRIBED_ID,
+      HANGING_DESCRIBE_ID,
+    ])
   })
 
   test("reads the environment behind the flags", async () => {

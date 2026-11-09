@@ -1,9 +1,52 @@
 import { describe, expect, test } from "bun:test"
 import { z } from "zod"
 import { ToolError, defineTool, type ToolContext } from "../core"
-import { runTool } from "./shared"
+import { promptTranslator } from "../entry/words"
+import { permissionMetadata, runTool } from "./shared"
 
 const CTX: ToolContext = { cwd: "/work", signal: new AbortController().signal }
+
+describe("permissionMetadata", () => {
+  const spec = { title: "Title", class: "add" } as const
+  const args = { area: "north" }
+
+  test("without a description the message is the title and the targets", () => {
+    expect(permissionMetadata(spec, args, ["north"])).toEqual({
+      arguments: args,
+      class: "add",
+      message: "Title\n\n--- Details ---\n\nTarget: north",
+    })
+  })
+
+  test("takes the headline, facts and text from the description", () => {
+    expect(
+      permissionMetadata(spec, args, ["north"], {
+        headline: 'Label the area "north"',
+        facts: [{ label: "Area", value: "north" }],
+        text: { label: "Body", body: "Body<U+202E>" },
+      }),
+    ).toEqual({
+      arguments: args,
+      class: "add",
+      message:
+        'Label the area "north"\n\n--- Details ---\n\nTarget: north\nArea: north\n\n--- Body ---\n\nBody<U+202E>',
+    })
+  })
+
+  test("draws the title, the plugin's words and the description's labels through the translator", () => {
+    const t = promptTranslator({ ja: { Title: "題名" } }, "ja")
+    expect(permissionMetadata(spec, args, ["north"], { facts: [{ label: "エリア", value: "north" }] }, t)).toEqual({
+      arguments: args,
+      class: "add",
+      message: "題名\n\n--- 詳細 ---\n\n対象: north\nエリア: north",
+    })
+  })
+
+  test("keeps the English title when the translator has no word for it", () => {
+    const t = promptTranslator({ ja: {} }, "ja")
+    expect(permissionMetadata(spec, args, ["north"], undefined, t).message).toBe("Title\n\n--- 詳細 ---\n\n対象: north")
+  })
+})
 
 /** Runs a read tool that throws `error`, and resolves to what `runTool` threw. */
 async function failure(error: Error): Promise<unknown> {

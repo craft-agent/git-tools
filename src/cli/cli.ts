@@ -5,16 +5,20 @@ import {
   isAbortError,
   isToolError,
   outputJsonSchema,
+  PIN_PATTERN,
   selectTools,
   ToolError,
   type ErrorCode,
   type ErrorDetails,
   type ToolSpec,
+  type Translations,
 } from "../core"
 import { errorBody } from "../entry/errors"
-import { permissionResources } from "../entry/permission"
+import { approvalOf, checkPin } from "../entry/pin"
 import { PROJECT_PROFILE, type EntryProfile } from "../entry/profile"
-import { parseToolSettings } from "../entry/settings"
+import { parseToolSettings, promptLanguage } from "../entry/settings"
+import { visible } from "../entry/visible"
+import { promptTranslator, promptWords } from "../entry/words"
 import { PROJECT } from "../project"
 
 /** The exit codes of a command: it did its work, the work failed, or the command line was wrong. */
@@ -24,6 +28,9 @@ export const EXIT_USAGE = 2
 
 const PROGRAM = PROJECT.cli
 const CWD_FLAG = "--cwd"
+const LANGUAGE_FLAG = "--language"
+const HARNESS_LANGUAGE_FLAG = "--harness-language"
+const PIN_FLAG = "--pin"
 
 /** What a command line needs from its surroundings; `main.ts` wires the process, a test supplies its own. */
 export type CliIo = {
@@ -43,34 +50,38 @@ export type CliIo = {
   ownDir?: string
   /** Stops a running tool when it aborts. */
   signal?: AbortSignal
+  /** How long a call's description may take; defaults to DESCRIBE_TIMEOUT_MS. */
+  describeTimeoutMs?: number
+  /** The translations of the tools' words, per language, for `target`; defaults to none, which keeps its answer in English. */
+  translations?: Translations
 }
 
 type Command =
   | { name: "list"; selected: ToolSpec[] }
-  | { name: "run"; toolId: string; cwd: string; selected: ToolSpec[] }
-  | { name: "target"; toolId: string; cwd: string }
+  | { name: "run"; toolId: string; cwd: string; pin: string | undefined; selected: ToolSpec[] }
+  | { name: "target"; toolId: string; cwd: string; language: string | undefined }
 
 function usageError(message: string): ToolError {
   return new ToolError("invalid_argument", message)
 }
 
-/** Splits `--cwd <dir>` from the remaining arguments, which are the settings flags. */
-function takeCwd(argv: string[]): { cwd: string | undefined; rest: string[] } {
-  let cwd: string | undefined
+/** Splits `<flag> <value>` or `<flag>=<value>` from the remaining arguments; the last one given wins. */
+function takeFlag(argv: string[], flag: string): { value: string | undefined; rest: string[] } {
+  let value: string | undefined
   const rest: string[] = []
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i]!
-    if (arg.startsWith(`${CWD_FLAG}=`)) {
-      cwd = arg.slice(CWD_FLAG.length + 1)
-    } else if (arg === CWD_FLAG) {
-      cwd = argv[++i]
-      if (cwd === undefined || cwd.startsWith("--")) throw usageError(`Option ${CWD_FLAG} needs a value.`)
+    if (arg.startsWith(`${flag}=`)) {
+      value = arg.slice(flag.length + 1)
+    } else if (arg === flag) {
+      value = argv[++i]
+      if (value === undefined || value.startsWith("--")) throw usageError(`Option ${flag} needs a value.`)
     } else {
       rest.push(arg)
     }
   }
-  if (cwd === "") throw usageError(`Option ${CWD_FLAG} needs a value.`)
-  return { cwd, rest }
+  if (value === "") throw usageError(`Option ${flag} needs a value.`)
+  return { value, rest }
 }
 
 /** Reads the command line; a mistake in it, in the settings or in the tool selection is `invalid_argument`. */
@@ -83,24 +94,33 @@ function parseCommand(argv: string[], io: Pick<CliIo, "specs" | "env" | "profile
   }
   if (name !== "run" && name !== "target") {
     const given = name === undefined ? "No command given" : `Unknown command "${name}"`
-    throw usageError(`${given}; use list, run <tool-id> --cwd <dir> or target <tool-id> --cwd <dir>.`)
+    throw usageError(
+      `${given}; use list, run <tool-id> --cwd <dir> [${PIN_FLAG} <hex>] or target <tool-id> --cwd <dir> [${LANGUAGE_FLAG} <tag>] [${HARNESS_LANGUAGE_FLAG} <tag>].`,
+    )
   }
 
   const [toolId, ...options] = args
   if (toolId === undefined || toolId.startsWith("--")) throw usageError(`Command ${name} needs a tool id.`)
-  const { cwd, rest } = takeCwd(options)
+  const { value: cwd, rest } = takeFlag(options, CWD_FLAG)
   if (cwd === undefined) throw usageError(`Command ${name} needs ${CWD_FLAG} <dir>.`)
   if (name === "target") {
-    if (rest.length > 0) throw usageError(`Unknown option "${rest[0]}".`)
-    return { name, toolId, cwd }
+    const { value: language, rest: afterLanguage } = takeFlag(rest, LANGUAGE_FLAG)
+    const { value: harnessLanguage, rest: unknown } = takeFlag(afterLanguage, HARNESS_LANGUAGE_FLAG)
+    if (unknown.length > 0) throw usageError(`Unknown option "${unknown[0]}".`)
+    return { name, toolId, cwd, language: promptLanguage(language, io.env, harnessLanguage, profile) }
   }
-  return { name, toolId, cwd, selected: select(rest) }
+  const { value: pin, rest: selection } = takeFlag(rest, PIN_FLAG)
+  if (pin !== undefined && !PIN_PATTERN.test(pin)) {
+    throw usageError(`Option ${PIN_FLAG} needs the 64 lowercase hexadecimal digits \`target\` answered with.`)
+  }
+  return { name, toolId, cwd, pin, selected: select(selection) }
 }
 
 function describeSpec(spec: ToolSpec) {
   return {
     id: spec.id,
     title: spec.title,
+    ...(spec.intent !== undefined && { intent: spec.intent }),
     description: spec.description,
     toolset: spec.toolset,
     class: spec.class,
@@ -134,11 +154,10 @@ async function runTool(command: Extract<Command, { name: "run" }>, io: CliIo): P
   const spec = command.selected.find((candidate) => candidate.id === command.toolId)
   if (!spec) return writeError(io, "invalid_argument", `Unknown tool "${command.toolId}".`)
   try {
-    const result = await invoke(spec, await readArguments(io), {
-      cwd: command.cwd,
-      ownDir: io.ownDir,
-      signal: io.signal,
-    })
+    const args = await readArguments(io)
+    const ctx = { cwd: command.cwd, ownDir: io.ownDir, signal: io.signal }
+    await checkPin(spec, args, ctx, command.pin, io.describeTimeoutMs)
+    const result = await invoke(spec, args, ctx)
     writeJson(io, { result })
     return EXIT_OK
   } catch (error) {
@@ -153,12 +172,22 @@ async function targetOf(command: Extract<Command, { name: "target" }>, io: CliIo
   const spec = io.specs.find((candidate) => candidate.id === command.toolId)
   if (!spec) return writeError(io, "invalid_argument", `Unknown tool "${command.toolId}".`)
   try {
-    const resources = await permissionResources(spec, await readArguments(io), {
+    const args = await readArguments(io)
+    const ctx = {
       cwd: command.cwd,
       ownDir: io.ownDir,
       signal: io.signal,
+    }
+    const t = promptTranslator(io.translations ?? {}, command.language)
+    const { resources, description, pin } = await approvalOf(spec, args, ctx, io.describeTimeoutMs, t)
+    writeJson(io, {
+      resources,
+      title: visible(t.word(spec.title)),
+      ...(spec.intent !== undefined && { intent: visible(t.word(spec.intent)) }),
+      words: promptWords(t),
+      ...(description !== undefined && { description }),
+      ...(pin !== undefined && { pin }),
     })
-    writeJson(io, { resources })
     return EXIT_OK
   } catch (error) {
     if (isToolError(error)) return writeError(io, error.code, error.message, error.details)
@@ -175,8 +204,19 @@ function errorDetail(error: unknown): string {
 /**
  * The command line of the package, for callers that are not a harness's own
  * plugin: `list` answers with the selected tools, `run` runs one with the
- * arguments on standard input, and `target` answers with what a call would
- * write to (`{"resources": [...]}`). Standard output carries only the JSON document; a
+ * arguments on standard input (with `--pin <hex>`, only if what `target`
+ * answered with that `pin` is unchanged, else `stale` and nothing runs), and
+ * `target` answers with what a call would write to (`{"resources": [...]}`), the tool's `title`, its `intent` when it
+ * has one (`list` carries it too, in English), and the plugin's own
+ * `words` (`{"details", "target", "more"}`) in the prompt language, plus a
+ * `description` when the tool gives one:
+ * `{"headline"?: string, "facts": [...], "text"?: {"label", "body"}}`, as the
+ * approval prompt shows it (the words translated, the headline rendered,
+ * hidden characters marked), and a `pin` (64 hex digits, independent of the
+ * language) of that description and the resources when there is a description.
+ * `target` takes `--language <tag>`, else `<envPrefix>_LANGUAGE`, else `--harness-language <tag>` (the harness's own
+ * display language) as the prompt language; none, or one without a table,
+ * keeps English. Standard output carries only the JSON document; a
  * mistake in the command line is one line on standard error and `EXIT_USAGE`.
  * Resolves to the exit code.
  */

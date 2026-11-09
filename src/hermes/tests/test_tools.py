@@ -7,7 +7,9 @@ import unittest
 from typing import Any
 from unittest import mock
 
-from support import CWD, FAKE_CLI, LISTING, FakeCliCase, project, runtime, tools
+from support import CWD, FAKE_CLI, LISTING, FakeCliCase, approval as approval_module, project, runtime, tools
+
+PIN = "ab12" * 16
 
 
 class RegisterTest(FakeCliCase):
@@ -51,7 +53,7 @@ class RegisterTest(FakeCliCase):
 
     def test_registers_the_approval_hook_on_pre_tool_call(self) -> None:
         ctx = self.register()
-        self.assertEqual([name for name, _ in ctx.hooks], ["pre_tool_call"])
+        self.assertEqual([name for name, _ in ctx.hooks], ["pre_tool_call", "pre_tool_call"])
 
 
 class HandlerTest(FakeCliCase):
@@ -130,6 +132,38 @@ class HandlerTest(FakeCliCase):
     def test_arguments_that_are_not_json_are_an_error_result(self) -> None:
         result = json.loads(self.handler()({"value": object()}))
         self.assertIn("demo_thing_create could not run", result["error"])
+
+    def test_a_pin_is_taken_out_of_the_arguments_and_passed_as_a_flag(self) -> None:
+        self.reply("run demo_thing_create", stdout='{"result":{}}')
+        self.handler()({"name": "a", approval_module.PIN_ARGUMENT: PIN})
+        [call] = self.run_calls()
+        self.assertEqual(call["argv"], ["run", "demo_thing_create", "--cwd", CWD, f"--pin={PIN}"])
+        self.assertEqual(json.loads(call["stdin"]), {"name": "a"})
+
+    def test_an_empty_or_junk_pin_is_taken_out_and_passes_no_flag(self) -> None:
+        self.reply("run demo_thing_create", stdout='{"result":{}}')
+        handler = self.handler()
+        for junk in ("", "ABC", PIN.upper(), PIN + "0", 5, None, ["x"]):
+            with self.subTest(junk=junk):
+                self.log.unlink(missing_ok=True)
+                handler({"name": "a", approval_module.PIN_ARGUMENT: junk})
+                [call] = self.run_calls()
+                self.assertEqual(call["argv"], ["run", "demo_thing_create", "--cwd", CWD])
+                self.assertEqual(json.loads(call["stdin"]), {"name": "a"})
+
+    def test_without_the_key_it_runs_as_before(self) -> None:
+        self.reply("run demo_thing_create", stdout='{"result":{}}')
+        args = {"name": "a"}
+        self.handler()(args)
+        [call] = self.run_calls()
+        self.assertEqual(call["argv"], ["run", "demo_thing_create", "--cwd", CWD])
+        self.assertEqual(args, {"name": "a"})
+
+    def test_a_stale_error_reaches_the_model_like_other_errors(self) -> None:
+        error = {"error": {"code": "stale", "message": "The call changed after it was approved."}}
+        self.reply("run demo_thing_create", stdout=json.dumps(error) + "\n", code=1)
+        result = self.handler()({approval_module.PIN_ARGUMENT: PIN})
+        self.assertEqual(json.loads(result), {"error": "stale: The call changed after it was approved."})
 
     def test_a_failing_cwd_lookup_is_an_error_result(self) -> None:
         handler = self.handler()

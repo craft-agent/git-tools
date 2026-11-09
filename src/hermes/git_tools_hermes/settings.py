@@ -21,6 +21,15 @@ def _names(key: str, value: Any) -> str | None:
     return ",".join(value) or None
 
 
+def language_setting(ctx: PluginContext) -> str | None:
+    """The ``language`` setting, stripped; ``None`` when it is absent, blank or not a string.
+
+    It is no flag of ``settings_flags``: only ``target`` takes a language.
+    """
+    value = ctx.get_config("language")
+    return (value.strip() or None) if isinstance(value, str) else None
+
+
 def settings_flags(ctx: PluginContext) -> list[str]:
     """Read ``toolsets``, ``read_only``, ``tools`` and ``exclude_tools`` and return the flags that say the same.
 

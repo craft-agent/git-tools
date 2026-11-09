@@ -132,6 +132,9 @@ class FakeCliCase(unittest.TestCase):
             patcher = mock.patch.object(module, "agent_cwd", return_value=CWD)
             patcher.start()
             self.addCleanup(patcher.stop)
+        display = mock.patch.object(approval, "display_language", return_value=None)
+        display.start()
+        self.addCleanup(display.stop)
         locate = mock.patch.object(plugin, "locate_runtime", side_effect=lambda: self.runtime)
         locate.start()
         self.addCleanup(locate.stop)
@@ -148,8 +151,9 @@ class FakeCliCase(unittest.TestCase):
     def write_fixture(self) -> None:
         self.fixture.write_text(json.dumps({"log": str(self.log), "replies": self.replies}), encoding="utf-8")
 
-    def register(self, config: dict[str, Any] | None = None) -> StubContext:
-        ctx = StubContext(config)
+    def register(self, config: dict[str, Any] | None = None, ctx: StubContext | None = None) -> StubContext:
+        if ctx is None:
+            ctx = StubContext(config)
         self.write_fixture()
         plugin.register(ctx)
         return ctx

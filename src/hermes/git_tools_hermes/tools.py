@@ -6,6 +6,7 @@ import json
 from collections.abc import Callable
 from typing import Any
 
+from .approval import PIN_ARGUMENT, parse_pin
 from .context import PluginContext
 from .listing import ToolInfo
 from . import project
@@ -49,13 +50,19 @@ def _failure(code: int, stdout: str, stderr: str) -> str:
 
 
 def make_handler(runtime: Runtime, tool_id: str, flags: list[str]) -> Callable[..., str]:
-    """The handler Hermes calls for one tool: it takes the arguments as one dict and never raises."""
+    """The handler Hermes calls for one tool: it takes the arguments as one dict and never raises.
+
+    The pin the pin hook set (``PIN_ARGUMENT``) is taken out of the arguments and, when it is a
+    pin, passed to ``run`` as ``--pin``; anything else runs as if there were none.
+    """
 
     def handler(args: dict[str, Any], **kwargs: Any) -> str:
         try:
+            arguments = dict(args)
+            pin = parse_pin(arguments.pop(PIN_ARGUMENT, None))
             result = runtime.run(
-                ["run", tool_id, "--cwd", agent_cwd(), *flags],
-                stdin=json.dumps(args),
+                ["run", tool_id, "--cwd", agent_cwd(), *flags, *([f"--pin={pin}"] if pin else [])],
+                stdin=json.dumps(arguments),
                 timeout=RUN_TIMEOUT_SECONDS,
             )
         except CliError as error:

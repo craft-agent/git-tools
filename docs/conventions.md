@@ -132,6 +132,131 @@ Every tool belongs to one class, and the class sets its MCP annotations.
   without a resolver, and a target holding `*` or `?` (which a harness would
   store as a pattern) is `*`, and `*` is never stored. An "always" answer then
   covers only what it named, never a write somewhere else.
+- **It shows what the call carries, where the tool can say.** Targets are
+  ids, so they cannot tell one kind of target from another, and the person
+  decides on the text, the file or the kind of target as much as on where it
+  goes. A write tool's `describe` says it. An MCP client draws the call's
+  arguments in its own prompt, so the MCP server adds nothing.
+- **Every native plugin's prompt has one shape**, so a person reads every
+  tool's prompt the same way:
+
+  ```text
+  About to create "todo.md"
+
+  --- Details ---
+
+  Target: /work/tree/notes/todo.md
+  Size: 42 bytes
+
+  --- Note text ---
+
+  # Todo
+  ```
+
+  The headline says what the agent is about to do, as its next step; the
+  Details name each target on a `Target` line, then the tool's facts; the
+  last section is the text the call carries, under the tool's own label. A
+  section with nothing to show is left out, so a tool without `describe`
+  shows its intent and its targets, and one whose targets cannot be told
+  shows its intent alone. The harness names the tool beside the prompt, so
+  the prompt does not repeat its id.
+
+- **A write tool states its intent.** Besides its title, which names the
+  tool wherever tools are listed, a write tool gives an `intent`: a fixed
+  phrase in the headline's tone that carries no value (`About to create a
+note`). The prompt shows it wherever no headline can stand: a tool without
+  `describe`, a headline that is dropped, and one that gives way to keep the
+  targets within the budget. A tool without an intent shows its title there.
+
+- **The tool's words are fixed; what the call carries is data.** A model
+  chooses the arguments and nothing else, and a prompt is only as good as the
+  person's trust in its lines. The headline is the tool's intent, or a
+  template the tool picks (`About to create {file}`) whose values the entry
+  point quotes, so where the tool's words end and the call's data begins is
+  always visible. A value comes from what the tool resolved, never from a
+  model's account of it (the record's real name, not the name the model
+  gave). The text section holds what the call writes, as it is, never a
+  summary of it; a summary the tool can compute is a fact (`Size`, `Lines`).
+- **Facts are short and ordered by what they decide.** A label is a noun of
+  one or two words, in English like the tool's title, and a value carries
+  its unit (`42 bytes`). A value with a unit or other words of the tool's is
+  a template the tool picks with the values it holds (`{bytes} bytes` with
+  `bytes: 42`), so the unit is the tool's word and the number the call's
+  data; the tool picks the English form for the count (`{bytes} byte` for
+  one), and numbers are shown as written, without digit grouping. A plain
+  string value has no words of the tool's. The fact that changes the person's answer comes
+  first (the kind of target, whether it overwrites); amounts come last. A
+  fact never repeats the headline or a target. `src/core/facts.ts` holds the
+  facts every package can use (`sizeFact`); a package adds its own beside its
+  tools in the same form and lists them in its section below.
+- **The head of the prompt comes first and fits; the text comes last.** Some
+  harnesses cut a prompt from its end at a few hundred characters, so the
+  headline, the targets and the facts are kept within the budget of where the
+  prompt is shown, and the text is what is cut. A headline that would push a
+  target past the cut gives way to the intent, since the targets are what an
+  "always" answer stores. A description keeps a
+  headline template of 120 characters with values of 80, its first eight
+  facts with labels of 40 characters and values of 200 (a value template of
+  200 with at most eight values, the filled value cut to 200), and a text label of
+  40 with a text of 2000; anything longer is cut with `…`. Nothing in the text
+  can come before the facts, since the text is the last section.
+- **Characters other people wrote are shown, never obeyed.** A target's name
+  or a file's name can hold control, bidi and invisible characters that
+  forge a line of the prompt or hide part of a value; each is shown as
+  `<U+XXXX>`, and a quote inside a headline value as `\"`. Where the prompt
+  renders markup, everything but the plugin's own section lines is escaped,
+  so a name cannot draw a link or a mention. A surface the plugin does not
+  know gets the strictest budget and escaping, so a new one is safe before it
+  is known.
+- **A description never stands between a call and its approval.** A tool
+  without `describe`, a `describe` that fails, returns another shape or takes
+  longer than 10 s gives the prompt it would have given without one. The
+  approval is asked either way, and the targets are never lost with the
+  description.
+- **A call runs on what its prompt showed.** What a person approves is what
+  was true when the prompt was drawn; between the answer and the run, a file
+  the call reads can be rewritten or a target can change kind. So a native
+  plugin pins the prompt of every call whose tool has `describe`: the
+  targets and the description, before translation, as one hash. Right
+  before the call runs, the entry point resolves both again, and a call
+  whose hash differs, or whose description can no longer be told, fails with
+  `stale` without running; the person is asked again on the next call. A
+  call whose prompt showed no description pins nothing and runs as before,
+  and so does every call of a tool without `describe`. A `describe` may also
+  give `pins`, values the prompt does not show that the call must still find
+  unchanged (a file's hash, beside a size that can stay the same); they go
+  into the hash and nowhere else. A `describe` therefore gives the same
+  answer for the same state: a value that changes on every call, such as the
+  time, makes every call `stale`. The check narrows the gap between the
+  answer and the run to the moment before `execute`; a tool that must close
+  it entirely still checks inside `execute`. An MCP client draws the call's
+  arguments, not a description, so the MCP server pins nothing.
+- **The prompt speaks the language set for the harness.** A native plugin
+  draws its prompt in the language of the `language` setting, else in the
+  harness's own display language where it has one (Hermes's
+  `display.language`), else in English. No harness tells a plugin who
+  approves a call, so this is the language set where the plugin runs, not
+  each person's. The server's locale (`LANG`) is never read: it is the
+  machine's, and a person reading English on a machine set to another
+  language would see the prompt change. A tag matches its own table, else
+  the one of its first subtag (`ja-JP` and `ja_JP` are `ja`; `zh-Hant` can
+  have its own), and a language the package has no words for falls back to
+  English without a word. An MCP client draws its own prompt,
+  so the MCP server takes no `language`.
+- **Translations are tables keyed by the English words.** The plugin's own
+  words (`Details`, `Target`, `(+N more)`) and a tool's (its title, its
+  intent, its headline templates, its fact labels, its value templates and its text
+  label) are written in
+  English in the code. Per language, a package gives one table from those
+  English words to their translation (`src/words.ts`), and the entry point
+  looks each word up as it draws the prompt, so a tool's code does not change.
+  A translated template must hold the same placeholders as the English one
+  and keep within its limits, or the English one is used, so a translation
+  cannot move the line between the tool's words and the call's data. Values
+  are the call's data and are never translated: a value template is looked
+  up and its values filled in after (`{bytes} バイト`), and a plain string
+  value stays as the tool wrote it. A translation is marked like every other
+  piece of the prompt.
 - **`confirm: "elicitation"` adds the tool's own form** for administrative
   tools, where the client offers form-mode elicitation. It is for people who
   switch the client's approvals off: the tool states what will happen in plain
@@ -153,6 +278,9 @@ Every entry point takes the same settings:
 - **`confirm`** is `harness` (the default) or `elicitation`; it says who asks
   before an administrative tool acts (see "Write classes"). The default leaves
   the question to the harness, whose approval every user already knows.
+- **`language`** is the language of a native plugin's approval prompt (see
+  "Write classes"); unset, the prompt follows the harness's display language
+  or stays in English.
 
 ## The core contract
 

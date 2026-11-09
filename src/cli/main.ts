@@ -1,6 +1,7 @@
 import { packageRoot } from "../entry/package-root"
 import { PROJECT } from "../project"
 import { ALL_TOOLS } from "../tools"
+import { ALL_TRANSLATIONS } from "../words"
 import { EXIT_FAILED, runCli } from "./cli"
 
 const CANCEL_SIGNALS = ["SIGTERM", "SIGINT"] as const
@@ -17,8 +18,10 @@ async function main(): Promise<void> {
   const controller = new AbortController()
   for (const signal of CANCEL_SIGNALS) process.once(signal, () => controller.abort())
 
-  process.exitCode = await runCli(process.argv.slice(2), {
+  const argv = process.argv.slice(2)
+  process.exitCode = await runCli(argv, {
     specs: ALL_TOOLS,
+    translations: ALL_TRANSLATIONS,
     env: process.env,
     ownDir: packageRoot(import.meta.url),
     readStdin,
@@ -26,6 +29,8 @@ async function main(): Promise<void> {
     stderr: (text) => process.stderr.write(text),
     signal: controller.signal,
   })
+  // A description given up on may still hold the process open, and the approval waits for it to end.
+  if (argv[0] === "target") process.stdout.write("", () => process.stderr.write("", () => process.exit()))
 }
 
 main().catch((error: unknown) => {

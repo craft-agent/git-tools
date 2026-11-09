@@ -6,7 +6,23 @@ import unittest
 from typing import Any
 from unittest import mock
 
-from support import FAKE_CLI, FakeCliCase, StubContext, listing, plugin, project, runtime
+from support import FAKE_CLI, FakeCliCase, StubContext, listing, plugin, project, runtime, tool_entry
+
+
+class ToolInfoIntentTest(unittest.TestCase):
+    def info(self, **fields: Any) -> Any:
+        return listing.ToolInfo.from_listing({**tool_entry("demo_thing_create", "things", "add"), **fields})
+
+    def test_the_intent_is_read(self) -> None:
+        self.assertEqual(self.info(intent="About to create a thing").intent, "About to create a thing")
+
+    def test_an_absent_blank_or_wrong_intent_is_none_and_the_tool_is_still_listed(self) -> None:
+        self.assertIsNone(self.info().intent)
+        for intent in (None, "", "  ", 3, ["i"], {"i": 1}, True):
+            with self.subTest(intent=intent):
+                tool = self.info(intent=intent)
+                self.assertIsNone(tool.intent)
+                self.assertEqual(tool.id, "demo_thing_create")
 
 
 class ListingTest(FakeCliCase):

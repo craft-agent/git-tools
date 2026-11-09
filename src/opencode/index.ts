@@ -1,6 +1,7 @@
 import { packageRoot } from "../entry/package-root"
 import { PROJECT } from "../project"
 import { ALL_TOOLS } from "../tools"
+import { ALL_TRANSLATIONS } from "../words"
 import { createV1Server } from "./v1"
 import { createV2Setup } from "./v2"
 import type { OpenCodePlugin } from "./types"
@@ -14,8 +15,8 @@ const OWN_DIR = packageRoot(import.meta.url)
 /** The OpenCode plugin: V2 reads `id` and `setup`, V1 reads `server`. */
 const plugin: OpenCodePlugin = {
   id: PROJECT.name,
-  setup: createV2Setup(ALL_TOOLS, { skillsDir: SKILLS_DIR, ownDir: OWN_DIR }),
-  server: createV1Server(ALL_TOOLS, { ownDir: OWN_DIR }),
+  setup: createV2Setup(ALL_TOOLS, { skillsDir: SKILLS_DIR, ownDir: OWN_DIR, translations: ALL_TRANSLATIONS }),
+  server: createV1Server(ALL_TOOLS, { ownDir: OWN_DIR, translations: ALL_TRANSLATIONS }),
 }
 
 export default plugin
