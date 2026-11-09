@@ -6,7 +6,7 @@ import json
 from collections.abc import Callable
 from typing import Any
 
-from .approval import PIN_ARGUMENT, parse_pin
+from .approval import PIN_ARGUMENT, parse_pin, run_arguments
 from .context import PluginContext
 from .listing import ToolInfo
 from . import project
@@ -58,11 +58,10 @@ def make_handler(runtime: Runtime, tool_id: str, flags: list[str]) -> Callable[.
 
     def handler(args: dict[str, Any], **kwargs: Any) -> str:
         try:
-            arguments = dict(args)
-            pin = parse_pin(arguments.pop(PIN_ARGUMENT, None))
+            pin = parse_pin(args.get(PIN_ARGUMENT))
             result = runtime.run(
                 ["run", tool_id, "--cwd", agent_cwd(), *flags, *([f"--pin={pin}"] if pin else [])],
-                stdin=json.dumps(arguments),
+                stdin=json.dumps(run_arguments(args)),
                 timeout=RUN_TIMEOUT_SECONDS,
             )
         except CliError as error:
