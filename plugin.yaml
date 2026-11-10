@@ -30,3 +30,5 @@ config_schema:
     description: Single tools to remove by id. Wins over tools and toolsets.
   language:
     description: The language of the approval card, such as ja. Defaults to Hermes's display language, else English.
+  published_text_rules:
+    description: The absolute path of a JSON file of published-text rules for the push tools. Unset, nothing is checked.

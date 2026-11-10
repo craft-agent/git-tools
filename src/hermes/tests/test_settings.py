@@ -5,7 +5,7 @@ from __future__ import annotations
 import unittest
 from typing import Any
 
-from support import StubContext, settings
+from support import StubContext, project, settings
 
 
 class SettingsFlagsTest(unittest.TestCase):
@@ -51,6 +51,39 @@ class SettingsFlagsTest(unittest.TestCase):
         ):
             with self.subTest(config=config), self.assertRaises(settings.SettingsError):
                 self.flags(**config)
+
+
+class OptionFlagsTest(unittest.TestCase):
+    def flags(self, **config: Any) -> list[str]:
+        return settings.settings_flags(StubContext(config))
+
+    def test_the_options_are_those_of_the_project(self) -> None:
+        self.assertEqual(project.OPTIONS, ("published_text_rules",))
+
+    def test_an_option_becomes_its_flag_after_the_other_settings(self) -> None:
+        self.assertEqual(
+            self.flags(published_text_rules="/etc/rules.json", read_only=True),
+            ["--read-only", "--published-text-rules", "/etc/rules.json"],
+        )
+
+    def test_the_option_is_stripped(self) -> None:
+        self.assertEqual(
+            self.flags(published_text_rules=" /etc/rules.json \n"), ["--published-text-rules", "/etc/rules.json"]
+        )
+
+    def test_absent_and_blank_options_give_no_flag(self) -> None:
+        for config in ({}, {"published_text_rules": None}, {"published_text_rules": ""}, {"published_text_rules": " \t"}):
+            with self.subTest(config=config):
+                self.assertEqual(self.flags(**config), [])
+
+    def test_an_option_that_is_not_text_is_refused(self) -> None:
+        for value in (3, True, ["/etc/rules.json"], {"path": "/etc/rules.json"}):
+            with self.subTest(value=value), self.assertRaises(settings.SettingsError):
+                self.flags(published_text_rules=value)
+
+    def test_option_flags_are_the_option_part_alone(self) -> None:
+        ctx = StubContext({"published_text_rules": "/etc/rules.json", "read_only": True, "tools": ["demo_thing_read"]})
+        self.assertEqual(settings.option_flags(ctx), ["--published-text-rules", "/etc/rules.json"])
 
 
 class LanguageSettingTest(unittest.TestCase):

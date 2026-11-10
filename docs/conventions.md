@@ -289,6 +289,15 @@ Every entry point takes the same settings:
 - **`language`** is the language of a native plugin's approval prompt (see
   "Write classes"); unset, the prompt follows the harness's display language
   or stays in English.
+- **Options** are the package's own settings, the ones the tools themselves
+  read, listed in `options` in `src/project.ts`. Each holds text and is named
+  in snake_case; its flag is the name with `_` as `-`, its variable is
+  `<envPrefix>_<NAME>` uppercased, and its plugin option or setting is the
+  name itself. A flag wins over its variable, an option over its variable,
+  and blank text counts as unset. They reach a tool as `context.options`,
+  keyed by name, and one that is not given is absent: a neutral default means
+  unset, and the tool then does nothing extra. A tool reads an option when it
+  runs, so a change applies on the next call.
 
 ## The core contract
 
@@ -298,7 +307,9 @@ Every entry point takes the same settings:
   the call writes to.
 - `execute(args, context)` gets the working directory, an abort signal, an
   optional `ownDir` (the directory the tools are installed in, never the
-  working tree) and an optional `confirm(request) => Promise<boolean>` hook.
+  working tree), the values of the package's own settings as `options` (see
+  "Toolsets and settings"; `describe` and `targets` get them too) and an
+  optional `confirm(request) => Promise<boolean>` hook.
   Nothing in it names a harness. An entry point supplies `confirm` when the
   `elicitation` setting is on; without it the harness's approval stands, and a
   tool that needs a confirmation treats a missing hook as the harness having
@@ -506,12 +517,15 @@ changes a rule above, it says so. The discussion behind them is on
 Beside the settings above:
 
 - **`worktree_root`**: where task worktrees go.
-- **The published-text rules**: words a pushed commit subject or branch name
-  must not carry.
+- **The published-text rules** (the option `published_text_rules`): words a
+  pushed commit subject or branch name must not carry, held in a JSON file
+  whose absolute path the option gives. The package ships no words: unset,
+  nothing is checked, since the words a reader should not see are the
+  consumer's, not the package's
+  ([#9](https://github.com/craft-agent/git-tools/issues/9)).
 
-Both have neutral defaults, set when their domains are reviewed
-([#8](https://github.com/craft-agent/git-tools/issues/8),
-[#9](https://github.com/craft-agent/git-tools/issues/9)).
+`worktree_root` has a neutral default, set when its domain is reviewed
+([#8](https://github.com/craft-agent/git-tools/issues/8)).
 
 ### The git runner
 
