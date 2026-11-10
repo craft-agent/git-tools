@@ -14,6 +14,7 @@ export type ErrorCode =
   | "dirty_tree"
   | "operation_in_progress"
   | "rewrite_refused"
+  | "push_refused"
   | "check_failed"
   | "git_missing"
   | "git_too_old"

@@ -1,5 +1,6 @@
 import { z } from "zod"
 import { ToolError, abortError, defineTool, isWithin, type ToolSpec, type Translations, type WriteClass } from "../core"
+import { NOTE_OPTION } from "../entry/options.testing"
 import type { EntryProfile } from "../entry/profile"
 import { runCli, type CliIo } from "./cli"
 
@@ -9,6 +10,7 @@ import { runCli, type CliIo } from "./cli"
 export const PROFILE: EntryProfile = {
   envPrefix: "DEMO",
   toolsets: { names: ["alpha", "beta"], defaults: ["alpha"] },
+  options: [NOTE_OPTION],
 }
 
 const input = z.object({

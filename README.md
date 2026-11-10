@@ -138,8 +138,8 @@ Add the server to the host's MCP configuration. Flags go in `args`:
 
 Each toolset comes with a skill that tells an agent how to use its tools.
 There is one toolset per domain; `repo`, `commit` and `rebase` are on by
-default, `worktree` and `push` are opt-in. `repo`, `commit` and `rebase` are
-in place; the others are being built.
+default, `worktree` and `push` are opt-in. `repo`, `commit`, `rebase` and
+`push` are in place; `worktree` is being built.
 
 | Toolset    | Covers                                                                   |
 | ---------- | ------------------------------------------------------------------------ |
@@ -186,6 +186,17 @@ A stack is read from ancestry, so a branch alone is a stack of one layer. The
 | `git_rebase_start`  | overwrite | rebases every layer onto the latest default branch, or folds the fixups in place, under the rule for rewriting commits; a stop on conflicts is a paused result             |
 | `git_rebase_resume` | overwrite | continues, skips or aborts a stopped rebase                                                                                                                                |
 | `git_rebase_split`  | add       | cuts the branch into lower layer branches at given commits, or adds an empty layer on top                                                                                  |
+
+### `push`
+
+One read tool that previews a push, and one write tool that pushes exactly
+what the preview returned, leased on the remote commit each branch expects.
+The toolset is opt-in. The `git-push` skill says how they fit together.
+
+| Tool            | Class          | Does                                                                                                                                                                                                                                                    |
+| --------------- | -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `git_push_read` | read           | `preview`: per branch of the line, read live from the remote, the kind of push, the commits the remote lacks and what a force drops; refusals, warnings, the secret scan and the published-text rules; and `send`, the arguments that push exactly this |
+| `git_push_send` | administrative | pushes the preview's `send` in one atomic push with a lease per branch, after checking it again; a branch or remote that moved is `stale`, and nothing is pushed                                                                                        |
 
 ## Adding a tool
 
@@ -243,16 +254,20 @@ Where a write is asked about, and where it is not:
 Every entry point takes the same settings. A flag wins over its environment
 variable, and an option or setting wins over the variable too.
 
-| Setting         | Flag              | Variable                  | Meaning                                                                       |
-| --------------- | ----------------- | ------------------------- | ----------------------------------------------------------------------------- |
-| `toolsets`      | `--toolsets`      | `GIT_TOOLS_TOOLSETS`      | the toolsets that are on, or `all`; default those `src/project.ts` names      |
-| `read_only`     | `--read-only`     | `GIT_TOOLS_READ_ONLY`     | registers no tool that writes; wins over every other setting                  |
-| `tools`         | `--tools`         | `GIT_TOOLS_TOOLS`         | single tools to add by ID, whatever their toolset                             |
-| `exclude_tools` | `--exclude-tools` | `GIT_TOOLS_EXCLUDE_TOOLS` | single tools to remove by ID; wins over `tools` and `toolsets`                |
-| `confirm`       | `--confirm`       | `GIT_TOOLS_CONFIRM`       | MCP server only: `harness` (default) or `elicitation`, as the conventions say |
-| `language`      | `--language`      | `GIT_TOOLS_LANGUAGE`      | native plugins only: the approval prompt's language, such as `ja`             |
+| Setting                | Flag                     | Variable                         | Meaning                                                                                                    |
+| ---------------------- | ------------------------ | -------------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| `toolsets`             | `--toolsets`             | `GIT_TOOLS_TOOLSETS`             | the toolsets that are on, or `all`; default those `src/project.ts` names                                   |
+| `read_only`            | `--read-only`            | `GIT_TOOLS_READ_ONLY`            | registers no tool that writes; wins over every other setting                                               |
+| `tools`                | `--tools`                | `GIT_TOOLS_TOOLS`                | single tools to add by ID, whatever their toolset                                                          |
+| `exclude_tools`        | `--exclude-tools`        | `GIT_TOOLS_EXCLUDE_TOOLS`        | single tools to remove by ID; wins over `tools` and `toolsets`                                             |
+| `confirm`              | `--confirm`              | `GIT_TOOLS_CONFIRM`              | MCP server only: `harness` (default) or `elicitation`, as the conventions say                              |
+| `language`             | `--language`             | `GIT_TOOLS_LANGUAGE`             | native plugins only: the approval prompt's language, such as `ja`                                          |
+| `published_text_rules` | `--published-text-rules` | `GIT_TOOLS_PUBLISHED_TEXT_RULES` | the absolute path of a JSON file of published-text rules (see the push toolset); unset, nothing is checked |
 
-Lists are comma-separated in a flag or a variable. Where each harness reads them:
+Lists are comma-separated in a flag or a variable. `published_text_rules` holds
+text, trimmed and blank meaning unset, and is read by the tools themselves; the
+plugin options and Hermes settings name it the same way. Where each harness
+reads them:
 
 - **OpenCode** takes the plugin `options` shown above, with lists as arrays and
   `read_only` as a boolean, and falls back to the variables. V2 runs plugins in
@@ -270,6 +285,7 @@ Lists are comma-separated in a flag or a variable. Where each harness reads them
         settings:
           read_only: false
           exclude_tools: []
+          published_text_rules: /home/me/.config/git-tools/published-text.json
   ```
 
   Without a `language` setting, the approval card follows Hermes's own

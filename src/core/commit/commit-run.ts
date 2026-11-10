@@ -105,7 +105,11 @@ export async function normalizeMessage(
   return normalized
 }
 
-function sortFindings(findings: Finding[], acceptFingerprints: string[] | undefined) {
+/** Splits findings into those whose fingerprint was accepted (deduped, in order) and the rest. */
+export function sortFindings<T extends Pick<Finding, "fingerprint">>(
+  findings: T[],
+  acceptFingerprints: string[] | undefined,
+) {
   const allowed = new Set(acceptFingerprints)
   const accepted = [...new Set(findings.filter((f) => allowed.has(f.fingerprint)).map((f) => f.fingerprint))]
   return { rejected: findings.filter((f) => !allowed.has(f.fingerprint)), accepted }
@@ -115,7 +119,8 @@ async function modifiedFiles(root: string, signal: AbortSignal | undefined): Pro
   return splitNames(await git(["diff", "--name-only", "-z"], { cwd: root, signal }))
 }
 
-async function isExecutableFile(path: string): Promise<boolean> {
+/** Whether `path` is a regular file with an executable bit, which is what makes git run it as a hook. */
+export async function isExecutableFile(path: string): Promise<boolean> {
   try {
     const stats = await stat(path)
     return stats.isFile() && (stats.mode & EXECUTABLE_BITS) !== 0
@@ -133,7 +138,8 @@ async function activeHooks(root: string, signal: AbortSignal | undefined): Promi
   return active
 }
 
-function lastLines(text: string): string {
+/** The last `HOOK_OUTPUT_LINES` lines of a run's output. */
+export function lastLines(text: string): string {
   return text.trim().split("\n").slice(-HOOK_OUTPUT_LINES).join("\n")
 }
 

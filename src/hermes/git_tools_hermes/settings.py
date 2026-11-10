@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from . import project
 from .context import PluginContext
 
 #: The value of ``toolsets`` that turns on every toolset.
@@ -30,8 +31,30 @@ def language_setting(ctx: PluginContext) -> str | None:
     return (value.strip() or None) if isinstance(value, str) else None
 
 
+def option_flags(ctx: PluginContext) -> list[str]:
+    """Read the tool options (``project.OPTIONS``) and return the flags that say the same, each ``--a-b <text>``.
+
+    An option that is absent or blank gives no flag, so the command line's own
+    variable (``GIT_TOOLS_<OPTION>``) applies. These are the only flags
+    ``target`` takes beside its language ones.
+
+    Raises:
+        SettingsError: an option is not text.
+    """
+    flags: list[str] = []
+    for name in project.OPTIONS:
+        value = ctx.get_config(name)
+        if value is None:
+            continue
+        if not isinstance(value, str):
+            raise SettingsError(f'setting "{name}" must be text')
+        if text := value.strip():
+            flags += [f"--{name.replace('_', '-')}", text]
+    return flags
+
+
 def settings_flags(ctx: PluginContext) -> list[str]:
-    """Read ``toolsets``, ``read_only``, ``tools`` and ``exclude_tools`` and return the flags that say the same.
+    """Read ``toolsets``, ``read_only``, ``tools``, ``exclude_tools`` and the tool options and return the flags that say the same.
 
     A setting that is absent gives no flag, so the command line's own defaults
     (and ``GIT_TOOLS_*`` variables) apply. A wrong type is refused rather
@@ -59,4 +82,4 @@ def settings_flags(ctx: PluginContext) -> list[str]:
         if value is not None and (names := _names(key, value)):
             flags += [flag, names]
 
-    return flags
+    return [*flags, *option_flags(ctx)]

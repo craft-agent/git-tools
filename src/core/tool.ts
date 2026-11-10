@@ -34,9 +34,14 @@ export type CallDescription = {
   pins?: Record<string, string>
 }
 
+/** The values of the package's own settings, by name; one not given is absent. */
+export type ToolOptions = Readonly<Record<string, string>>
+
 export type ToolContext = {
   /** The working directory the call runs in. */
   cwd: string
+  /** The package's own settings the call can read, such as a path to a file of rules. */
+  options?: ToolOptions
   /** A directory that is never the caller's working tree (where these tools are installed); a tool must refuse to treat it as the caller's tree. */
   ownDir?: string
   signal?: AbortSignal

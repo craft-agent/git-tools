@@ -1,4 +1,4 @@
-import { inputJsonSchema, type ToolSpec, type Translator } from "../core"
+import { inputJsonSchema, type ToolOptions, type ToolSpec, type Translator } from "../core"
 import { DESCRIBE_TIMEOUT_MS } from "../entry/description"
 import { approvalOf } from "../entry/pin"
 import {
@@ -48,12 +48,12 @@ function workingDir(context: V1ToolContext): string {
   return context.worktree && context.worktree !== "/" ? context.worktree : context.directory
 }
 
-function v1Tool(spec: ToolSpec, ownDir: string | undefined, t: Translator): V1Tool {
+function v1Tool(spec: ToolSpec, ownDir: string | undefined, t: Translator, options: ToolOptions): V1Tool {
   return {
     description: `${spec.description}${describeArguments(spec)}`,
     args: spec.input.shape,
     async execute(args: unknown, context: V1ToolContext): Promise<string> {
-      const ctx = { cwd: workingDir(context), ownDir, signal: context.abort }
+      const ctx = { cwd: workingDir(context), ownDir, options, signal: context.abort }
       let pin: string | undefined
       if (needsPermission(spec)) {
         const approval = await approvalOf(spec, args, ctx, DESCRIBE_TIMEOUT_MS, t)
@@ -82,7 +82,7 @@ export function createV1Server(specs: ToolSpec[], deps: PluginDeps = {}): OpenCo
   return async function server(_input: unknown, options?: PluginOptions): Promise<V1Hooks> {
     const tool: V1Hooks["tool"] = {}
     const selected = selectedTools(specs, options, deps)
-    for (const spec of selected.specs) tool[spec.id] = v1Tool(spec, deps.ownDir, selected.translator)
+    for (const spec of selected.specs) tool[spec.id] = v1Tool(spec, deps.ownDir, selected.translator, selected.options)
     return { tool }
   }
 }

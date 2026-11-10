@@ -16,11 +16,14 @@ describe("settingVariables", () => {
       "DEMO_TOOLS",
       "DEMO_EXCLUDE_TOOLS",
       "DEMO_CONFIRM",
+      "DEMO_NOTE_TEXT",
     ])
   })
 
-  test("uses the package's own prefix by default", () => {
-    expect(settingVariables()).toEqual(settingVariables({ ...profile, envPrefix: PROJECT.envPrefix }))
+  test("uses the package's own prefix and tool options by default", () => {
+    expect(settingVariables()).toEqual(
+      settingVariables({ ...profile, envPrefix: PROJECT.envPrefix, options: PROJECT.options }),
+    )
   })
 })
 
@@ -36,7 +39,7 @@ describe("forwardedVariables", () => {
 
 describe("parseSettings", () => {
   test("defaults to the harness confirming and no other setting", () => {
-    expect(parse([])).toEqual({ confirm: "harness" })
+    expect(parse([])).toEqual({ confirm: "harness", options: {} })
   })
 
   test("reads each flag", () => {
@@ -58,6 +61,7 @@ describe("parseSettings", () => {
       tools: ["demo_thing_read"],
       exclude_tools: ["demo_thing_merge"],
       confirm: "elicitation",
+      options: {},
     })
   })
 
@@ -70,6 +74,7 @@ describe("parseSettings", () => {
       exclude_tools: ["c"],
       read_only: true,
       confirm: "elicitation",
+      options: {},
     })
   })
 
@@ -88,6 +93,7 @@ describe("parseSettings", () => {
       tools: ["x"],
       exclude_tools: ["y", "z"],
       confirm: "elicitation",
+      options: {},
     })
   })
 
@@ -132,11 +138,18 @@ describe("parseSettings", () => {
         ["--toolsets", "alpha", "--tools", "a", "--exclude-tools", "b", "--confirm", "harness", "--read-only"],
         env,
       ),
-    ).toEqual({ toolsets: ["alpha"], tools: ["a"], exclude_tools: ["b"], confirm: "harness", read_only: true })
+    ).toEqual({
+      toolsets: ["alpha"],
+      tools: ["a"],
+      exclude_tools: ["b"],
+      confirm: "harness",
+      read_only: true,
+      options: {},
+    })
   })
 
   test("an empty environment variable counts as unset", () => {
-    expect(parse([], { DEMO_TOOLSETS: "", DEMO_CONFIRM: " " })).toEqual({ confirm: "harness" })
+    expect(parse([], { DEMO_TOOLSETS: "", DEMO_CONFIRM: " " })).toEqual({ confirm: "harness", options: {} })
   })
 
   test("drops empty list items", () => {
@@ -181,7 +194,7 @@ describe("parseSettings", () => {
   })
 
   test("with no toolsets defined, a named toolset is rejected and the message says so", () => {
-    const none: EntryProfile = { envPrefix: "DEMO", toolsets: { names: [], defaults: [] } }
+    const none: EntryProfile = { envPrefix: "DEMO", toolsets: { names: [], defaults: [] }, options: [] }
     expect(failure(() => parseSettings(["--toolsets", "alpha"], {}, none)).message).toContain("no toolsets are defined")
     expect(parseSettings(["--toolsets", "all"], {}, none).toolsets).toBe("all")
   })
@@ -189,12 +202,13 @@ describe("parseSettings", () => {
 
 describe("parseToolSettings", () => {
   test("reads the tool settings and gives no confirm setting", () => {
-    expect(parseTool([])).toEqual({})
+    expect(parseTool([])).toEqual({ options: {} })
     expect(parseTool(["--toolsets=gamma", "--read-only", "--tools", "a"], { DEMO_EXCLUDE_TOOLS: "b" })).toEqual({
       toolsets: ["gamma"],
       read_only: true,
       tools: ["a"],
       exclude_tools: ["b"],
+      options: {},
     })
   })
 
@@ -204,6 +218,6 @@ describe("parseToolSettings", () => {
   })
 
   test("ignores DEMO_CONFIRM, even a bad one", () => {
-    expect(parseTool([], { DEMO_CONFIRM: "ask" })).toEqual({})
+    expect(parseTool([], { DEMO_CONFIRM: "ask" })).toEqual({ options: {} })
   })
 })

@@ -192,6 +192,60 @@ export async function remoteBranchesContaining(
     .map((line) => (line.startsWith(REMOTE_REFS_PREFIX) ? line.slice(REMOTE_REFS_PREFIX.length) : line))
 }
 
+/** The reads of GitHub's force-push rules a caller has made, one per repository and branch name; pass the same map to every `readForcePushRule` of one call. */
+export type ForcePushReads = Map<string, ForcePushProtection | ToolError>
+
+/**
+ * What GitHub says about force pushes to a remote branch: `not_github` for a
+ * remote that is not on GitHub (nothing was read), `unprotected`, `protected`
+ * with the refusal's message, or `unreadable` with the warning's message when
+ * the read failed.
+ */
+export type ForcePushRule =
+  { status: "not_github" | "unprotected" } | { status: "protected" | "unreadable"; message: string }
+
+/**
+ * Reads whether GitHub blocks force pushes to the remote branch `own`. Each
+ * repository and branch name is read once per `reads`, however many remotes
+ * hold it.
+ */
+export async function readForcePushRule(
+  root: string,
+  own: RemoteRef,
+  reads: ForcePushReads,
+  signal?: AbortSignal,
+): Promise<ForcePushRule> {
+  const url = await gitResult(["remote", "get-url", own.remote], { cwd: root, signal })
+  const repo = url.code === 0 ? githubRepo(url.stdout) : null
+  if (!repo) return { status: "not_github" }
+
+  const key = `${repo.owner}/${repo.name}#${own.name}`.toLowerCase()
+  let read = reads.get(key)
+  if (!read) {
+    try {
+      read = await forcePushProtection(repo, own.name, { cwd: root, signal })
+    } catch (error) {
+      if (!isToolError(error)) throw error
+      read = error
+    }
+    reads.set(key, read)
+  }
+
+  if (isToolError(read)) {
+    return {
+      status: "unreadable",
+      message: `Could not read whether ${own.ref} is protected against force pushes on GitHub (${read.message}); a force push may still be refused there.`,
+    }
+  }
+  if (read.protected) {
+    return {
+      status: "protected",
+      message: `${own.ref} cannot be force-pushed: ${read.reason}. Make a new commit instead.`,
+    }
+  }
+  return { status: "unprotected" }
+}
+
 /**
  * Reads, for each of `holding` on a GitHub remote, whether GitHub blocks force
  * pushes to it: one read per repository and branch name. A protected branch is
@@ -204,34 +258,11 @@ async function readProtection(
 ): Promise<{ refusals: RewriteRefusal[]; warnings: string[] }> {
   const refusals: RewriteRefusal[] = []
   const warnings: string[] = []
-  const reads = new Map<string, ForcePushProtection | ToolError>()
+  const reads: ForcePushReads = new Map()
   for (const own of holding) {
-    const url = await gitResult(["remote", "get-url", own.remote], { cwd: root, signal })
-    const repo = url.code === 0 ? githubRepo(url.stdout) : null
-    if (!repo) continue
-
-    const key = `${repo.owner}/${repo.name}#${own.name}`.toLowerCase()
-    let read = reads.get(key)
-    if (!read) {
-      try {
-        read = await forcePushProtection(repo, own.name, { cwd: root, signal })
-      } catch (error) {
-        if (!isToolError(error)) throw error
-        read = error
-      }
-      reads.set(key, read)
-    }
-
-    if (isToolError(read)) {
-      warnings.push(
-        `Could not read whether ${own.ref} is protected against force pushes on GitHub (${read.message}); a force push may still be refused there.`,
-      )
-    } else if (read.protected) {
-      refusals.push({
-        rule: "protected",
-        message: `${own.ref} cannot be force-pushed: ${read.reason}. Make a new commit instead.`,
-      })
-    }
+    const rule = await readForcePushRule(root, own, reads, signal)
+    if (rule.status === "protected") refusals.push({ rule: "protected", message: rule.message })
+    else if (rule.status === "unreadable") warnings.push(rule.message)
   }
   return { refusals, warnings }
 }

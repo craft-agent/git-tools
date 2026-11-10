@@ -10,7 +10,7 @@ import { git, gitResult } from "./git"
 import { currentBranch, defaultBranchRef, isAncestor } from "./tree"
 
 /** Where git keeps the local branches. */
-const HEADS_REF = "refs/heads"
+export const HEADS_REF = "refs/heads"
 
 /** One layer of a stack: the branches that share one tip. */
 export type StackLayer = {

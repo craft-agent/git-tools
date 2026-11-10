@@ -34,6 +34,7 @@ export {
   type ConfirmRequest,
   type ToolAnnotations,
   type ToolContext,
+  type ToolOptions,
   type ToolSettings,
   type ToolSpec,
   type Toolsets,

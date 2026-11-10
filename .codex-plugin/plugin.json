@@ -21,6 +21,7 @@
         "GIT_TOOLS_TOOLS",
         "GIT_TOOLS_EXCLUDE_TOOLS",
         "GIT_TOOLS_CONFIRM",
+        "GIT_TOOLS_PUBLISHED_TEXT_RULES",
         "LANGUAGE",
         "LC_CTYPE",
         "LC_MESSAGES",
