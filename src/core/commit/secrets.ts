@@ -158,3 +158,22 @@ export async function scanSecrets(
   const { gitleaks, findings } = await runGitleaks(root, scope, signal)
   return { gitleaks, findings: dedupe([...builtin, ...findings]) }
 }
+
+/**
+ * Scans the commits a `git log` revision expression selects (`revisions`, one
+ * argument per item, built by the caller from commit ids and refs) by each
+ * commit's own patch, with the builtin rules, plus gitleaks over the same
+ * commits when it is installed. A secret one commit adds and a later one
+ * removes is found, which the net diff of the range would miss. As in
+ * `scanSecrets`, a missing or failing gitleaks never fails the scan.
+ */
+export async function scanCommits(
+  root: string,
+  revisions: string[],
+  signal?: AbortSignal,
+): Promise<{ gitleaks: GitleaksStatus; findings: Finding[] }> {
+  const patches = await git(["log", "--format=", "-p", ...SCAN_DIFF_OPTIONS, ...revisions], { cwd: root, signal })
+  const builtin = scanDiff(patches)
+  const { gitleaks, findings } = await runGitleaks(root, { target: "range", range: revisions.join(" ") }, signal)
+  return { gitleaks, findings: dedupe([...builtin, ...findings]) }
+}
