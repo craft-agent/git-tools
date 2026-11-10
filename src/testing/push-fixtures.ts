@@ -1,16 +1,19 @@
 /**
- * Fixtures for the push tools' tests: a preview call, more remotes, a second
+ * Fixtures for the push tools' tests: a preview call and a send call, more remotes, a second
  * clone that pushes the way another person would, and an `origin` that looks
  * like GitHub to the tools while staying a local repository.
  */
 
 import { appendFileSync, mkdirSync, rmSync, writeFileSync } from "node:fs"
 import { dirname, join } from "node:path"
+import type { z } from "zod"
 import { git, gitResult } from "../core/git"
 import type { PreviewArgs } from "../core/push/preview"
 import { pushRead } from "../core/push/read"
+import type { SendRequest } from "../core/push/send-plan"
+import { pushSend } from "../core/push/send"
 import { shortSha } from "../core/rewrite"
-import { invoke, type ToolOptions } from "../core/tool"
+import { invoke, type ToolContext, type ToolOptions } from "../core/tool"
 import type { TempRepo } from "./git-repo"
 
 /** The directory, beside the working tree, where the second clone lives. */
@@ -22,6 +25,36 @@ const GITHUB_LOOKALIKE = "github.com/o/r.git"
 /** Previews a push of the repository's current line, or of what `args` name. */
 export function previewOf(repo: TempRepo, args: PreviewArgs = {}, options?: ToolOptions) {
   return invoke(pushRead, { method: "preview", ...args }, { cwd: repo.dir, options })
+}
+
+/** The arguments of `git_push_send` that push exactly what the preview of the repository's current line (or of `args`) returned. */
+export async function previewedSend(repo: TempRepo, args: PreviewArgs = {}): Promise<SendRequest> {
+  const { send } = await previewOf(repo, args)
+  if (send === null) throw new Error("The fixture preview sends nothing.")
+  return send
+}
+
+/** Calls `git_push_send` in the repository; `ctx` adds what a harness passes (settings, a confirmation). */
+export function sendOf(
+  repo: TempRepo,
+  args: z.input<typeof pushSend.input>,
+  ctx: Partial<ToolContext> = {},
+): Promise<z.output<typeof pushSend.output>> {
+  return invoke(pushSend, args, { cwd: repo.dir, ...ctx })
+}
+
+/** The error a call fails with; undefined when it succeeds. */
+export function failureOf(call: Promise<unknown>): Promise<unknown> {
+  return call.then(
+    () => undefined,
+    (error: unknown) => error,
+  )
+}
+
+/** The full id of the branch `branch` on origin, or null when it has none. */
+export async function remoteHead(repo: TempRepo, branch: string): Promise<string | null> {
+  const out = await git(["ls-remote", "--heads", repo.remote!, `refs/heads/${branch}`], { cwd: repo.dir })
+  return out.split("\t")[0]?.trim() || null
 }
 
 /** The full id of `rev`. */

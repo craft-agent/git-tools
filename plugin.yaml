@@ -10,6 +10,7 @@ provides_tools:
   - git_commit_stage
   - git_commit_verify
   - git_push_read
+  - git_push_send
   - git_rebase_read
   - git_rebase_resume
   - git_rebase_split
