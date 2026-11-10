@@ -59,6 +59,7 @@ export function failing(id: string, error: Error): ToolSpec {
 
 export const settings = (overrides: Partial<EntrySettings> = {}): EntrySettings => ({
   confirm: "harness",
+  options: {},
   ...overrides,
 })
 

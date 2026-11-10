@@ -1,5 +1,6 @@
 import { expect } from "bun:test"
 import { isToolError } from "../core"
+import { NOTE_OPTION } from "./options.testing"
 import type { EntryProfile } from "./profile"
 
 /** Fixtures the settings tests share. */
@@ -7,6 +8,7 @@ import type { EntryProfile } from "./profile"
 export const profile: EntryProfile = {
   envPrefix: "DEMO",
   toolsets: { names: ["alpha", "beta", "gamma"], defaults: ["alpha"] },
+  options: [NOTE_OPTION],
 }
 
 export function failure(run: () => unknown): Error {

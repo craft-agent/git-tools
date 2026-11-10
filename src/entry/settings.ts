@@ -1,11 +1,12 @@
-import { ToolError, type ToolSettings, type Toolsets } from "../core"
+import { ToolError, type ToolOptions, type ToolSettings, type Toolsets } from "../core"
 import { PROJECT } from "../project"
 import { PROJECT_PROFILE, type EntryProfile } from "./profile"
 
 /** Who asks the person before an administrative tool acts: the harness, or the tool through the client's form. */
 export type ConfirmMode = "harness" | "elicitation"
 
-export type EntrySettings = ToolSettings & { confirm: ConfirmMode }
+/** The tool settings, who confirms, and the values of the package's own settings (`options`, possibly empty). */
+export type EntrySettings = ToolSettings & { confirm: ConfirmMode; options: ToolOptions }
 
 const CONFIRM_MODES: readonly ConfirmMode[] = ["harness", "elicitation"]
 const ALL_TOOLSETS = "all"
@@ -25,13 +26,22 @@ const OPTIONS: Record<OptionName, Option> = {
   confirm: { flag: "--confirm", envSuffix: "CONFIRM" },
 }
 
-function envName(name: OptionName, profile: EntryProfile): string {
-  return `${profile.envPrefix}_${OPTIONS[name].envSuffix}`
+/** The settings every entry point takes, then the profile's tool options, whose flag is the name with `_` as `-` and whose variable ends in the name uppercased. */
+function settingOptions(profile: EntryProfile): Record<string, Option> {
+  const toolOptions = profile.options.map((name): [string, Option] => [
+    name,
+    { flag: `--${name.replace(/_/g, "-")}`, envSuffix: name.toUpperCase() },
+  ])
+  return { ...OPTIONS, ...Object.fromEntries(toolOptions) }
 }
 
-/** The environment variables the settings are read from, in the order the settings are listed. */
+function envName(name: string, profile: EntryProfile): string {
+  return `${profile.envPrefix}_${settingOptions(profile)[name]!.envSuffix}`
+}
+
+/** The environment variables the settings are read from, in the order the settings are listed, the profile's tool options last. */
 export function settingVariables(profile: EntryProfile = PROJECT_PROFILE): string[] {
-  return (Object.keys(OPTIONS) as OptionName[]).map((name) => envName(name, profile))
+  return Object.keys(settingOptions(profile)).map((name) => envName(name, profile))
 }
 
 /** The environment variables a harness that forwards only named variables must pass the server: the settings' variables, then the package's `toolVariables`. */
@@ -42,11 +52,10 @@ export function forwardedVariables(
   return [...settingVariables(profile), ...toolVariables]
 }
 
-function readFlags(argv: string[]): Partial<Record<OptionName, string>> {
-  const byFlag = new Map(
-    (Object.keys(OPTIONS) as OptionName[]).map((name) => [OPTIONS[name].flag, { name, ...OPTIONS[name] }]),
-  )
-  const given: Partial<Record<OptionName, string>> = {}
+function readFlags(argv: string[], profile: EntryProfile): Record<string, string> {
+  const options = settingOptions(profile)
+  const byFlag = new Map(Object.entries(options).map(([name, option]) => [option.flag, { name, ...option }]))
+  const given: Record<string, string> = {}
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i]!
     const equals = arg.indexOf("=")
@@ -112,7 +121,7 @@ function parseConfirm(value: string, source: string): ConfirmMode {
 type SettingText = { text: string; source: string }
 
 function envText(
-  name: OptionName,
+  name: string,
   env: Record<string, string | undefined>,
   profile: EntryProfile,
 ): SettingText | undefined {
@@ -121,22 +130,37 @@ function envText(
   return text === undefined || text.trim() === "" ? undefined : { text, source: variable }
 }
 
+/** The values of the profile's tool options from the flags given and the environment: trimmed, a flag first, blank meaning unset. */
+function optionsFrom(
+  flags: Record<string, string>,
+  env: Record<string, string | undefined>,
+  profile: EntryProfile,
+): ToolOptions {
+  const options: Record<string, string> = {}
+  for (const name of profile.options) {
+    const text = nonBlank(flags[name] ?? envText(name, env, profile)?.text)
+    if (text !== undefined) options[name] = text
+  }
+  return options
+}
+
 /**
  * Reads the settings every entry point takes from its command line and
  * environment (`<envPrefix>_<SETTING>` variables). A flag wins over its
- * environment variable; an empty list item is dropped. A mistake is
- * `invalid_argument` naming the culprit.
+ * environment variable; an empty list item is dropped. The profile's tool
+ * options are read the same way as text (trimmed, blank meaning unset) into
+ * `options`. A mistake is `invalid_argument` naming the culprit.
  */
 export function parseSettings(
   argv: string[],
   env: Record<string, string | undefined>,
   profile: EntryProfile = PROJECT_PROFILE,
 ): EntrySettings {
-  const flags = readFlags(argv)
+  const flags = readFlags(argv, profile)
   const value = (name: OptionName): SettingText | undefined =>
     flags[name] !== undefined ? { text: flags[name], source: OPTIONS[name].flag } : envText(name, env, profile)
 
-  const settings: EntrySettings = { confirm: "harness" }
+  const settings: EntrySettings = { confirm: "harness", options: optionsFrom(flags, env, profile) }
   const toolsets = value("toolsets")
   if (toolsets) settings.toolsets = checkToolsets(splitList(toolsets.text), toolsets.source, profile.toolsets)
   const readOnly = value("read_only")
@@ -154,13 +178,13 @@ export function parseSettings(
  * Reads the tool settings from a command line that has no `confirm` setting,
  * for entry points whose caller does the confirming: `--confirm` is
  * `invalid_argument`, and `<envPrefix>_CONFIRM` is ignored. Everything else
- * is read as `parseSettings` reads it.
+ * is read as `parseSettings` reads it, the tool options included.
  */
 export function parseToolSettings(
   argv: string[],
   env: Record<string, string | undefined>,
   profile: EntryProfile = PROJECT_PROFILE,
-): ToolSettings {
+): ToolSettings & { options: ToolOptions } {
   const { flag } = OPTIONS.confirm
   if (argv.some((arg) => arg === flag || arg.startsWith(`${flag}=`))) {
     throw new ToolError("invalid_argument", `Option ${flag} is not available here.`)
@@ -171,6 +195,24 @@ export function parseToolSettings(
     profile,
   )
   return settings
+}
+
+/**
+ * Reads only the tool options from a command line, for a command that takes
+ * no other setting: a flag for anything but a tool option is `invalid_argument`
+ * as an unknown option. Read as `parseSettings` reads them.
+ */
+export function parseToolOptions(
+  argv: string[],
+  env: Record<string, string | undefined>,
+  profile: EntryProfile = PROJECT_PROFILE,
+): ToolOptions {
+  const flags = readFlags(argv, profile)
+  const other = Object.keys(flags).find((name) => !profile.options.includes(name))
+  if (other !== undefined) {
+    throw new ToolError("invalid_argument", `Unknown option "${settingOptions(profile)[other]!.flag}".`)
+  }
+  return optionsFrom(flags, env, profile)
 }
 
 const TOOL_OPTION_NAMES = ["toolsets", "read_only", "tools", "exclude_tools"] as const satisfies readonly OptionName[]
@@ -205,15 +247,18 @@ function listOption(name: "tools" | "exclude_tools"): (value: unknown) => string
 }
 
 const LANGUAGE_OPTION = "language"
-const PLUGIN_OPTION_NAMES: readonly string[] = [...TOOL_OPTION_NAMES, LANGUAGE_OPTION]
+
+function pluginOptionNames(profile: EntryProfile): readonly string[] {
+  return [...TOOL_OPTION_NAMES, LANGUAGE_OPTION, ...profile.options]
+}
 
 /** The environment variable of the `language` setting: `<envPrefix>_LANGUAGE`. */
 export function languageVariable(profile: EntryProfile = PROJECT_PROFILE): string {
   return `${profile.envPrefix}_LANGUAGE`
 }
 
-/** The tool settings plus the language of a native plugin's approval prompt, as given (matched later against the package's translations). */
-export type PluginSettings = ToolSettings & { language?: string }
+/** The tool settings, the values of the package's own settings (`options`, possibly empty) and the language of a native plugin's approval prompt, as given (matched later against the package's translations). */
+export type PluginSettings = ToolSettings & { options: ToolOptions; language?: string }
 
 function nonBlank(text: string | undefined): string | undefined {
   const trimmed = text?.trim()
@@ -235,12 +280,18 @@ function languageOption(value: unknown): string | undefined {
   return nonBlank(value)
 }
 
+function textOption(name: string, value: unknown): string | undefined {
+  if (typeof value !== "string") throw optionError(name, "text")
+  return nonBlank(value)
+}
+
 /**
- * Reads the tool settings and the prompt language from the options a plugin
- * is configured with, for entry points that have no command line. An option
- * wins over its environment variable (`language` falls back to
- * `<envPrefix>_LANGUAGE`, blank meaning unset, and is not checked against any
- * list); an option of the wrong type, or one this function does not know, is
+ * Reads the tool settings, the prompt language and the profile's tool options
+ * from the options a plugin is configured with, for entry points that have no
+ * command line. An option wins over its environment variable (`language`
+ * falls back to `<envPrefix>_LANGUAGE`, blank meaning unset, and is not
+ * checked against any list; a tool option is text, trimmed, blank meaning
+ * unset); an option of the wrong type, or one this function does not know, is
  * `invalid_argument` naming it. `confirm` is not an option here: the harness
  * asks.
  */
@@ -250,12 +301,10 @@ export function settingsFromOptions(
   profile: EntryProfile = PROJECT_PROFILE,
 ): PluginSettings {
   const given = options ?? {}
-  const unknown = Object.keys(given).find((name) => !PLUGIN_OPTION_NAMES.includes(name))
+  const names = pluginOptionNames(profile)
+  const unknown = Object.keys(given).find((name) => !names.includes(name))
   if (unknown !== undefined) {
-    throw new ToolError(
-      "invalid_argument",
-      `Unknown option "${unknown}"; use one of ${PLUGIN_OPTION_NAMES.join(", ")}.`,
-    )
+    throw new ToolError("invalid_argument", `Unknown option "${unknown}"; use one of ${names.join(", ")}.`)
   }
 
   const resolve = <T>(
@@ -268,7 +317,13 @@ export function settingsFromOptions(
     return text !== undefined ? fromText(text) : undefined
   }
 
-  const settings: PluginSettings = {}
+  const toolOptions: Record<string, string> = {}
+  for (const name of profile.options) {
+    const text = given[name] !== undefined ? textOption(name, given[name]) : nonBlank(envText(name, env, profile)?.text)
+    if (text !== undefined) toolOptions[name] = text
+  }
+
+  const settings: PluginSettings = { options: toolOptions }
   const toolsets = resolve(
     "toolsets",
     (value) => toolsetsOption(value, profile.toolsets),
