@@ -8,12 +8,13 @@ import { type CallDescription, type ToolSpec } from "../tool"
 import { translator } from "../words"
 import { rebaseRead } from "./read"
 import { rebaseResume } from "./resume"
+import { rebaseSplit } from "./split"
 import { rebaseStart } from "./start"
 import { REBASE_TRANSLATIONS } from "./words"
 
 const ja = translator(REBASE_TRANSLATIONS, "ja")
 
-const REBASE_TOOLS: ToolSpec[] = [rebaseRead, rebaseStart, rebaseResume]
+const REBASE_TOOLS: ToolSpec[] = [rebaseRead, rebaseStart, rebaseResume, rebaseSplit]
 
 /** The words the shared fact tables own, which the rebase table leaves out. */
 const SHARED_WORDS = new Set([...Object.keys(FACT_TRANSLATIONS.ja!), ...Object.keys(GIT_FACT_TRANSLATIONS.ja!)])
@@ -52,6 +53,20 @@ async function resumeDescriptions() {
   return [await describeResume("continue"), await describeResume("skip"), await describeResume("abort")]
 }
 
+/** An unpushed branch of three commits, described cutting, adding a layer, and both. */
+async function splitDescriptions() {
+  const repo = await fixture()
+  await layer(repo, "feat", 3)
+  const describeSplit = (args: Parameters<typeof rebaseSplit.execute>[0]) =>
+    callDescription(rebaseSplit, args, { cwd: repo.dir })
+  const at = ["HEAD~2"]
+  return [
+    await describeSplit({ at, names: ["low"] }),
+    await describeSplit({ add: "next" }),
+    await describeSplit({ at, names: ["low"], add: "next" }),
+  ]
+}
+
 /** The tool's words in a description: its headline template, fact labels and value templates. */
 function wordsOf(description: CallDescription | undefined): string[] {
   if (description === undefined) throw new Error("The fixture call gave no description.")
@@ -67,7 +82,11 @@ async function rebaseWords(): Promise<string[]> {
   const toolWords = REBASE_TOOLS.flatMap((tool) =>
     tool.intent === undefined ? [tool.title] : [tool.title, tool.intent],
   )
-  const descriptionWords = [...(await startDescriptions()), ...(await resumeDescriptions())].flatMap(wordsOf)
+  const descriptionWords = [
+    ...(await startDescriptions()),
+    ...(await resumeDescriptions()),
+    ...(await splitDescriptions()),
+  ].flatMap(wordsOf)
   return [...new Set([...toolWords, ...descriptionWords.filter((word) => !SHARED_WORDS.has(word))])]
 }
 

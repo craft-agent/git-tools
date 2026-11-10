@@ -17,5 +17,14 @@ export const REBASE_TRANSLATIONS: Translations = {
     "About to continue the rebase of {branch}": "{branch} の rebase を続行しようとしています",
     "About to skip {commit} in the rebase of {branch}": "{branch} の rebase で {commit} をスキップしようとしています",
     "About to abort the rebase of {branch}": "{branch} の rebase を中止しようとしています",
+    "Cut the branch into layers": "ブランチをレイヤーに分割する",
+    "About to cut the branch into layers": "ブランチをレイヤーに分割しようとしています",
+    "About to cut {branch} into {layers} layers": "{branch} を {layers} 個のレイヤーに分割しようとしています",
+    "About to add the layer {name} on {branch}": "{branch} の上にレイヤー {name} を追加しようとしています",
+    "About to cut {branch} into {layers} layers and add {name} on top":
+      "{branch} を {layers} 個のレイヤーに分割し、最上段に {name} を追加しようとしています",
+    "New branches": "新しいブランチ",
+    "{name} on top": "最上段に {name}",
+    "{cuts}; {name} on top": "{cuts}、最上段に {name}",
   },
 }

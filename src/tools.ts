@@ -6,6 +6,7 @@ import { commitStage } from "./core/commit/stage"
 import { commitVerify } from "./core/commit/verify"
 import { rebaseRead } from "./core/rebase/read"
 import { rebaseResume } from "./core/rebase/resume"
+import { rebaseSplit } from "./core/rebase/split"
 import { rebaseStart } from "./core/rebase/start"
 import { repoRead } from "./core/repo/read"
 
@@ -20,4 +21,5 @@ export const ALL_TOOLS: ToolSpec[] = [
   rebaseRead,
   rebaseStart,
   rebaseResume,
+  rebaseSplit,
 ]

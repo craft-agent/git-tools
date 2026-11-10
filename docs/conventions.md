@@ -463,6 +463,7 @@ changes a rule above, it says so. The discussion behind them is on
   | `Layers`            | the branches moved or put back, `a → b`   | rebasing, resuming a rebase                            |
   | `After`             | the layer branch whose layers landed      | rebasing                                               |
   | `Fixups`            | `{fixups} to fold`                        | rebasing                                               |
+  | `New branches`      | each new branch and where it starts       | cutting layer branches, adding a layer                 |
   | `Base`              | the base's short sha and subject          | checking each commit                                   |
   | `Setup`             | the setup command, as given               | checking each commit                                   |
   | `Directory`         | where the commands run, when not the root | checking each commit                                   |
