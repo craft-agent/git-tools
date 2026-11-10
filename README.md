@@ -138,8 +138,8 @@ Add the server to the host's MCP configuration. Flags go in `args`:
 
 Each toolset comes with a skill that tells an agent how to use its tools.
 There is one toolset per domain; `repo`, `commit` and `rebase` are on by
-default, `worktree` and `push` are opt-in. `repo`, `commit` and `rebase` are
-in place; the others are being built.
+default, `worktree` and `push` are opt-in. `repo`, `commit`, `rebase` and
+`push` are in place; `worktree` is being built.
 
 | Toolset    | Covers                                                                   |
 | ---------- | ------------------------------------------------------------------------ |
@@ -186,6 +186,17 @@ A stack is read from ancestry, so a branch alone is a stack of one layer. The
 | `git_rebase_start`  | overwrite | rebases every layer onto the latest default branch, or folds the fixups in place, under the rule for rewriting commits; a stop on conflicts is a paused result             |
 | `git_rebase_resume` | overwrite | continues, skips or aborts a stopped rebase                                                                                                                                |
 | `git_rebase_split`  | add       | cuts the branch into lower layer branches at given commits, or adds an empty layer on top                                                                                  |
+
+### `push`
+
+One read tool that previews a push, and one write tool that pushes exactly
+what the preview returned, leased on the remote commit each branch expects.
+The toolset is opt-in. The `git-push` skill says how they fit together.
+
+| Tool            | Class          | Does                                                                                                                                                                                                                                                    |
+| --------------- | -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `git_push_read` | read           | `preview`: per branch of the line, read live from the remote, the kind of push, the commits the remote lacks and what a force drops; refusals, warnings, the secret scan and the published-text rules; and `send`, the arguments that push exactly this |
+| `git_push_send` | administrative | pushes the preview's `send` in one atomic push with a lease per branch, after checking it again; a branch or remote that moved is `stale`, and nothing is pushed                                                                                        |
 
 ## Adding a tool
 
