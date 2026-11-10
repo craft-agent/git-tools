@@ -10,13 +10,14 @@ import {
   ToolError,
   type ErrorCode,
   type ErrorDetails,
+  type ToolOptions,
   type ToolSpec,
   type Translations,
 } from "../core"
 import { errorBody } from "../entry/errors"
 import { approvalOf, checkPin } from "../entry/pin"
 import { PROJECT_PROFILE, type EntryProfile } from "../entry/profile"
-import { parseToolSettings, promptLanguage } from "../entry/settings"
+import { parseToolOptions, parseToolSettings, promptLanguage } from "../entry/settings"
 import { visible } from "../entry/visible"
 import { promptTranslator, promptWords } from "../entry/words"
 import { PROJECT } from "../project"
@@ -58,8 +59,8 @@ export type CliIo = {
 
 type Command =
   | { name: "list"; selected: ToolSpec[] }
-  | { name: "run"; toolId: string; cwd: string; pin: string | undefined; selected: ToolSpec[] }
-  | { name: "target"; toolId: string; cwd: string; language: string | undefined }
+  | { name: "run"; toolId: string; cwd: string; pin: string | undefined; selected: ToolSpec[]; options: ToolOptions }
+  | { name: "target"; toolId: string; cwd: string; language: string | undefined; options: ToolOptions }
 
 function usageError(message: string): ToolError {
   return new ToolError("invalid_argument", message)
@@ -87,10 +88,13 @@ function takeFlag(argv: string[], flag: string): { value: string | undefined; re
 /** Reads the command line; a mistake in it, in the settings or in the tool selection is `invalid_argument`. */
 function parseCommand(argv: string[], io: Pick<CliIo, "specs" | "env" | "profile">): Command {
   const profile = io.profile ?? PROJECT_PROFILE
-  const select = (flags: string[]) => selectTools(io.specs, parseToolSettings(flags, io.env, profile), profile.toolsets)
+  const select = (flags: string[]) => {
+    const settings = parseToolSettings(flags, io.env, profile)
+    return { selected: selectTools(io.specs, settings, profile.toolsets), options: settings.options }
+  }
   const [name, ...args] = argv
   if (name === "list") {
-    return { name, selected: select(args) }
+    return { name, selected: select(args).selected }
   }
   if (name !== "run" && name !== "target") {
     const given = name === undefined ? "No command given" : `Unknown command "${name}"`
@@ -105,15 +109,20 @@ function parseCommand(argv: string[], io: Pick<CliIo, "specs" | "env" | "profile
   if (cwd === undefined) throw usageError(`Command ${name} needs ${CWD_FLAG} <dir>.`)
   if (name === "target") {
     const { value: language, rest: afterLanguage } = takeFlag(rest, LANGUAGE_FLAG)
-    const { value: harnessLanguage, rest: unknown } = takeFlag(afterLanguage, HARNESS_LANGUAGE_FLAG)
-    if (unknown.length > 0) throw usageError(`Unknown option "${unknown[0]}".`)
-    return { name, toolId, cwd, language: promptLanguage(language, io.env, harnessLanguage, profile) }
+    const { value: harnessLanguage, rest: toolOptions } = takeFlag(afterLanguage, HARNESS_LANGUAGE_FLAG)
+    return {
+      name,
+      toolId,
+      cwd,
+      language: promptLanguage(language, io.env, harnessLanguage, profile),
+      options: parseToolOptions(toolOptions, io.env, profile),
+    }
   }
   const { value: pin, rest: selection } = takeFlag(rest, PIN_FLAG)
   if (pin !== undefined && !PIN_PATTERN.test(pin)) {
     throw usageError(`Option ${PIN_FLAG} needs the 64 lowercase hexadecimal digits \`target\` answered with.`)
   }
-  return { name, toolId, cwd, pin, selected: select(selection) }
+  return { name, toolId, cwd, pin, ...select(selection) }
 }
 
 function describeSpec(spec: ToolSpec) {
@@ -155,7 +164,7 @@ async function runTool(command: Extract<Command, { name: "run" }>, io: CliIo): P
   if (!spec) return writeError(io, "invalid_argument", `Unknown tool "${command.toolId}".`)
   try {
     const args = await readArguments(io)
-    const ctx = { cwd: command.cwd, ownDir: io.ownDir, signal: io.signal }
+    const ctx = { cwd: command.cwd, ownDir: io.ownDir, options: command.options, signal: io.signal }
     await checkPin(spec, args, ctx, command.pin, io.describeTimeoutMs)
     const result = await invoke(spec, args, ctx)
     writeJson(io, { result })
@@ -176,6 +185,7 @@ async function targetOf(command: Extract<Command, { name: "target" }>, io: CliIo
     const ctx = {
       cwd: command.cwd,
       ownDir: io.ownDir,
+      options: command.options,
       signal: io.signal,
     }
     const t = promptTranslator(io.translations ?? {}, command.language)
@@ -216,7 +226,9 @@ function errorDetail(error: unknown): string {
  * language) of that description and the resources when there is a description.
  * `target` takes `--language <tag>`, else `<envPrefix>_LANGUAGE`, else `--harness-language <tag>` (the harness's own
  * display language) as the prompt language; none, or one without a table,
- * keeps English. Standard output carries only the JSON document; a
+ * keeps English. `list`, `run` and `target` also take the package's tool
+ * options, as flags or `<envPrefix>_<OPTION>` variables, and `run` and
+ * `target` hand their values to the tool as `options`. Standard output carries only the JSON document; a
  * mistake in the command line is one line on standard error and `EXIT_USAGE`.
  * Resolves to the exit code.
  */

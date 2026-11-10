@@ -89,6 +89,7 @@ export function createServer(specs: ToolSpec[], settings: EntrySettings, options
       const ctx: ToolContext = {
         cwd: await workingDir(extra.signal),
         ownDir: options.ownDir,
+        options: settings.options,
         signal: extra.signal,
         ...(confirm && { confirm }),
       }
