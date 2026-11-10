@@ -29,9 +29,16 @@ export function commitsFact(count: number): CallFact {
   }
 }
 
+/** The `Push` fact: the rewrite leaves the pushed branch behind, so the next push needs a force push. */
+export function forcePushFact(): CallFact {
+  return { label: "Push", value: { text: "needs a force push" } }
+}
+
 /** The translations of the labels and the value templates of the facts above. */
 export const GIT_FACT_TRANSLATIONS: Translations = {
   ja: {
+    Push: "プッシュ",
+    "needs a force push": "force push が必要",
     Branch: "ブランチ",
     Lines: "行数",
     "{added} added, {removed} removed": "追加 {added} 行、削除 {removed} 行",

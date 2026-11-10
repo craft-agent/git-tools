@@ -138,8 +138,8 @@ Add the server to the host's MCP configuration. Flags go in `args`:
 
 Each toolset comes with a skill that tells an agent how to use its tools.
 There is one toolset per domain; `repo`, `commit` and `rebase` are on by
-default, `worktree` and `push` are opt-in. `repo` and `commit` are in place;
-the others are being built.
+default, `worktree` and `push` are opt-in. `repo`, `commit` and `rebase` are
+in place; the others are being built.
 
 | Toolset    | Covers                                                                   |
 | ---------- | ------------------------------------------------------------------------ |
@@ -173,6 +173,19 @@ One read tool for the checks before a commit, and four write tools. The
 | `git_commit_create` | add               | commits what is staged with the checked message, or a fixup of an earlier commit                                                                                                                                                                                                                      |
 | `git_commit_amend`  | overwrite         | replaces HEAD with the staged changes and a message, under the rule for rewriting commits                                                                                                                                                                                                             |
 | `git_commit_verify` | administrative    | runs a command at each commit of the branch in a throwaway worktree                                                                                                                                                                                                                                   |
+
+### `rebase`
+
+One read tool for the stack of the checked-out branch, and three write tools.
+A stack is read from ancestry, so a branch alone is a stack of one layer. The
+`git-rebase` skill says how they fit together.
+
+| Tool                | Class     | Does                                                                                                                                                                       |
+| ------------------- | --------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `git_rebase_read`   | read      | `stack`: the layers of the branch's line, bottom to top, with their commits and fixups, how each stands to its remote branch, and whether the whole stack may be rewritten |
+| `git_rebase_start`  | overwrite | rebases every layer onto the latest default branch, or folds the fixups in place, under the rule for rewriting commits; a stop on conflicts is a paused result             |
+| `git_rebase_resume` | overwrite | continues, skips or aborts a stopped rebase                                                                                                                                |
+| `git_rebase_split`  | add       | cuts the branch into lower layer branches at given commits, or adds an empty layer on top                                                                                  |
 
 ## Adding a tool
 

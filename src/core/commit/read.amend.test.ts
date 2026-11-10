@@ -1,12 +1,15 @@
 import { afterEach, describe, expect, test } from "bun:test"
+import { installFakeGh, type FakeGh } from "../../testing/fake-gh"
 import { tempRepo, type TempRepo } from "../../testing/git-repo"
 import { invoke } from "../tool"
 import { commitRead } from "./read"
 
 const repos: TempRepo[] = []
+const fakes: FakeGh[] = []
 
 afterEach(() => {
   for (const repo of repos.splice(0)) repo.cleanup()
+  for (const fake of fakes.splice(0)) fake.restore()
 })
 
 /** A repository on branch `feat` with two commits of its own; returns their ids. */
@@ -72,6 +75,25 @@ describe("git_commit_read amend", () => {
     expect(result).toMatchObject({ recommendation: "new_commit", pushed: false })
     expect(result.refusals[0]).toMatchObject({ rule: "default_branch" })
     expect(result.reason).toBe(result.refusals.map((refusal) => refusal.message).join(" "))
+  })
+
+  test("recommends a new commit when GitHub protects the pushed branch against force pushes", async () => {
+    const gh = installFakeGh([
+      {
+        match: "api graphql",
+        stdout: JSON.stringify({
+          data: { repository: { ref: { refUpdateRule: null, rules: { nodes: [{ type: "NON_FAST_FORWARD" }] } } } },
+        }),
+      },
+    ])
+    fakes.push(gh)
+    const { repo } = await fixture()
+    await repo.git(["push", "-u", "origin", "feat"])
+    await repo.git(["config", "remote.origin.url", "https://github.com/o/r.git"])
+    const result = await amend(repo)
+    expect(result).toMatchObject({ recommendation: "new_commit", needs_force_push: true })
+    expect(result.refusals).toEqual([{ rule: "protected", message: expect.stringContaining("origin/feat cannot be") }])
+    expect(result.reason).toContain("a ruleset blocks force pushes")
   })
 
   test("recommends a new commit for one already merged into the default branch", async () => {

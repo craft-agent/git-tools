@@ -81,17 +81,22 @@ const FORCED_ENV: Record<string, string> = {
   NO_COLOR: "1",
 }
 
-/**
- * The environment every git call gets: passed variables read from `process.env`
- * at call time, then the forced ones on top.
- */
-export function gitEnv(): Record<string, string> {
+/** The variables of `GIT_PASSED_ENV` that are set in `process.env` now. */
+export function passedEnv(): Record<string, string> {
   const env: Record<string, string> = {}
   for (const name of GIT_PASSED_ENV) {
     const value = process.env[name]
     if (value !== undefined) env[name] = value
   }
-  return { ...env, ...FORCED_ENV }
+  return env
+}
+
+/**
+ * The environment every git call gets: passed variables read from `process.env`
+ * at call time, then the forced ones on top.
+ */
+export function gitEnv(): Record<string, string> {
+  return { ...passedEnv(), ...FORCED_ENV }
 }
 
 /** Options for running a git command. */
@@ -195,6 +200,17 @@ async function gitVersion(signal?: AbortSignal): Promise<string> {
  */
 export async function ensureGit(signal?: AbortSignal): Promise<void> {
   await gitVersion(signal)
+}
+
+/**
+ * Throws `git_too_old` naming `feature` when git is older than `minimum`, for
+ * an option newer than `MIN_GIT_VERSION` that only some calls use.
+ */
+export async function requireGitVersion(minimum: string, feature: string, signal?: AbortSignal): Promise<void> {
+  const version = await gitVersion(signal)
+  if (isOlder(version, minimum)) {
+    throw new ToolError("git_too_old", `git ${version} is older than ${minimum}, which ${feature} needs; update git.`)
+  }
 }
 
 /** Forgets the version check. For tests only, which change `PATH` between cases. */

@@ -109,15 +109,26 @@ says how to correct it:
 - `new_commit`: the commit may not be rewritten, or is not on this branch.
   Make a new commit that fixes it.
 
+On a stack of layer branches, a commit of a lower layer is fixed with a fixup
+committed on the top branch (check it out first), then folded in by rebasing
+the whole stack. Amending, or a fixup, on a branch that has layers above it is
+refused (`layers_above`), since the layers would stay on the old commits;
+amending is refused too when another branch points at the same commit.
+`git_commit_read` then recommends the fixup, naming the top when it is another
+branch.
+
 The rule for rewriting: a branch's own commits may be rewritten even once
 pushed, but never on the default branch, never a commit already on the
-default branch, and never one another remote branch holds. A detached HEAD is
+default branch, and never one another remote branch holds (on a stack, the
+remote branches of its layers count as the branch's own). A detached HEAD is
 refused too. When the rewritten commits were pushed, `needs_force_push` is
-true: the branch then has to be pushed with a lease. Whether the hosting
-service protects the branch against force pushes is not checked here; a
-branch pushed to GitHub gets a warning saying so. Amending and fixups apply
-the rule themselves and fail with `rewrite_refused`, its `details.refusals`
-saying why.
+true: the branch then has to be pushed with a lease. A branch pushed to
+GitHub is also checked for protection against force pushes (branch
+protection or a ruleset); a protected one is refused (`protected`), and when
+that check cannot be made (`gh` missing or not logged in, no access) there is
+a warning instead, since GitHub may still refuse the force push. Amending and
+fixups apply the rule themselves and fail with `rewrite_refused`, its
+`details.refusals` saying why.
 
 ## Checking each commit
 

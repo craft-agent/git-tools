@@ -354,6 +354,25 @@ changes a rule above, it says so. The discussion behind them is on
   squash-merged branch landed — it reads that from GitHub, and only when
   `origin` is on GitHub. Elsewhere the rule falls back to what git alone can
   prove, and refuses or keeps rather than guesses.
+- **How a safety read goes.** It runs through a runner of its own for the
+  GitHub CLI (`gh`), built on `exec` with the same allowlisted environment as
+  the git runner, and every read has a time limit. The rewrite rule reads
+  whether GitHub blocks force pushes (branch protection or a ruleset) with one
+  `gh api graphql` query per repository and branch the rewrite holds on a
+  GitHub remote, and 8 s to answer. A branch that is protected is a refusal. A
+  read that fails (`gh` missing or not logged in, no access, a time-out, a
+  branch GitHub does not have) is a warning, not a refusal: the rewrite stays
+  local, and GitHub refuses the force push itself.
+- **A stack is read from ancestry, and no record of it is kept.** It is the
+  current branch's line: the local branches between the remote default branch
+  and the top, below the current one, on its tip, or above it, grouped by tip
+  into layers. Where the branches above fork, the line is ambiguous and the
+  caller names the top. Because nothing is written to git config or a file,
+  a stack made by any tool, or by hand, reads the same. The rewrite rule
+  treats the remote branches of the layers as the branch's own, and refuses a
+  rewrite that would leave layers above on the old commits, or an amend that
+  would leave other branches on the old commit (`layers_above`); a lower layer
+  is fixed with a fixup committed on the top and a rebase of the whole stack.
 
 ### Domains and names
 
@@ -431,21 +450,25 @@ changes a rule above, it says so. The discussion behind them is on
   domain could show lives in `src/core/git-facts.ts`; a domain's own fact
   stays beside its tools:
 
-  | Fact                | Value                                     | Shown by                            |
-  | ------------------- | ----------------------------------------- | ----------------------------------- |
-  | `Push`              | `needs a force push`, only when it does   | amending                            |
-  | `Accepted findings` | the fingerprints of the findings let pass | committing, amending                |
-  | `Change`            | `message only`, `staged changes`, …       | amending                            |
-  | `Branch`            | the branch's name                         | committing, amending                |
-  | `Files`             | `{files} files`                           | staging hunks, committing, amending |
-  | `Hunks`             | `{hunks} of {total}`                      | staging hunks                       |
-  | `Lines`             | `{added} added, {removed} removed`        | staging hunks, committing, amending |
-  | `Commits`           | `{commits} commits`                       | checking each commit                |
-  | `Base`              | the base's short sha and subject          | checking each commit                |
-  | `Setup`             | the setup command, as given               | checking each commit                |
-  | `Directory`         | where the commands run, when not the root | checking each commit                |
-  | `On failure`        | `stop at the first failure`, or not       | checking each commit                |
-  | `Time limit`        | `{seconds} s per run`                     | checking each commit                |
+  | Fact                | Value                                     | Shown by                                               |
+  | ------------------- | ----------------------------------------- | ------------------------------------------------------ |
+  | `Push`              | `needs a force push`, only when it does   | amending, rebasing                                     |
+  | `Accepted findings` | the fingerprints of the findings let pass | committing, amending                                   |
+  | `Change`            | `message only`, `staged changes`, …       | amending                                               |
+  | `Branch`            | the branch's name                         | committing, amending                                   |
+  | `Files`             | `{files} files`                           | staging hunks, committing, amending, resuming a rebase |
+  | `Hunks`             | `{hunks} of {total}`                      | staging hunks                                          |
+  | `Lines`             | `{added} added, {removed} removed`        | staging hunks, committing, amending                    |
+  | `Commits`           | `{commits} commits`                       | checking each commit, rebasing                         |
+  | `Layers`            | the branches moved or put back, `a → b`   | rebasing, resuming a rebase                            |
+  | `After`             | the layer branch whose layers landed      | rebasing                                               |
+  | `Fixups`            | `{fixups} to fold`                        | rebasing                                               |
+  | `New branches`      | each new branch and where it starts       | cutting layer branches, adding a layer                 |
+  | `Base`              | the base's short sha and subject          | checking each commit                                   |
+  | `Setup`             | the setup command, as given               | checking each commit                                   |
+  | `Directory`         | where the commands run, when not the root | checking each commit                                   |
+  | `On failure`        | `stop at the first failure`, or not       | checking each commit                                   |
+  | `Time limit`        | `{seconds} s per run`                     | checking each commit                                   |
 
   A fact the person's answer turns on comes first: amending a commit the
   branch has pushed says so before anything else, since the next push must

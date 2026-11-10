@@ -1,4 +1,5 @@
 import { z } from "zod"
+import { isToolError } from "../errors"
 import { git } from "../git"
 import {
   checkRewrite,
@@ -9,6 +10,7 @@ import {
   shortSha,
   type RewriteCheck,
 } from "../rewrite"
+import { readStack, topBranch } from "../stack"
 
 /** How many remote branches holding the commit a result lists. */
 const MAX_REMOTE_BRANCHES = 20
@@ -29,7 +31,7 @@ export const amendCheckSchema = z.object({
   recommendation: z
     .enum(RECOMMENDATIONS)
     .describe(
-      '"amend" for HEAD, "fixup" for an earlier commit of this branch, "new_commit" when the rewrite rule refuses or the commit is not on this branch.',
+      '"amend" for HEAD, "fixup" for an earlier commit of this branch (on a stack, a commit of a lower layer is fixed up on the top and the whole stack rebased), "new_commit" when the rewrite rule refuses or the commit is not on this branch.',
     ),
   reason: z.string().describe("What to do next, in plain words."),
   needs_force_push: rewriteCheckSchema.shape.needs_force_push,
@@ -39,12 +41,47 @@ export const amendCheckSchema = z.object({
 
 type AmendCheck = z.output<typeof amendCheckSchema>
 
+/** The verdict the recommendation rests on, and the reason when it differs from the plain one. */
+type Verdict = { check: RewriteCheck | null; reason?: string }
+
+/** Whether the only thing in the way is that layers sit above the branch (or share its tip). */
+function onlyLayersAbove(check: RewriteCheck): boolean {
+  return !check.allowed && check.refusals.every((refusal) => refusal.rule === "layers_above")
+}
+
+/**
+ * The verdict for a commit of a stack's lower layer: when only the layers above
+ * refuse, a fixup committed on the top and folded in by rebasing the whole
+ * stack is recommended if that rewrite is allowed.
+ */
+async function stackVerdict(
+  root: string,
+  full: string,
+  check: RewriteCheck,
+  signal: AbortSignal | undefined,
+): Promise<Verdict> {
+  let whole: RewriteCheck
+  try {
+    whole = await checkRewrite(root, full, { signal, wholeStack: true })
+  } catch (error) {
+    if (!isToolError(error) || error.code !== "invalid_argument") throw error
+    return { check }
+  }
+  if (!whole.allowed) return { check: whole }
+  const stack = await readStack(root, { signal })
+  if (!stack) return { check }
+  const top = topBranch(stack)
+  const forcePush = whole.needs_force_push ? FORCE_PUSH_CLAUSE : ""
+  const where = stack.branch === top ? "commit the fix here" : `check out ${top}, commit the fix there`
+  return {
+    check: whole,
+    reason: `Branches of a stack sit on or above this commit; ${where} with git_commit_create (fixup: ${shortSha(full)}), then fold it in with an autosquash rebase of the stack${forcePush}.`,
+  }
+}
+
 /** The recommendation and its reason, from the commit's place and the rewrite rule's verdict (null when the commit is not on the branch). */
-function recommend(
-  sha: string,
-  isHead: boolean,
-  check: RewriteCheck | null,
-): Pick<AmendCheck, "recommendation" | "reason"> {
+function recommend(sha: string, isHead: boolean, verdict: Verdict): Pick<AmendCheck, "recommendation" | "reason"> {
+  const { check } = verdict
   if (!check) {
     return {
       recommendation: "new_commit",
@@ -54,6 +91,7 @@ function recommend(
   if (!check.allowed) {
     return { recommendation: "new_commit", reason: check.refusals.map((refusal) => refusal.message).join(" ") }
   }
+  if (verdict.reason) return { recommendation: "fixup", reason: verdict.reason }
   const forcePush = check.needs_force_push ? FORCE_PUSH_CLAUSE : ""
   if (isHead) {
     return { recommendation: "amend", reason: `HEAD of this branch; amend it with git_commit_amend${forcePush}.` }
@@ -76,14 +114,19 @@ export async function readAmendCheck(root: string, sha: string, signal?: AbortSi
   const isHead = full === head
   const onBranch = isHead || (await isAncestor(root, full, "HEAD", signal))
   const remoteBranches = await remoteBranchesContaining(root, [full], signal)
-  const check = onBranch ? await checkRewrite(root, full, { signal }) : null
+  let verdict: Verdict = { check: null }
+  if (onBranch) {
+    const check = await checkRewrite(root, full, { signal, amending: isHead })
+    verdict = onlyLayersAbove(check) ? await stackVerdict(root, full, check, signal) : { check }
+  }
+  const { check } = verdict
   return {
     sha: full,
     is_head: isHead,
     on_branch: onBranch,
     pushed: remoteBranches.length > 0,
     remote_branches: remoteBranches.slice(0, MAX_REMOTE_BRANCHES),
-    ...recommend(full, isHead, check),
+    ...recommend(full, isHead, verdict),
     needs_force_push: check?.needs_force_push ?? false,
     refusals: check?.refusals ?? [],
     warnings: check?.warnings ?? [],

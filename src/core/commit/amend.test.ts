@@ -1,13 +1,16 @@
 import { afterEach, describe, expect, test } from "bun:test"
+import { type FakeGh, installFakeGh } from "../../testing/fake-gh"
 import { type TempRepo, tempRepo } from "../../testing/git-repo"
 import { ToolError } from "../errors"
 import { invoke } from "../tool"
 import { commitAmend } from "./amend"
 
 const repos: TempRepo[] = []
+const fakes: FakeGh[] = []
 
 afterEach(() => {
   for (const repo of repos.splice(0)) repo.cleanup()
+  for (const fake of fakes.splice(0)) fake.restore()
 })
 
 async function fixture(options?: Parameters<typeof tempRepo>[0]) {
@@ -95,6 +98,30 @@ describe("git_commit_amend", () => {
     expect(error.code).toBe("rewrite_refused")
     expect(error.details).toMatchObject({ refusals: [{ rule: "default_branch" }] })
     expect(await head(repo)).toBe(before)
+  })
+
+  test("refuses to amend a pushed branch GitHub protects against force pushes and leaves HEAD alone", async () => {
+    fakes.push(
+      installFakeGh([
+        {
+          match: "api graphql",
+          stdout: JSON.stringify({
+            data: { repository: { ref: { refUpdateRule: { allowsForcePushes: false }, rules: { nodes: [] } } } },
+          }),
+        },
+      ]),
+    )
+    const { repo, first } = await featureBranch()
+    await repo.git(["push", "-u", "origin", "feat"])
+    await repo.git(["config", "remote.origin.url", "https://github.com/o/r.git"])
+
+    const error = await failure(amend(repo, { message: "feat: rework a" }))
+
+    expect(error.code).toBe("rewrite_refused")
+    expect(error.details).toMatchObject({
+      refusals: [{ rule: "protected", message: expect.stringContaining("branch protection blocks force pushes") }],
+    })
+    expect(await head(repo)).toBe(first)
   })
 
   test("stops on a lint error", async () => {

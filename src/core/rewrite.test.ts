@@ -47,26 +47,6 @@ describe("checkRewrite", () => {
     })
   })
 
-  test.each(["https://github.com/o/r.git", "git@github.com:o/r.git", "ssh://git@github.com/o/r.git"])(
-    "warns that protection was not checked when the remote is on GitHub (%s)",
-    async (url) => {
-      const { repo, sha } = await withFeatCommit()
-      await repo.git(["push", "-u", "origin", "feat"])
-      await repo.git(["config", "remote.origin.url", url])
-      const check = await checkRewrite(repo.dir, sha)
-      expect(check.allowed).toBe(true)
-      expect(check.warnings).toHaveLength(1)
-      expect(check.warnings[0]).toContain("origin/feat is on GitHub")
-    },
-  )
-
-  test("gives no GitHub warning for another host", async () => {
-    const { repo, sha } = await withFeatCommit()
-    await repo.git(["push", "-u", "origin", "feat"])
-    await repo.git(["config", "remote.origin.url", "https://example.com/github.com/o/r.git"])
-    expect((await checkRewrite(repo.dir, sha)).warnings).toEqual([])
-  })
-
   test("refuses the default branch", async () => {
     const repo = await fixture()
     const sha = await repo.commit("fix: local on main", { "a.txt": "a\n" })
