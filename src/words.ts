@@ -2,6 +2,7 @@ import { mergeTranslations, type Translations } from "./core"
 import { COMMIT_TRANSLATIONS } from "./core/commit/words"
 import { FACT_TRANSLATIONS } from "./core/facts"
 import { GIT_FACT_TRANSLATIONS } from "./core/git-facts"
+import { PUSH_TRANSLATIONS } from "./core/push/words"
 import { REBASE_TRANSLATIONS } from "./core/rebase/words"
 import { REPO_TRANSLATIONS } from "./core/repo/words"
 
@@ -12,4 +13,5 @@ export const ALL_TRANSLATIONS: Translations = mergeTranslations(
   REPO_TRANSLATIONS,
   COMMIT_TRANSLATIONS,
   REBASE_TRANSLATIONS,
+  PUSH_TRANSLATIONS,
 )
