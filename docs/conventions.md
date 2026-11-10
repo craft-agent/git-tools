@@ -463,14 +463,15 @@ changes a rule above, it says so. The discussion behind them is on
 
   | Fact                | Value                                     | Shown by                                               |
   | ------------------- | ----------------------------------------- | ------------------------------------------------------ |
-  | `Push`              | `needs a force push`, only when it does   | amending, rebasing                                     |
-  | `Accepted findings` | the fingerprints of the findings let pass | committing, amending                                   |
+  | `Push`              | `needs a force push`, only when it does   | amending, rebasing, pushing                            |
+  | `Accepted findings` | the fingerprints of the findings let pass | committing, amending, pushing                          |
+  | `Branches`          | each branch and its kind of push          | pushing                                                |
   | `Change`            | `message only`, `staged changes`, …       | amending                                               |
   | `Branch`            | the branch's name                         | committing, amending                                   |
   | `Files`             | `{files} files`                           | staging hunks, committing, amending, resuming a rebase |
   | `Hunks`             | `{hunks} of {total}`                      | staging hunks                                          |
   | `Lines`             | `{added} added, {removed} removed`        | staging hunks, committing, amending                    |
-  | `Commits`           | `{commits} commits`                       | checking each commit, rebasing                         |
+  | `Commits`           | `{commits} commits`                       | checking each commit, rebasing, pushing                |
   | `Layers`            | the branches moved or put back, `a → b`   | rebasing, resuming a rebase                            |
   | `After`             | the layer branch whose layers landed      | rebasing                                               |
   | `Fixups`            | `{fixups} to fold`                        | rebasing                                               |
@@ -498,16 +499,17 @@ changes a rule above, it says so. The discussion behind them is on
   message string would lose their structure.
 - **Codes added to the ones above**:
 
-  | Code                    | When                                                                            |
-  | ----------------------- | ------------------------------------------------------------------------------- |
-  | `not_a_repository`      | the working directory is not inside a git repository                            |
-  | `dirty_tree`            | uncommitted changes stand in the way of the operation                           |
-  | `operation_in_progress` | another rebase, merge or cherry-pick is in progress                             |
-  | `rewrite_refused`       | the rewrite rule refuses to rewrite these commits                               |
-  | `check_failed`          | a check before the operation failed; `details` says which (lint, secrets, hook) |
-  | `git_missing`           | git is not installed                                                            |
-  | `git_too_old`           | git is older than the tools need                                                |
-  | `git_error`             | git failed for another reason; the message carries its text                     |
+  | Code                    | When                                                                                                                                           |
+  | ----------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+  | `not_a_repository`      | the working directory is not inside a git repository                                                                                           |
+  | `dirty_tree`            | uncommitted changes stand in the way of the operation                                                                                          |
+  | `operation_in_progress` | another rebase, merge or cherry-pick is in progress                                                                                            |
+  | `rewrite_refused`       | the rewrite rule refuses to rewrite these commits                                                                                              |
+  | `push_refused`          | the push would be refused: the default branch, an operation in progress, a protected branch, a remote commit not seen here; `details.refusals` |
+  | `check_failed`          | a check before the operation failed; `details` says which (lint, secrets, published_text, hook)                                                |
+  | `git_missing`           | git is not installed                                                                                                                           |
+  | `git_too_old`           | git is older than the tools need                                                                                                               |
+  | `git_error`             | git failed for another reason; the message carries its text                                                                                    |
 
   A missing commit or branch is `not_found`. A pinned write whose state
   changed is `stale`, as is a push the remote moved under.

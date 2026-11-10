@@ -32,6 +32,11 @@ export async function indexPins(root: string, signal: AbortSignal | undefined): 
   }
 }
 
+/** The `Accepted findings` fact for these fingerprints. */
+export function acceptedFact(fingerprints: string[]): CallFact {
+  return { label: "Accepted findings", value: fingerprints.join(", ") }
+}
+
 /**
  * The `Accepted findings` fact: the fingerprints in `accept` that the scan of
  * the staged changes found, deduped in scan order. `undefined` when none are
@@ -46,5 +51,5 @@ export async function acceptedFindingsFact(
   const allowed = new Set(accept)
   const { findings } = await scanSecrets(root, { target: "staged" }, signal)
   const matched = [...new Set(findings.map((finding) => finding.fingerprint).filter((print) => allowed.has(print)))]
-  return matched.length === 0 ? undefined : { label: "Accepted findings", value: matched.join(", ") }
+  return matched.length === 0 ? undefined : acceptedFact(matched)
 }

@@ -2,12 +2,9 @@ import { z } from "zod"
 import { defineTool, type ToolContext } from "../tool"
 import { workingTree } from "../tree"
 import { previewPush } from "./preview"
-import { previewSchema } from "./schema"
+import { MAX_BRANCHES, previewSchema } from "./schema"
 
 const METHODS = ["preview"] as const
-
-/** How many branches one preview takes. */
-const MAX_BRANCHES = 20
 
 const input = z.object({
   method: z

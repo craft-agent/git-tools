@@ -33,7 +33,7 @@ async function defaultBelow(root: string, signal?: AbortSignal): Promise<Below |
 }
 
 /** The full id of the tip of the local branch `name`; `invalid_argument` for a name that cannot be one, `not_found` when there is none. */
-async function branchTip(root: string, name: string, signal?: AbortSignal): Promise<string> {
+export async function branchTip(root: string, name: string, signal?: AbortSignal): Promise<string> {
   if (name === "" || name.startsWith("-")) {
     throw new ToolError("invalid_argument", `"${name}" is not a branch name; name a local branch, not an option.`)
   }

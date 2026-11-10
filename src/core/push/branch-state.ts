@@ -35,7 +35,7 @@ async function commitLines(root: string, args: string[], signal?: AbortSignal): 
 }
 
 /** Whether this repository has the commit `sha`. */
-async function hasCommit(root: string, sha: string, signal?: AbortSignal): Promise<boolean> {
+export async function hasCommit(root: string, sha: string, signal?: AbortSignal): Promise<boolean> {
   return (await gitResult(["cat-file", "-e", `${sha}^{commit}`], { cwd: root, signal })).code === 0
 }
 

@@ -5,6 +5,9 @@ import { publishedTextFindingSchema } from "./published-text"
 /** How many commits a branch's `commits` and `drops` list. */
 export const MAX_LISTED_COMMITS = 30
 
+/** How many branches one preview or one send takes. */
+export const MAX_BRANCHES = 20
+
 /** What pushing a branch does to the remote branch. */
 export const PUSH_KINDS = ["none", "create", "fast_forward", "force"] as const
 
