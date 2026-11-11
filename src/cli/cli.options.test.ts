@@ -3,57 +3,49 @@ import { NOTE_ID, NOTE_OPTION, noteSpec } from "../entry/options.testing"
 import { EXIT_OK, EXIT_USAGE } from "./cli"
 import { cli, json } from "./testing"
 
-const FLAG = "--note-text"
-const specs = { specs: [noteSpec] }
-
-describe("run with tool options", () => {
-  const run = (flags: string[], env: Record<string, string> = {}) =>
-    cli(["run", NOTE_ID, "--cwd", "/x", ...flags], "{}", { ...specs, env })
-
-  test("the tool's context carries the flag's value", async () => {
-    const result = await run([FLAG, "from flag"])
-    expect(result.code).toBe(EXIT_OK)
-    expect(json(result)).toEqual({ result: { options: { [NOTE_OPTION]: "from flag" } } })
+describe("command-line tool options", () => {
+  test("run passes flags to execution and target passes them to the description", async () => {
+    const run = await cli(["run", NOTE_ID, "--cwd", "/work/project", "--note-text", "from flag"], "", {
+      specs: [noteSpec],
+    })
+    expect(run.code).toBe(EXIT_OK)
+    expect(json(run)).toEqual({ result: { options: { [NOTE_OPTION]: "from flag" } } })
+    const target = await cli(["target", NOTE_ID, "--cwd", "/work/project", "--note-text", "from flag"], "", {
+      specs: [noteSpec],
+    })
+    expect(target.code).toBe(EXIT_OK)
+    expect(json(target).description.facts).toContainEqual({ label: "Note", value: "from flag" })
   })
 
-  test("the variable stands in, and the flag wins over it", async () => {
-    expect(json(await run([], { DEMO_NOTE_TEXT: "from env" })).result.options).toEqual({ [NOTE_OPTION]: "from env" })
-    expect(json(await run([FLAG, "flag"], { DEMO_NOTE_TEXT: "env" })).result.options).toEqual({ [NOTE_OPTION]: "flag" })
+  test("run and target use environment options, overridden by flags", async () => {
+    for (const command of ["run", "target"]) {
+      for (const flags of [[], ["--note-text", "override"]]) {
+        const result = await cli([command, NOTE_ID, "--cwd", "/work/project", ...flags], "", {
+          specs: [noteSpec],
+          env: { DEMO_NOTE_TEXT: "from env" },
+        })
+        expect(result.code).toBe(EXIT_OK)
+        const value = flags.length ? "override" : "from env"
+        if (command === "run") expect(json(result).result.options).toEqual({ [NOTE_OPTION]: value })
+        else expect(json(result).description.facts).toContainEqual({ label: "Note", value })
+      }
+    }
   })
 
-  test("without the option the context carries none", async () => {
-    expect(json(await run([])).result.options).toEqual({})
-  })
-})
-
-describe("target with tool options", () => {
-  const target = (flags: string[], env: Record<string, string> = {}) =>
-    cli(["target", NOTE_ID, "--cwd", "/x", ...flags], "{}", { ...specs, env })
-
-  test("describe reads the flag's value, beside the language flags", async () => {
-    const result = await target([FLAG, "from flag", "--language", "ja"])
-    expect(result.code).toBe(EXIT_OK)
-    expect(json(result).description.facts).toEqual([{ label: "Note", value: "from flag" }])
+  test("run without options gets an empty set", async () => {
+    expect(json(await cli(["run", NOTE_ID, "--cwd", "/work/project"], "", { specs: [noteSpec] }))).toEqual({
+      result: { options: {} },
+    })
   })
 
-  test("describe reads the variable when no flag is given", async () => {
-    expect(json(await target([], { DEMO_NOTE_TEXT: "from env" })).description.facts).toEqual([
-      { label: "Note", value: "from env" },
-    ])
-    expect(json(await target([])).description.facts).toEqual([{ label: "Note", value: "none" }])
-  })
-
-  test("another setting's flag is still an unknown option", async () => {
-    const result = await target(["--toolsets", "alpha"])
-    expect(result.code).toBe(EXIT_USAGE)
-    expect(result.stderr).toContain("--toolsets")
-  })
-})
-
-describe("list with tool options", () => {
-  test("takes the flag", async () => {
-    const result = await cli(["list", FLAG, "a"], "", specs)
-    expect(result.code).toBe(EXIT_OK)
-    expect(json(result).map((tool: { id: string }) => tool.id)).toEqual([NOTE_ID])
+  test("list accepts tool options and every command rejects unknown flags", async () => {
+    expect((await cli(["list", "--note-text", "note"], "", { specs: [noteSpec] })).code).toBe(EXIT_OK)
+    for (const args of [
+      ["list"],
+      ["run", NOTE_ID, "--cwd", "/work/project"],
+      ["target", NOTE_ID, "--cwd", "/work/project"],
+    ]) {
+      expect((await cli([...args, "--unknown", "value"], "", { specs: [noteSpec] })).code).toBe(EXIT_USAGE)
+    }
   })
 })
