@@ -35,6 +35,12 @@ export function cut(text: string, limit: number): string {
   return points.length > limit ? `${points.slice(0, limit - 1).join("")}…` : text
 }
 
+/** How many code points `cut(text, limit)` leaves out of `text`: none within the budget, else all but the `limit - 1` kept before the ellipsis. */
+export function omittedBy(text: string, limit: number): number {
+  const length = Array.from(text).length
+  return length > limit ? length - (limit - 1) : 0
+}
+
 /** The placeholder names of a template whose every brace belongs to a `{name}` placeholder, else `undefined`. */
 export function templatePlaceholders(text: string): Set<string> | undefined {
   const names = new Set<string>()
