@@ -278,11 +278,14 @@ variable, and an option or setting wins over the variable too.
 | `confirm`              | `--confirm`              | `GIT_TOOLS_CONFIRM`              | MCP server only: `harness` (default) or `elicitation`, as the conventions say                              |
 | `language`             | `--language`             | `GIT_TOOLS_LANGUAGE`             | native plugins only: the approval prompt's language, such as `ja`                                          |
 | `published_text_rules` | `--published-text-rules` | `GIT_TOOLS_PUBLISHED_TEXT_RULES` | the absolute path of a JSON file of published-text rules (see the push toolset); unset, nothing is checked |
+| `worktree_root`        | `--worktree-root`        | `GIT_TOOLS_WORKTREE_ROOT`        | the absolute path where task worktrees go (`~` allowed); unset, `~/worktrees`                              |
 
-Lists are comma-separated in a flag or a variable. `published_text_rules` holds
-text, trimmed and blank meaning unset, and is read by the tools themselves; the
-plugin options and Hermes settings name it the same way. Where each harness
-reads them:
+Lists are comma-separated in a flag or a variable. `published_text_rules` and
+`worktree_root` hold text, trimmed and blank meaning unset, and are read by the
+tools themselves; the plugin options and Hermes settings name them the same
+way. The layout is `<root>/<repository>/<branch>`, with each `/` of the branch
+written `-`; the repository is the last part of `origin`'s URL without `.git`,
+else the folder name of the main checkout. Where each harness reads them:
 
 - **OpenCode** takes the plugin `options` shown above, with lists as arrays and
   `read_only` as a boolean, and falls back to the variables. V2 runs plugins in
@@ -301,6 +304,7 @@ reads them:
           read_only: false
           exclude_tools: []
           published_text_rules: /home/me/.config/git-tools/published-text.json
+          worktree_root: ~/worktrees
   ```
 
   Without a `language` setting, the approval card follows Hermes's own

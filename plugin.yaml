@@ -34,3 +34,5 @@ config_schema:
     description: The language of the approval card, such as ja. Defaults to Hermes's display language, else English.
   published_text_rules:
     description: The absolute path of a JSON file of published-text rules for the push tools. Unset, nothing is checked.
+  worktree_root:
+    description: The absolute path where task worktrees go, "~" allowed. Unset, ~/worktrees. The layout is <root>/<repository>/<branch>, with each "/" of the branch written "-".

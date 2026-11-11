@@ -16,7 +16,7 @@ TOOLSET_EMOJI: dict[str, str] = {}
 
 #: The settings the tools themselves read, beside the ones every plugin takes: each holds text and is named in
 #: snake_case, as in ``src/project.ts``. A setting ``a_b`` becomes the flag ``--a-b`` of the command line.
-OPTIONS: tuple[str, ...] = ("published_text_rules",)
+OPTIONS: tuple[str, ...] = ("published_text_rules", "worktree_root")
 
 __all__ = [
     "CLI_NAME",

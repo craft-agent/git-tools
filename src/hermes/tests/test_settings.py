@@ -58,7 +58,11 @@ class OptionFlagsTest(unittest.TestCase):
         return settings.settings_flags(StubContext(config))
 
     def test_the_options_are_those_of_the_project(self) -> None:
-        self.assertEqual(project.OPTIONS, ("published_text_rules",))
+        self.assertEqual(project.OPTIONS, ("published_text_rules", "worktree_root"))
+
+    def test_the_worktree_root_becomes_its_flag(self) -> None:
+        self.assertEqual(self.flags(worktree_root=" ~/trees "), ["--worktree-root", "~/trees"])
+        self.assertEqual(self.flags(worktree_root=" "), [])
 
     def test_an_option_becomes_its_flag_after_the_other_settings(self) -> None:
         self.assertEqual(

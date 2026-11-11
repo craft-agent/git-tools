@@ -50,6 +50,13 @@ describe("tool options on the command line", () => {
     expect(parseSettings(["--published-text-rules", "/rules.json"], {}).options).toEqual(options)
     expect(parseSettings([], { GIT_TOOLS_PUBLISHED_TEXT_RULES: "/rules.json" }).options).toEqual(options)
   })
+
+  test("the package's own profile reads worktree_root from --worktree-root", () => {
+    const options = { worktree_root: "~/trees" }
+    expect(parseSettings(["--worktree-root", "~/trees"], {}).options).toEqual(options)
+    expect(parseSettings([], { GIT_TOOLS_WORKTREE_ROOT: " ~/trees " }).options).toEqual(options)
+    expect(settingsFromOptions({ worktree_root: "~/trees" }, {}).options).toEqual(options)
+  })
 })
 
 describe("parseToolOptions", () => {
@@ -104,9 +111,11 @@ describe("the variables of the tool options", () => {
     expect(forwardedVariables(profile, ["X"])).toEqual([...settingVariables(profile), "X"])
   })
 
-  test("the package's own include GIT_TOOLS_PUBLISHED_TEXT_RULES", () => {
-    expect(PROJECT_PROFILE.options).toContain("published_text_rules")
-    expect(settingVariables()).toContain("GIT_TOOLS_PUBLISHED_TEXT_RULES")
-    expect(forwardedVariables()).toContain("GIT_TOOLS_PUBLISHED_TEXT_RULES")
+  test("the package's own include GIT_TOOLS_PUBLISHED_TEXT_RULES and GIT_TOOLS_WORKTREE_ROOT", () => {
+    expect(PROJECT_PROFILE.options).toEqual(["published_text_rules", "worktree_root"])
+    for (const variable of ["GIT_TOOLS_PUBLISHED_TEXT_RULES", "GIT_TOOLS_WORKTREE_ROOT"]) {
+      expect(settingVariables()).toContain(variable)
+      expect(forwardedVariables()).toContain(variable)
+    }
   })
 })
