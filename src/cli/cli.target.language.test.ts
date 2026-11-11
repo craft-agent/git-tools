@@ -5,7 +5,13 @@ import { EXIT_OK, EXIT_USAGE } from "./cli"
 import { ADD_ID, DESCRIBED_ID, ENGLISH_WORDS, TRANSLATIONS, cli, json } from "./testing"
 
 const ARGS = '{"area":"north"}'
-const JAPANESE_WORDS = { details: "詳細", target: "対象", more: "（ほか {count} 件）" }
+const JAPANESE_WORDS = {
+  details: "詳細",
+  target: "対象",
+  more: "（ほか {count} 件）",
+  more_character: "（ほか {count} 文字）",
+  more_characters: "（ほか {count} 文字）",
+}
 
 const ENGLISH = {
   resources: ["north"],

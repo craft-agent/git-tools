@@ -15,7 +15,14 @@ PLAIN = ("cli", "tui", "desktop", "acp")
 UNKNOWN = ("whatsapp", "unheard-of")
 ALL_SURFACES = (*PLAIN, *UNKNOWN, *BUDGETED)
 DETAILS = "\n\n--- Details ---\n\n"
-JAPANESE = card.Words(details="詳細", target="対象", more="（ほか {count} 件）")
+JAPANESE_CHARACTERS = "（ほか {count} 文字）"
+JAPANESE = card.Words(
+    details="詳細",
+    target="対象",
+    more="（ほか {count} 件）",
+    more_character=JAPANESE_CHARACTERS,
+    more_characters=JAPANESE_CHARACTERS,
+)
 
 
 def described(
@@ -169,14 +176,23 @@ class ParseDescriptionTest(unittest.TestCase):
 
 
 class ParseWordsTest(unittest.TestCase):
-    GOOD = {"details": "詳細", "target": "対象", "more": "（ほか {count} 件）"}
+    GOOD = {
+        "details": "詳細",
+        "target": "対象",
+        "more": "（ほか {count} 件）",
+        "more_character": JAPANESE_CHARACTERS,
+        "more_characters": JAPANESE_CHARACTERS,
+    }
 
-    def test_reads_the_three_words(self) -> None:
+    def test_reads_the_five_words(self) -> None:
         self.assertEqual(card.parse_words(self.GOOD), JAPANESE)
         self.assertEqual(card.parse_words({**self.GOOD, "x": 1}), JAPANESE)
 
     def test_english_is_the_words_of_the_constants(self) -> None:
-        self.assertEqual(card.ENGLISH_WORDS, card.Words("Details", "Target", "(+{count} more)"))
+        self.assertEqual(
+            card.ENGLISH_WORDS,
+            card.Words("Details", "Target", "(+{count} more)", "(+{count} more character)", "(+{count} more characters)"),
+        )
 
     def test_any_bad_word_gives_the_english_ones(self) -> None:
         bad = [
@@ -697,7 +713,13 @@ class BuildMessageTest(unittest.TestCase):
     def test_the_words_used_are_the_ones_measured(self) -> None:
         # Each "&" is 5 UTF-16 units once Hermes has escaped it, so these words leave room for the notice only.
         facts = [(f"L{n}", "v" * 30) for n in range(10)]
-        wide = card.Words(details="&" * 30, target="&" * 30, more="&" * 30 + " {count}")
+        wide = card.Words(
+            details="&" * 30,
+            target="&" * 30,
+            more="&" * 30 + " {count}",
+            more_character="{count}",
+            more_characters="{count}",
+        )
         english = card.build_message("H", ["a"], described(*facts), "telegram")
         self.assertEqual(english.count("\nL"), 10)
         message = card.build_message("H", ["a"], described(*facts), "telegram", wide)
@@ -705,12 +727,12 @@ class BuildMessageTest(unittest.TestCase):
         self.assertLessEqual(card.surface_for("telegram").measure(message), 500)
 
     def test_a_translated_heading_that_over_fills_the_head_shows_no_fact_but_the_notice(self) -> None:
-        words = card.Words(details="詳" * 290, target="対象", more="（ほか {count} 件）")
+        words = card.Words("詳" * 290, "対象", "（ほか {count} 件）", JAPANESE_CHARACTERS, JAPANESE_CHARACTERS)
         message = card.build_message("H", ["t"], described(("A", "a")), "discord", words)
         self.assertEqual(message, f"H\n\n--- {'詳' * 290} ---\n\n対象: t\n（ほか 1 件）")
 
     def test_translated_words_are_escaped_for_the_surface_but_not_the_frames_or_the_colon(self) -> None:
-        words = card.Words(details="詳_細", target="対*象", more="[ほか {count} 件]")
+        words = card.Words("詳_細", "対*象", "[ほか {count} 件]", JAPANESE_CHARACTERS, JAPANESE_CHARACTERS)
         facts = (("A", "a"), ("B", "b"))
         self.assertEqual(
             card.build_message("T", ["x_y"], described(*facts), "discord", words),
@@ -720,13 +742,13 @@ class BuildMessageTest(unittest.TestCase):
         self.assertTrue(cut.startswith("T\n\n--- 詳\\_細 ---\n\nA: a\nB: bbbb"))
         self.assertTrue(cut.endswith("…\n\\[ほか 1 件\\]"))
         self.assertLessEqual(card.STRICTEST_SURFACE.measure(cut), 300)
-        angle = card.Words(details="<詳細>", target="<対象>", more="<ほか {count} 件>")
+        angle = card.Words("<詳細>", "<対象>", "<ほか {count} 件>", JAPANESE_CHARACTERS, JAPANESE_CHARACTERS)
         slack = card.build_message("T", ["x"], described(("A", "a"), ("B", "b" * 1000), ("C", "c")), "slack", angle)
         self.assertTrue(slack.startswith("T\n\n--- &lt;詳細&gt; ---\n\n&lt;対象&gt;: x\nA: a\nB: bbbb"))
         self.assertTrue(slack.endswith("…\n&lt;ほか 1 件&gt;"))
 
     def test_translated_words_are_marked(self) -> None:
-        words = card.Words(details="詳\u202e細", target="対\u200b象", more="ほか\u2066 {count}")
+        words = card.Words("詳\u202e細", "対\u200b象", "ほか\u2066 {count}", JAPANESE_CHARACTERS, JAPANESE_CHARACTERS)
         message = card.build_message("T", ["x"], described(("A", "a"), ("B", "b" * 1000), ("C", "c")), "telegram", words)
         self.assertTrue(message.startswith("T\n\n--- 詳<U+202E>細 ---\n\n対<U+200B>象: x\nA: a\nB: bbbb"))
         self.assertTrue(message.endswith("…\nほか<U+2066> 1"))

@@ -65,6 +65,24 @@ approval, listing, plugin, project, runtime, settings, skills, tools = (
 )
 
 
+card = importlib.import_module(f"{ROOT_NAME}.{IMPL}.card")
+
+JAPANESE_CHARACTERS = "（ほか {count} 文字）"
+JAPANESE = card.Words("詳細", "対象", "（ほか {count} 件）", JAPANESE_CHARACTERS, JAPANESE_CHARACTERS)
+
+
+def described(
+    *facts: tuple[str, str],
+    omitted: tuple[int, ...] = (),
+    text: tuple[str, str] | None = None,
+    text_omitted: int = 0,
+) -> object:
+    """A description without a headline, with the code points each fact's and the text's cut left out."""
+    return card.Description(
+        headline=None, facts=tuple(facts), text=text, fact_omitted=omitted, text_omitted=text_omitted
+    )
+
+
 def tool_entry(tool_id: str, toolset: str, write_class: str, title: str | None = None) -> dict[str, Any]:
     """One element of the array ``list`` answers with."""
     return {

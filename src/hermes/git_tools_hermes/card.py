@@ -17,6 +17,12 @@ TARGET_LABEL = "Target"
 #: The notice of the facts that are not shown, in English; ``{count}`` stands for how many.
 MORE_NOTICE = "(+{count} more)"
 
+#: The notice of the characters a cut value or text leaves out, in English, for one character; ``{count}`` stands for how many.
+MORE_CHARACTER_NOTICE = "(+{count} more character)"
+
+#: The same notice for any other count.
+MORE_CHARACTERS_NOTICE = "(+{count} more characters)"
+
 #: Where the number goes in the notice.
 COUNT_PLACEHOLDER = "{count}"
 
@@ -172,75 +178,100 @@ def visible(text: str, keep_newlines: bool = False) -> str:
 
 @dataclass(frozen=True)
 class Description:
-    """What a call carries: a headline, short ``(label, value)`` facts and a ``(label, body)`` text, as ``describe`` gave them."""
+    """What a call carries: a headline, short ``(label, value)`` facts and a ``(label, body)`` text, as ``describe`` gave them.
+
+    ``fact_omitted`` holds, per fact, the code points the tool's cut left out of its value, or is empty when no
+    value was cut; ``text_omitted`` is the same for the text (0 for none).
+    """
 
     headline: str | None
     facts: tuple[tuple[str, str], ...]
     text: tuple[str, str] | None
+    fact_omitted: tuple[int, ...] = ()
+    text_omitted: int = 0
 
 
-def _parse_fact(raw: Any) -> tuple[str, str] | None:
+def _parse_omitted(raw: Any) -> int:
+    """How many code points a cut left out: ``raw`` when it is a positive integer, else 0 (never an error)."""
+    return raw if isinstance(raw, int) and not isinstance(raw, bool) and raw > 0 else 0
+
+
+def _parse_fact(raw: Any) -> tuple[str, str, int] | None:
     if not isinstance(raw, dict):
         return None
     label, value = raw.get("label"), raw.get("value")
     if not isinstance(label, str) or not label.strip() or not isinstance(value, str):
         return None
-    return label, value
+    return label, value, _parse_omitted(raw.get("omitted"))
 
 
-def _parse_text(raw: Any) -> tuple[str, str] | None:
-    """The ``(label, body)`` of a text, or ``None`` for any other shape; an empty body is a text that says nothing."""
+def _parse_text(raw: Any) -> tuple[str, str, int] | None:
+    """The ``(label, body, omitted)`` of a text, or ``None`` for any other shape; an empty body is a text that says nothing."""
     if not isinstance(raw, dict):
         return None
     label, body = raw.get("label"), raw.get("body")
     if not isinstance(label, str) or not label.strip() or not isinstance(body, str):
         return None
-    return label, body
+    return label, body, _parse_omitted(raw.get("omitted"))
 
 
 def parse_description(raw: Any) -> Description | None:
     """The description the command line printed, or ``None`` for any other shape or for one that says nothing.
 
-    ``{"headline"?: str, "facts": [{"label": str, "value": str}, ...], "text"?: {"label": str, "body": str}}``;
-    extra keys are ignored. A headline that is not a non-blank string is
-    dropped alone; a bad fact or a bad text voids the whole description. The
-    command line has already marked every string; ``build_message`` marks
-    again, which changes nothing.
+    ``{"headline"?: str, "facts": [{"label": str, "value": str, "omitted"?: int}, ...], "text"?: {"label": str,
+    "body": str, "omitted"?: int}}``; extra keys are ignored. A headline that
+    is not a non-blank string is dropped alone, and so is an ``omitted`` that
+    is not a positive integer; a bad fact or a bad text voids the whole
+    description. The command line has already marked every string;
+    ``build_message`` marks again, which changes nothing.
     """
     if not isinstance(raw, dict) or not isinstance(raw.get("facts"), list):
         return None
     parsed = [_parse_fact(item) for item in raw["facts"]]
-    facts = tuple(fact for fact in parsed if fact is not None)
-    if len(facts) != len(parsed):
+    entries = [fact for fact in parsed if fact is not None]
+    if len(entries) != len(parsed):
         return None
+    facts = tuple((label, value) for label, value, _ in entries)
+    fact_omitted = tuple(omitted for _, _, omitted in entries)
     headline = raw.get("headline")
     headline = headline if isinstance(headline, str) and headline.strip() else None
     text = None
+    text_omitted = 0
     if "text" in raw:
-        text = _parse_text(raw["text"])
-        if text is None:
+        parsed_text = _parse_text(raw["text"])
+        if parsed_text is None:
             return None
+        text, text_omitted = parsed_text[:2], parsed_text[2]
     if text is not None and not text[1]:
-        text = None
+        text, text_omitted = None, 0
     if headline is None and not facts and text is None:
         return None
-    return Description(headline=headline, facts=facts, text=text)
+    return Description(
+        headline=headline,
+        facts=facts,
+        text=text,
+        fact_omitted=fact_omitted if any(fact_omitted) else (),
+        text_omitted=text_omitted,
+    )
 
 
 @dataclass(frozen=True)
 class Words:
-    """The plugin's own words of the card, in one language: the Details heading, the Target label and the notice.
+    """The plugin's own words of the card, in one language: the Details heading, the Target label and the notices.
 
-    ``more`` holds ``{count}`` once.
+    ``more`` (the facts not shown), ``more_character`` (one character a cut
+    left out) and ``more_characters`` (any other count) hold ``{count}`` once.
     """
 
     details: str
     target: str
     more: str
+    more_character: str
+    more_characters: str
 
 
 #: The words in English, which the card uses when the command line gave no others or gave bad ones.
-ENGLISH_WORDS = Words(DETAILS_HEADING, TARGET_LABEL, MORE_NOTICE)
+ENGLISH_WORDS = Words(DETAILS_HEADING, TARGET_LABEL, MORE_NOTICE, MORE_CHARACTER_NOTICE, MORE_CHARACTERS_NOTICE)
 
 
 def _is_word(raw: Any) -> bool:
@@ -261,18 +292,19 @@ def parse_line(raw: Any) -> str | None:
 
 
 def parse_words(raw: Any) -> Words:
-    """The words the command line printed, or the English ones when any of the three is missing or bad.
+    """The words the command line printed, or the English ones when any of the five is missing or bad.
 
-    ``{"details": str, "target": str, "more": str}`` with non-blank strings and
-    ``{count}`` once in ``more``; extra keys are ignored. The command line has
-    already marked every string; ``build_message`` marks again, which changes
-    nothing.
+    ``{"details": str, "target": str, "more": str, "more_character": str,
+    "more_characters": str}`` with non-blank strings and ``{count}`` once in
+    each notice; extra keys are ignored. The command line has already marked
+    every string; ``build_message`` marks again, which changes nothing.
     """
     if not isinstance(raw, dict) or not _is_word(raw.get("details")) or not _is_word(raw.get("target")):
         return ENGLISH_WORDS
-    if not _is_notice(raw.get("more")):
+    notices = ("more", "more_character", "more_characters")
+    if not all(_is_notice(raw.get(name)) for name in notices):
         return ENGLISH_WORDS
-    return Words(details=raw["details"], target=raw["target"], more=raw["more"])
+    return Words(details=raw["details"], target=raw["target"], **{name: raw[name] for name in notices})
 
 
 def _own_word(surface: Surface, word: str, english: str) -> str:
@@ -285,12 +317,20 @@ def _shown_words(surface: Surface, words: Words) -> Words:
         details=_own_word(surface, words.details, ENGLISH_WORDS.details),
         target=_own_word(surface, words.target, ENGLISH_WORDS.target),
         more=_own_word(surface, words.more, ENGLISH_WORDS.more),
+        more_character=_own_word(surface, words.more_character, ENGLISH_WORDS.more_character),
+        more_characters=_own_word(surface, words.more_characters, ENGLISH_WORDS.more_characters),
     )
 
 
 def _more(count: int, words: Words) -> list[str]:
     """The line that says how many facts are not shown, or no line when all are."""
     return [words.more.replace(COUNT_PLACEHOLDER, str(count))] if count else []
+
+
+def _characters_left_out(count: int, words: Words) -> str:
+    """The notice of the ``count`` characters a cut left out, in its singular form for one."""
+    notice = words.more_character if count == 1 else words.more_characters
+    return notice.replace(COUNT_PLACEHOLDER, str(count))
 
 
 def _fact_line(label: str, value: str) -> str:
@@ -302,19 +342,24 @@ def _section_heading(name: str) -> str:
 
 
 def _fit_facts(
-    surface: Surface, first: str, targets: list[str], facts: list[tuple[str, str]], words: Words
+    surface: Surface, first: str, targets: list[str], facts: list[tuple[str, str, int]], words: Words
 ) -> list[str]:
     """The head and as many of ``facts`` as fit the budget, in order, with a notice line (``words.more``) for the rest.
 
     The head is the first line, then the Details section's frame and the
     ``targets`` (never cut or dropped); with no target the frame comes only
     with a fact or the notice. ``first``, ``targets`` and ``words`` are
-    escaped; ``facts`` are marked and not escaped. The lines are escaped, and
-    the budget is measured on them as joined, with the words as given. N
-    counts the facts after the last one shown, whole or cut. When the head
-    alone is over the budget, or leaves no room for the notice, no fact is
-    shown and the notice still is, past the budget: facts are never left out
-    without a word.
+    escaped; ``facts`` are ``(label, value, left_out)``, marked and not
+    escaped. The lines are escaped, and the budget is measured on them as
+    joined, with the words as given. N counts the facts after the last one
+    shown, whole or cut. When the head alone is over the budget, or leaves no
+    room for the notice, no fact is shown and the notice still is, past the
+    budget: facts are never left out without a word.
+
+    A whole value the tool cut (``left_out`` characters) is followed by the
+    notice of those characters when the line still fits; a value the budget
+    cuts further ends in ``…`` alone, and a notice that does not fit is left
+    out before its fact is dropped.
     """
     budget = surface.budget
 
@@ -329,30 +374,43 @@ def _fit_facts(
     def escaped_fact(label: str, value: str) -> str:
         return surface.escape(_fact_line(label, value))
 
+    def lines_of(entries: list[tuple[str, str]]) -> list[str]:
+        return [line for line, _ in entries]
+
     head = compose([])
     if not fits(head):
         return compose(_more(len(facts), words))
-    shown: list[str] = []
+    # Each shown fact is its line and the line without the notice of the characters the tool left out.
+    shown: list[tuple[str, str]] = []
     omitted = 0
-    for index, (label, value) in enumerate(facts):
-        line = escaped_fact(label, value)
-        if fits(compose([*shown, line])):
-            shown.append(line)
+    for index, (label, value, left_out) in enumerate(facts):
+        bare = escaped_fact(label, value)
+        candidates = [f"{bare} {_characters_left_out(left_out, words)}", bare] if left_out else [bare]
+        whole = next((line for line in candidates if fits(compose([*lines_of(shown), line]))), None)
+        if whole is not None:
+            shown.append((whole, bare))
             continue
         rest = len(facts) - index - 1
-        cut = _cut_value(value, lambda part: fits(compose([*shown, escaped_fact(label, part), *_more(rest, words)])))
+        cut = _cut_value(
+            value, lambda part: fits(compose([*lines_of(shown), escaped_fact(label, part), *_more(rest, words)]))
+        )
         if cut is None:
             omitted = rest + 1
         else:
-            shown.append(escaped_fact(label, cut))
+            line = escaped_fact(label, cut)
+            shown.append((line, line))
             omitted = rest
         break
     else:
-        return compose(shown)
-    while shown and not fits(compose([*shown, *_more(omitted, words)])):
-        shown.pop()
-        omitted += 1
-    return compose([*shown, *_more(omitted, words)])
+        return compose(lines_of(shown))
+    while shown and not fits(compose([*lines_of(shown), *_more(omitted, words)])):
+        line, bare = shown[-1]
+        if line != bare:
+            shown[-1] = (bare, bare)
+        else:
+            shown.pop()
+            omitted += 1
+    return compose([*lines_of(shown), *_more(omitted, words)])
 
 
 def _cut_value(value: str, fits: Callable[[str], bool]) -> str | None:
@@ -393,10 +451,11 @@ def build_message(
     The headline (``stand_in`` without one: the line the caller chose, an
     intent or a title); a Details section with a ``Target`` line per resource,
     unless the only resource is ``*`` (what cannot be told), then one line per
-    fact; and the text under its own label. A
-    section with nothing to show is left out. The plugin's own words (the
-    Details heading, the ``Target`` label and the notice of the facts not
-    shown) are ``words``.
+    fact; and the text under its own label, followed by the notice of the
+    characters the tool's cut left out of it, if any. A section with nothing
+    to show is left out. The plugin's own words (the Details heading, the
+    ``Target`` label, the notice of the facts not shown and the notices of
+    the characters left out) are ``words``.
 
     Every piece that is not the plugin's own English words is made ``visible``
     and escaped for the surface named ``surface``, ``words`` of another
@@ -418,7 +477,10 @@ def build_message(
         # "always" answer stores, so they must stay in sight.
         if _head_fits(target, headline, targets, shown) or not _head_fits(target, first, targets, shown):
             first = headline
-    facts = [(visible(label), visible(value)) for label, value in description.facts] if description else []
+    facts = []
+    if description:
+        left_out = description.fact_omitted or (0,) * len(description.facts)
+        facts = [(visible(label), visible(value), count) for (label, value), count in zip(description.facts, left_out)]
     lines = _fit_facts(target, first, targets, facts, shown)
     if description and description.text is not None:
         label, body = description.text
@@ -428,4 +490,6 @@ def build_message(
             "",
             target.escape(visible(body, keep_newlines=True)),
         ]
+        if description.text_omitted:
+            lines.append(_characters_left_out(description.text_omitted, shown))
     return "\n".join(lines)

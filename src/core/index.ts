@@ -42,13 +42,16 @@ export {
 } from "./tool"
 export {
   HEADLINE_PLACEHOLDER,
+  MAX_FACTS,
   MAX_LABEL_LENGTH,
   MAX_TEXT_LABEL_LENGTH,
+  MAX_TEXT_LENGTH,
   MAX_VALUE_LENGTH,
   MAX_VALUE_TEMPLATE_LENGTH,
   callDescription,
   cut,
   cutDescription,
+  omittedBy,
   wholeCallDescription,
 } from "./describe"
 export { PIN_PATTERN, pinOf } from "./pin"

@@ -3,14 +3,15 @@ import {
   HEADLINE_PLACEHOLDER,
   MAX_LABEL_LENGTH,
   MAX_TEXT_LABEL_LENGTH,
+  MAX_TEXT_LENGTH,
   MAX_VALUE_LENGTH,
   MAX_VALUE_TEMPLATE_LENGTH,
   cut,
   cutDescription,
+  omittedBy,
   wholeCallDescription,
   type CallDescription,
   type CallHeadline,
-  type CallText,
   type CallValue,
   type ToolContext,
   type ToolSpec,
@@ -18,16 +19,31 @@ import {
 } from "../core"
 import { ANY_RESOURCE } from "./permission"
 import { visible } from "./visible"
-import { ENGLISH_PROMPT_WORDS, type PromptWords } from "./words"
+import { ENGLISH_PROMPT_WORDS, charactersLeftOut, type PromptWords } from "./words"
 
 /** How long a description may take, in milliseconds, before the prompt goes without one. */
 export const DESCRIBE_TIMEOUT_MS = 10_000
 
-/** A fact as the prompt shows it: its value filled in and the characters made `visible`. */
-export type ShownFact = { label: string; value: string }
+/**
+ * A fact as the prompt shows it: its value filled in and the characters made
+ * `visible`. `omitted` is there only when the value was cut: the code points
+ * of the value, as the tool gave it (for a template, the filled and
+ * translated value), that the cut to `MAX_VALUE_LENGTH` left out.
+ */
+export type ShownFact = { label: string; value: string; omitted?: number }
+
+/**
+ * A call's text as the prompt shows it. `omitted` is there only when the body
+ * was cut: the code points of the body that the cut to `MAX_TEXT_LENGTH` left
+ * out.
+ */
+export type ShownText = { label: string; body: string; omitted?: number }
 
 /** A call's description as the prompt shows it: the headline rendered to one line, the characters made `visible`. */
-export type ShownDescription = { headline?: string; facts: ShownFact[]; text?: CallText }
+export type ShownDescription = { headline?: string; facts: ShownFact[]; text?: ShownText }
+
+/** The `omitted` property of a shown fact or text: the count when it is above zero, else nothing. */
+const omittedOf = (count: number) => (count > 0 ? { omitted: count } : {})
 
 /** Quotes a headline value: `visible`, then `\` and `"` escaped, inside double quotes. */
 function quoted(value: string): string {
@@ -52,42 +68,50 @@ function renderedHeadline({ text, values = {} }: CallHeadline): string {
 }
 
 /**
- * A fact's value as the prompt shows it. A string is made `visible`. A value
- * template is translated, its placeholders are replaced by their values as
- * written (unquoted, a number by `String`), the whole is cut to
- * `MAX_VALUE_LENGTH` code points and then made `visible`: cutting the filled
- * value first never splits a `<U+XXXX>` mark.
+ * A fact's whole value as the prompt shows it, with what its cut left out.
+ * A string is cut to `MAX_VALUE_LENGTH` code points. A value template is
+ * translated, its placeholders are replaced by their values as written
+ * (unquoted, uncut, a number by `String`) and the whole is cut the same way.
+ * Either is then made `visible`: cutting first never splits a `<U+XXXX>`
+ * mark. `omitted` counts the code points of the string, or of the filled
+ * template, that the cut dropped.
  */
-function renderedValue(value: string | CallValue, t: Translator): string {
-  if (typeof value === "string") return visible(value)
-  const { text, values = {} } = value
-  const shown = filled(
-    t.template(text, MAX_VALUE_TEMPLATE_LENGTH),
-    (part) => part,
-    (name) => String(values[name] ?? ""),
-  )
-  return visible(cut(shown, MAX_VALUE_LENGTH))
+function renderedValue(value: string | CallValue, t: Translator): Pick<ShownFact, "value" | "omitted"> {
+  const whole =
+    typeof value === "string"
+      ? value
+      : filled(
+          t.template(value.text, MAX_VALUE_TEMPLATE_LENGTH),
+          (part) => part,
+          (name) => String(value.values?.[name] ?? ""),
+        )
+  return { value: visible(cut(whole, MAX_VALUE_LENGTH)), ...omittedOf(omittedBy(whole, MAX_VALUE_LENGTH)) }
 }
 
 /**
- * A description cut to the prompt's budgets (see `cutDescription`), with the
- * tool's words (the headline and value templates and the labels) translated,
- * the headline and the values rendered, and every label, value and text made
- * `visible`. The values and the text are the call's data and stay as they
- * are. The `pins` are never shown, so they are never copied.
+ * A whole description (see `wholeCallDescription`) as the prompt shows it,
+ * cut to the prompt's budgets, with the tool's words (the headline and value
+ * templates and the labels) translated, the headline and the values rendered,
+ * and every label, value and text made `visible`. The headline and the labels
+ * are cut by `cutDescription`; the values and the text are cut here from the
+ * whole, so `omitted` counts what the cut left out of them. They are the
+ * call's data and stay as they are. The `pins` are never shown, so they are
+ * never copied.
  */
 export function shownDescription(description: CallDescription, t: Translator): ShownDescription {
   const { headline, facts, text } = cutDescription(description)
+  const wholeBody = description.text?.body ?? ""
   return {
     ...(headline && { headline: renderedHeadline({ ...headline, text: t.template(headline.text) }) }),
-    facts: facts.map((fact) => ({
+    facts: facts.map((fact, index) => ({
       label: visible(t.word(fact.label, MAX_LABEL_LENGTH)),
-      value: renderedValue(fact.value, t),
+      ...renderedValue(description.facts[index]!.value, t),
     })),
     ...(text && {
       text: {
         label: visible(t.word(text.label, MAX_TEXT_LABEL_LENGTH)),
-        body: visible(text.body, { keepNewlines: true }),
+        body: visible(cut(wholeBody, MAX_TEXT_LENGTH), { keepNewlines: true }),
+        ...omittedOf(omittedBy(wholeBody, MAX_TEXT_LENGTH)),
       },
     }),
   }
@@ -173,11 +197,13 @@ export function standIn(spec: Pick<ToolSpec, "title" | "intent">, t: Translator)
  * plugin: the headline (`firstLine`, the stand-in, without one); a Details section with a
  * `Target` line per resource, unless the only resource is `*` (what cannot be
  * told), then one line per fact; and a section of the text under its own
- * label. A section with nothing to show is left out. The stand-in is the
- * caller's, already translated (see `standIn`); `words` are the plugin's own
- * words (see `promptWords`). The stand-in and the resources are made
- * `visible` here; the description comes from `permissionDescription`, which
- * has done the same.
+ * label. A section with nothing to show is left out. A fact whose value was
+ * cut ends its line with the notice of the characters left out, and a cut
+ * text is followed by the same notice on a line of its own (see
+ * `charactersLeftOut`). The stand-in is the caller's, already translated (see
+ * `standIn`); `words` are the plugin's own words (see `promptWords`). The
+ * stand-in and the resources are made `visible` here; the description comes
+ * from `permissionDescription`, which has done the same.
  */
 export function approvalPrompt(
   firstLine: string,
@@ -189,10 +215,17 @@ export function approvalPrompt(
     resources.length === 1 && resources[0] === ANY_RESOURCE
       ? []
       : resources.map((resource) => `${words.target}: ${visible(resource)}`)
-  const details = [...targets, ...(description?.facts ?? []).map(({ label, value }) => `${label}: ${value}`)]
+  const facts = (description?.facts ?? []).map(
+    ({ label, value, omitted }) => `${label}: ${value}${omitted ? ` ${charactersLeftOut(omitted, words)}` : ""}`,
+  )
+  const details = [...targets, ...facts]
 
   const lines = [description?.headline ?? visible(firstLine)]
   if (details.length > 0) lines.push("", sectionHeading(words.details), "", ...details)
-  if (description?.text) lines.push("", sectionHeading(description.text.label), "", description.text.body)
+  if (description?.text) {
+    const { label, body, omitted } = description.text
+    lines.push("", sectionHeading(label), "", body)
+    if (omitted) lines.push(charactersLeftOut(omitted, words))
+  }
   return lines.join("\n")
 }

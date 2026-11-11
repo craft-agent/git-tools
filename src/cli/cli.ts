@@ -218,11 +218,14 @@ function errorDetail(error: unknown): string {
  * answered with that `pin` is unchanged, else `stale` and nothing runs), and
  * `target` answers with what a call would write to (`{"resources": [...]}`), the tool's `title`, its `intent` when it
  * has one (`list` carries it too, in English), and the plugin's own
- * `words` (`{"details", "target", "more"}`) in the prompt language, plus a
- * `description` when the tool gives one:
- * `{"headline"?: string, "facts": [...], "text"?: {"label", "body"}}`, as the
- * approval prompt shows it (the words translated, the headline rendered,
- * hidden characters marked), and a `pin` (64 hex digits, independent of the
+ * `words` (`{"details", "target", "more", "more_character",
+ * "more_characters"}`, the last two the notices of characters left out, with a
+ * `{count}` placeholder) in the prompt language, plus a `description` when the
+ * tool gives one:
+ * `{"headline"?: string, "facts": [{"label", "value", "omitted"?}], "text"?: {"label", "body", "omitted"?}}`,
+ * as the approval prompt shows it (the words translated, the headline
+ * rendered, hidden characters marked; `omitted` is the number of code points
+ * a cut value or text left out, present only when it is above zero), and a `pin` (64 hex digits, independent of the
  * language) of that description and the resources when there is a description.
  * `target` takes `--language <tag>`, else `<envPrefix>_LANGUAGE`, else `--harness-language <tag>` (the harness's own
  * display language) as the prompt language; none, or one without a table,

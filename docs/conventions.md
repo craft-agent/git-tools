@@ -202,6 +202,17 @@ note`). The prompt shows it wherever no headline can stand: a tool without
   200 with at most eight values, the filled value cut to 200), and a text label of
   40 with a text of 2000; anything longer is cut with `…`. Nothing in the text
   can come before the facts, since the text is the last section.
+- **A cut text says how much it leaves out.** A `…` also ends many ordinary
+  messages, so it alone cannot tell a person that the text goes on, or how
+  far. A text cut at its 2000 characters is followed by a notice line,
+  `(+N more characters)`, and a fact's value cut at its 200 by the same
+  notice after it on its line, where the line still fits the budget; a value
+  the budget cuts further ends in `…` alone, since what it drops is no longer
+  counted in the tool's characters. N counts the code points left out of what
+  the tool gave, the unit the cut counts (`(+1 more character)` for one), and
+  the notice is the plugin's own words, translated like the facts' notice.
+  Only the head counts towards the budget, so the text's notice is lost
+  wherever the harness cuts the text, which then shows its own end mark.
 - **Characters other people wrote are shown, never obeyed.** A target's name
   or a file's name can hold control, bidi and invisible characters that
   forge a line of the prompt or hide part of a value; each is shown as
