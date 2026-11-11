@@ -118,6 +118,9 @@ STRICTEST_SURFACE = Surface(DISCORD_BUDGET, _telegram_units, _strictest_escape)
 #: A surface Hermes does not cut: the card is shown in full and as written.
 PLAIN_SURFACE = Surface(None, _characters, _identity)
 
+#: A surface Hermes names that the plugin does not know: Hermes does not cut it, but it may render markup.
+UNKNOWN_SURFACE = Surface(None, _characters, _strictest_escape)
+
 #: The surfaces the plugin knows, by name.
 KNOWN_SURFACES = {
     **{name: PLAIN_SURFACE for name in PLAIN_SURFACE_NAMES},
@@ -131,13 +134,13 @@ def surface_for(name: str | None) -> Surface:
     """The surface called ``name`` (any case).
 
     Hermes cuts the card only on the surfaces the plugin knows, so any other
-    name is a plain surface, since another surface's escapes would show there
-    as written. A card whose surface cannot be told (none, empty or not a
+    name gets no budget; it may still render markup, so it gets the strictest
+    escaping. A card whose surface cannot be told (none, empty or not a
     string) gets the strictest one.
     """
     if not isinstance(name, str) or not name:
         return STRICTEST_SURFACE
-    return KNOWN_SURFACES.get(name.lower(), PLAIN_SURFACE)
+    return KNOWN_SURFACES.get(name.lower(), UNKNOWN_SURFACE)
 
 
 def _mark(character: str) -> str:
