@@ -60,6 +60,16 @@ OpenCode allows any action no rule names, so the plugin's request is granted
 silently unless a rule says `ask`. Read tools never ask, so the `git_*` glob
 is safe.
 
+With the `worktree` toolset on and the profile not read-only, the V2 plugin
+also registers a worktree strategy, so OpenCode's own new worktree and removal
+follow the layout and the landed rule of the worktree tools: the name OpenCode
+asks for becomes the branch, and a removal git refuses for changed files offers
+OpenCode's force prompt where the harness supports it, while the tools
+themselves never force. After `git_worktree_add` or `git_worktree_remove` the
+plugin refreshes OpenCode's worktree list, so the change shows at once.
+OpenCode's built-in worktree tools are left as they are; turn them off with
+permission rules. V1 has no worktree strategies.
+
 V1 registers no skills. Unpack the package and copy its `skills/*` folders into
 `~/.config/opencode/skills/`:
 
