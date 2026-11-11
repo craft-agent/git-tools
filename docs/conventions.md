@@ -305,6 +305,12 @@ Every entry point takes the same settings:
 - **`language`** is the language of a native plugin's approval prompt (see
   "Write classes"); unset, the prompt follows the harness's display language
   or stays in English.
+- **`emoji`** maps a toolset name to the emoji the Hermes plugin shows beside
+  it, merged over the package's `TOOLSET_EMOJI`; `""` shows no emoji for that
+  toolset, and no other entry point shows an emoji. A value that is not a
+  mapping, an entry whose value is not a string, and a name that is no toolset
+  are ignored rather than refused: the setting only changes what is shown, so a
+  typo must not take every tool away.
 - **Options** are the package's own settings, the ones the tools themselves
   read, listed in `options` in `src/project.ts`. Each holds text and is named
   in snake_case; its flag is the name with `_` as `-`, its variable is

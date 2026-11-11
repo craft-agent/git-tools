@@ -298,6 +298,7 @@ variable, and an option or setting wins over the variable too.
 | `exclude_tools`        | `--exclude-tools`        | `GIT_TOOLS_EXCLUDE_TOOLS`        | single tools to remove by ID; wins over `tools` and `toolsets`                                             |
 | `confirm`              | `--confirm`              | `GIT_TOOLS_CONFIRM`              | MCP server only: `harness` (default) or `elicitation`, as the conventions say                              |
 | `language`             | `--language`             | `GIT_TOOLS_LANGUAGE`             | native plugins only: the approval prompt's language, such as `ja`                                          |
+| `emoji`                | —                        | —                                | Hermes only: the emoji shown beside each toolset, by toolset name (`""` for none)                          |
 | `published_text_rules` | `--published-text-rules` | `GIT_TOOLS_PUBLISHED_TEXT_RULES` | the absolute path of a JSON file of published-text rules (see the push toolset); unset, nothing is checked |
 | `worktree_root`        | `--worktree-root`        | `GIT_TOOLS_WORKTREE_ROOT`        | the absolute path where task worktrees go (`~` allowed); unset, `~/worktrees`                              |
 

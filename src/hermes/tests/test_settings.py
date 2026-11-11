@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import unittest
 from typing import Any
+from unittest import mock
 
 from support import StubContext, project, settings
 
@@ -105,6 +106,49 @@ class LanguageSettingTest(unittest.TestCase):
 
     def test_it_is_no_flag_of_list_or_run(self) -> None:
         self.assertEqual(settings.settings_flags(StubContext({"language": "ja"})), [])
+
+
+class EmojiSettingTest(unittest.TestCase):
+    def test_no_setting_returns_a_copy_of_the_package_defaults(self) -> None:
+        for defaults in ({}, {"things": "🧩", "widgets": "🔀"}):
+            with self.subTest(defaults=defaults), mock.patch.object(project, "TOOLSET_EMOJI", defaults):
+                result = settings.emoji_setting(StubContext())
+                self.assertEqual(result, defaults)
+                self.assertIsNot(result, defaults)
+
+    def test_explicit_defaults_are_copied(self) -> None:
+        defaults = {"things": "🧩", "widgets": "🔀"}
+        result = settings.emoji_setting(StubContext(), defaults=defaults)
+        self.assertEqual(result, defaults)
+        self.assertIsNot(result, defaults)
+
+    def test_overrides_replace_and_add_emoji_and_preserve_other_defaults(self) -> None:
+        defaults = {"things": "🧩", "widgets": "🔀"}
+        result = settings.emoji_setting(StubContext({"emoji": {"things": "🗒️", "items": "📦"}}), defaults)
+        self.assertEqual(result, {"things": "🗒️", "widgets": "🔀", "items": "📦"})
+        self.assertEqual(defaults, {"things": "🧩", "widgets": "🔀"})
+
+    def test_an_empty_string_removes_an_emoji(self) -> None:
+        result = settings.emoji_setting(StubContext({"emoji": {"things": ""}}), {"things": "🧩", "widgets": "🔀"})
+        self.assertEqual(result, {"things": "", "widgets": "🔀"})
+
+    def test_a_setting_that_is_not_a_dict_is_ignored(self) -> None:
+        defaults = {"things": "🧩", "widgets": "🔀"}
+        for value in (None, "🧩", ["things"], 3, True):
+            with self.subTest(value=value):
+                self.assertEqual(settings.emoji_setting(StubContext({"emoji": value}), defaults), defaults)
+
+    def test_entries_that_are_not_strings_are_ignored(self) -> None:
+        defaults = {"things": "🧩", "widgets": "🔀"}
+        for value in (None, 3, ["🧩"], True, {"a": "b"}):
+            with self.subTest(value=value):
+                result = settings.emoji_setting(StubContext({"emoji": {"things": value, "items": "📦"}}), defaults)
+                self.assertEqual(result, {"things": "🧩", "widgets": "🔀", "items": "📦"})
+        result = settings.emoji_setting(StubContext({"emoji": {1: "🧩", "items": "📦"}}), defaults)
+        self.assertEqual(result, {"things": "🧩", "widgets": "🔀", "items": "📦"})
+
+    def test_it_is_no_flag_of_list_or_run(self) -> None:
+        self.assertEqual(settings.settings_flags(StubContext({"emoji": {"things": "🗒️"}})), [])
 
 
 if __name__ == "__main__":

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import json
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from typing import Any
 
 from .approval import PIN_ARGUMENT, parse_pin, run_arguments
@@ -76,14 +76,21 @@ def make_handler(runtime: Runtime, tool_id: str, flags: list[str]) -> Callable[.
     return handler
 
 
-def register_tools(ctx: PluginContext, runtime: Runtime, tools: list[ToolInfo], flags: list[str]) -> None:
+def register_tools(
+    ctx: PluginContext,
+    runtime: Runtime,
+    tools: list[ToolInfo],
+    flags: list[str],
+    emoji: Mapping[str, str] | None = None,
+) -> None:
     """Register each listed tool under its own ID, grouped in one Hermes toolset per package toolset."""
+    toolset_emoji = TOOLSET_EMOJI if emoji is None else emoji
     for tool in tools:
         ctx.register_tool(
             name=tool.id,
             toolset=TOOLSET_PREFIX + tool.toolset.replace("_", "-"),
             schema={"name": tool.id, "description": tool.description, "parameters": tool.input_schema},
             handler=make_handler(runtime, tool.id, flags),
-            emoji=TOOLSET_EMOJI.get(tool.toolset, ""),
+            emoji=toolset_emoji.get(tool.toolset, ""),
             description=tool.title,
         )
