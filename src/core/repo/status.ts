@@ -1,7 +1,9 @@
-import { realpath, stat } from "node:fs/promises"
+import { stat } from "node:fs/promises"
 import { z } from "zod"
 import { git, gitResult } from "../git"
+import { realpathOrSelf } from "../paths"
 import { defaultBranchRef, gitPath, operationInProgress } from "../tree"
+import { branchName, listWorktrees } from "../worktrees"
 
 const LIST_MAX = 50
 
@@ -10,14 +12,6 @@ function capped<T>(items: T[]) {
     count: items.length,
     items: items.slice(0, LIST_MAX),
     truncated: items.length > LIST_MAX,
-  }
-}
-
-async function safeRealpath(path: string): Promise<string> {
-  try {
-    return await realpath(path)
-  } catch {
-    return path
   }
 }
 
@@ -143,25 +137,15 @@ type UnstagedItem = StatusResult["unstaged"]["items"][number]
 
 type WorktreeEntry = StatusResult["worktrees"][number]
 
-async function parseWorktrees(output: string, root: string): Promise<WorktreeEntry[]> {
-  const rootReal = await safeRealpath(root)
-  const blocks = output
-    .trim()
-    .split(/\r?\n\s*\r?\n/)
-    .filter(Boolean)
+async function readWorktrees(root: string, signal?: AbortSignal): Promise<WorktreeEntry[]> {
+  const rootReal = await realpathOrSelf(root)
   return Promise.all(
-    blocks.map(async (block): Promise<WorktreeEntry> => {
-      const entry: WorktreeEntry = { path: "", branch: null, head: null, current: false }
-      for (const rawLine of block.split(/\r?\n/)) {
-        const line = rawLine.trim()
-        if (line.startsWith("worktree ")) entry.path = line.slice(9)
-        else if (line.startsWith("HEAD ")) entry.head = line.slice(5)
-        else if (line.startsWith("branch ")) entry.branch = line.slice(7).replace(/^refs\/heads\//, "")
-        else if (line === "detached") entry.branch = null
-      }
-      entry.current = (await safeRealpath(entry.path)) === rootReal
-      return entry
-    }),
+    (await listWorktrees(root, signal)).map(async ({ path, branch, head }): Promise<WorktreeEntry> => ({
+      path,
+      branch: branchName(branch),
+      head,
+      current: (await realpathOrSelf(path)) === rootReal,
+    })),
   )
 }
 
@@ -301,11 +285,7 @@ export async function readStatus(root: string, signal?: AbortSignal): Promise<St
   })
   const rawStashes = parseSubjectLines(stashOutput).map(([ref, subject]) => ({ ref, subject }))
 
-  const worktreeOutput = await git(["worktree", "list", "--porcelain"], {
-    cwd: root,
-    signal,
-  })
-  const worktrees = await parseWorktrees(worktreeOutput, root)
+  const worktrees = await readWorktrees(root, signal)
 
   const fetchHead = await gitPath(root, "FETCH_HEAD", signal)
   let last_fetch: string | null = null

@@ -1,8 +1,9 @@
 import { afterEach, beforeEach, describe, expect, test } from "bun:test"
 import { mkdirSync, mkdtempSync, rmSync, symlinkSync } from "node:fs"
+import { realpath } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
-import { isWithin } from "./paths"
+import { isWithin, realpathOfExisting, realpathOrSelf } from "./paths"
 
 let root: string
 
@@ -39,5 +40,23 @@ describe("isWithin", () => {
   test("a path that cannot be resolved is not within", async () => {
     expect(await isWithin(join(root, "missing"), join(root, "inside"))).toBe(false)
     expect(await isWithin(join(root, "inside"), join(root, "missing"))).toBe(false)
+  })
+})
+
+describe("realpathOrSelf", () => {
+  test("resolves a link, and returns a path that does not exist as it is", async () => {
+    symlinkSync(join(root, "inside"), join(root, "link"))
+    expect(await realpathOrSelf(join(root, "link"))).toBe(await realpath(join(root, "inside")))
+    expect(await realpathOrSelf(join(root, "missing"))).toBe(join(root, "missing"))
+  })
+})
+
+describe("realpathOfExisting", () => {
+  test("resolves the part that exists and keeps the rest as written", async () => {
+    symlinkSync(join(root, "inside"), join(root, "link"))
+    const real = await realpath(join(root, "inside"))
+    expect(await realpathOfExisting(join(root, "link", "deeper"))).toBe(join(real, "deeper"))
+    expect(await realpathOfExisting(join(root, "link", "a", "b"))).toBe(join(real, "a", "b"))
+    expect(await realpathOfExisting(join(root, "missing"))).toBe(join(await realpath(root), "missing"))
   })
 })
