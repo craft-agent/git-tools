@@ -580,7 +580,8 @@ changes a rule above, it says so. The discussion behind them is on
 
 ### Settings of git-tools
 
-Beside the settings above:
+Beside the settings above, two options of type `text`, read as the "Options"
+bullet says:
 
 - **`worktree_root`** (the option of that name): where task worktrees go, an
   absolute path in which `~` stands for the home directory (`~` alone or a
