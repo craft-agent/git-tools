@@ -445,6 +445,22 @@ class ApprovalWordsTest(FakeCliCase):
             },
         )
 
+    def test_the_characters_a_cut_left_out_are_counted_in_the_words_of_the_answer(self) -> None:
+        description = {
+            "facts": [{"label": "サイズ", "value": "1 byte…", "omitted": 1}],
+            "text": {"label": "メモの本文", "body": "x…", "omitted": 12},
+        }
+        self.assertEqual(
+            self.answer(description=description, words=JAPANESE_WORDS)["message"],
+            f"{CREATE}\n\n--- 詳細 ---\n\n対象: target/one\nサイズ: 1 byte… （ほか 1 文字）"
+            "\n\n--- メモの本文 ---\n\nx…\n（ほか 12 文字）",
+        )
+        self.assertEqual(
+            self.answer(description=description)["message"],
+            f"{CREATE}{DETAILS}Target: target/one\nサイズ: 1 byte… (+1 more character)"
+            "\n\n--- メモの本文 ---\n\nx…\n(+12 more characters)",
+        )
+
     def test_without_a_title_or_words_the_card_is_the_english_one(self) -> None:
         decision = self.answer()
         self.assertEqual(
