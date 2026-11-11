@@ -18,6 +18,7 @@ provides_tools:
   - git_repo_read
   - git_worktree_add
   - git_worktree_read
+  - git_worktree_remove
 provides_hooks:
   - pre_tool_call
 config_schema:

@@ -416,7 +416,13 @@ changes a rule above, it says so. The discussion behind them is on
   GitHub remote, and 8 s to answer. A branch that is protected is a refusal. A
   read that fails (`gh` missing or not logged in, no access, a time-out, a
   branch GitHub does not have) is a warning, not a refusal: the rewrite stays
-  local, and GitHub refuses the force push itself.
+  local, and GitHub refuses the force push itself. The landed rule of removing
+  a worktree reads whether a branch was squash-merged with one `gh api graphql`
+  query for the branch's merged pull requests, under the same limit: a match is
+  a pull request of this repository whose head commit is the branch's tip,
+  onto any base, since a stack merged from its top records each lower layer as
+  merged into the branch below. A read that fails keeps the branch, with a
+  warning.
 - **A stack is read from ancestry, and no record of it is kept.** It is the
   current branch's line: the local branches between the remote default branch
   and the top, below the current one, on its tip, or above it, grouped by tip
@@ -524,6 +530,7 @@ changes a rule above, it says so. The discussion behind them is on
   | `Directory`         | where the commands run, when not the root | checking each commit                                      |
   | `On failure`        | `stop at the first failure`, or not       | checking each commit                                      |
   | `Time limit`        | `{seconds} s per run`                     | checking each commit                                      |
+  | `Ignored files`     | the ignored paths a removal loses         | removing a worktree                                       |
 
   A fact the person's answer turns on comes first: amending a commit the
   branch has pushed says so before anything else, since the next push must
@@ -545,7 +552,7 @@ changes a rule above, it says so. The discussion behind them is on
   | Code                    | When                                                                                                                                           |
   | ----------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
   | `not_a_repository`      | the working directory is not inside a git repository                                                                                           |
-  | `dirty_tree`            | uncommitted changes stand in the way of the operation                                                                                          |
+  | `dirty_tree`            | uncommitted changes, or commits no branch holds, stand in the way of the operation                                                             |
   | `operation_in_progress` | another rebase, merge or cherry-pick is in progress                                                                                            |
   | `rewrite_refused`       | the rewrite rule refuses to rewrite these commits                                                                                              |
   | `push_refused`          | the push would be refused: the default branch, an operation in progress, a protected branch, a remote commit not seen here; `details.refusals` |
