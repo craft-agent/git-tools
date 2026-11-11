@@ -9,7 +9,7 @@ export const PROJECT = {
   /** Every setting's environment variable is `<envPrefix>_<SETTING>`. */
   envPrefix: "GIT_TOOLS",
   /** The toolsets, in the order `all` lists them. */
-  toolsets: ["repo", "commit", "rebase", "push"] as readonly string[],
+  toolsets: ["repo", "commit", "rebase", "worktree", "push"] as readonly string[],
   /** The toolsets on when a setting names none. */
   defaultToolsets: ["repo", "commit", "rebase"] as readonly string[],
   /** The settings the tools themselves read, beside the ones every entry point takes; each holds text and is named in snake_case. */

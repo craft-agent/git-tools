@@ -16,6 +16,7 @@ provides_tools:
   - git_rebase_split
   - git_rebase_start
   - git_repo_read
+  - git_worktree_read
 provides_hooks:
   - pre_tool_call
 config_schema:

@@ -5,6 +5,7 @@ import { GIT_FACT_TRANSLATIONS } from "./core/git-facts"
 import { PUSH_TRANSLATIONS } from "./core/push/words"
 import { REBASE_TRANSLATIONS } from "./core/rebase/words"
 import { REPO_TRANSLATIONS } from "./core/repo/words"
+import { WORKTREE_TRANSLATIONS } from "./core/worktree/words"
 
 /** The translations of every tool's words, per language, which the native plugins use in their approval prompts. */
 export const ALL_TRANSLATIONS: Translations = mergeTranslations(
@@ -13,5 +14,6 @@ export const ALL_TRANSLATIONS: Translations = mergeTranslations(
   REPO_TRANSLATIONS,
   COMMIT_TRANSLATIONS,
   REBASE_TRANSLATIONS,
+  WORKTREE_TRANSLATIONS,
   PUSH_TRANSLATIONS,
 )
