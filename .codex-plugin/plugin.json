@@ -8,7 +8,7 @@
   },
   "homepage": "https://github.com/craft-agent/git-tools#readme",
   "repository": "https://github.com/craft-agent/git-tools",
-  "license": "MIT",
+  "license": "LicenseRef-AGPL-3.0-Commons-Clause",
   "skills": "./skills",
   "mcpServers": {
     "git-tools": {

@@ -3,7 +3,7 @@
   "version": "0.0.0",
   "description": "Git tools for coding agents: state, commits, rewrites and stacked branches, worktrees and pushing.",
   "author": "craftsamo",
-  "license": "MIT",
+  "license": "LicenseRef-AGPL-3.0-Commons-Clause",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/craft-agent/git-tools.git"
