@@ -16,7 +16,7 @@ const COMMITS_MAX = 30
 const OUTPUT_TAIL_LINES = 40
 const TIMEOUT_DEFAULT_SEC = 600
 const TIMEOUT_MAX_SEC = 3600
-const TEMP_DIR_PREFIX = "git-tools-verify-"
+const TEMP_DIR_PREFIX = "commit-verify-"
 const MS_PER_SECOND = 1000
 const MS_PER_TENTH = 100
 
