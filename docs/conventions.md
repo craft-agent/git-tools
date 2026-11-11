@@ -208,9 +208,12 @@ note`). The prompt shows it wherever no headline can stand: a tool without
   `<U+XXXX>`, and a quote inside a headline value as `\"`. Where the prompt
   renders markup, everything but the plugin's own section lines is escaped,
   so a name cannot draw a link or a mention. The budget and the escaping are
-  those of the surface the harness names: a surface it names that the plugin
-  does not know is one the harness does not cut, and gets neither, since
-  another surface's escapes would show there as written. Only a prompt whose
+  those of the surface the harness names. A surface the harness shows as
+  written, such as its own clients, gets neither. A surface it names that the
+  plugin does not know is one the harness does not cut, so it gets no budget,
+  but it may render markup the plugin cannot tell, so it gets the strictest
+  escaping of all: an escape shown as written reads as a stray backslash,
+  while a name left unescaped can draw a link or a mention. A prompt whose
   surface cannot be told gets the strictest budget and escaping of all.
 - **A description never stands between a call and its approval.** A tool
   without `describe`, a `describe` that fails, returns another shape or takes
