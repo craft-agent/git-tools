@@ -11,8 +11,9 @@ card = importlib.import_module(f"{ROOT_NAME}.{IMPL}.card")
 
 TITLE = "Create a thing"
 BUDGETED = ("telegram", "slack", "discord", None)
-PLAIN = ("cli", "tui", "desktop", "acp", "whatsapp")
-ALL_SURFACES = (*PLAIN, *BUDGETED)
+PLAIN = ("cli", "tui", "desktop", "acp")
+UNKNOWN = ("whatsapp", "unheard-of")
+ALL_SURFACES = (*PLAIN, *UNKNOWN, *BUDGETED)
 DETAILS = "\n\n--- Details ---\n\n"
 JAPANESE = card.Words(details="詳細", target="対象", more="（ほか {count} 件）")
 
@@ -213,13 +214,25 @@ class ParseWordsTest(unittest.TestCase):
 
 
 class SurfaceTest(unittest.TestCase):
-    def test_the_surfaces_hermes_does_not_cut_have_no_budget_and_no_escaping(self) -> None:
-        for name in (*PLAIN, "unheard-of", "Matrix"):
+    def test_hermes_own_clients_have_no_budget_and_no_escaping(self) -> None:
+        for name in PLAIN:
             with self.subTest(name=name):
                 surface = card.surface_for(name)
                 self.assertIs(surface, card.PLAIN_SURFACE)
                 self.assertIsNone(surface.budget)
                 self.assertEqual(surface.escape("<&>[x](y) @everyone a-b"), "<&>[x](y) @everyone a-b")
+
+    def test_a_named_surface_the_plugin_does_not_know_has_no_budget_and_the_strictest_escaping(self) -> None:
+        for name in ("unheard-of", "Matrix", "feishu"):
+            with self.subTest(name=name):
+                surface = card.surface_for(name)
+                self.assertIs(surface, card.UNKNOWN_SURFACE)
+                self.assertIsNone(surface.budget)
+                self.assertEqual(surface.measure("😀&"), 2)
+                self.assertEqual(
+                    surface.escape("[report](https://example.com) @room <a>"),
+                    "\\[report\\]\\(https://example.com\\) \\@room &lt;a&gt;",
+                )
 
     def test_telegram_measures_the_html_escaped_text_in_utf16_units_and_escapes_nothing(self) -> None:
         surface = card.surface_for("telegram")
@@ -435,7 +448,7 @@ class BuildMessageTest(unittest.TestCase):
 
     def test_a_surface_hermes_does_not_cut_shows_every_fact_as_written(self) -> None:
         facts = [(f"Label {n}", "[v]" * 30) for n in range(20)]
-        for surface in ("desktop", "acp", "whatsapp", "unheard-of"):
+        for surface in ("desktop", "acp"):
             with self.subTest(surface=surface):
                 message = card.build_message(TITLE, ["a-b", "c#(d)"], described(*facts), surface)
                 self.assertEqual(
@@ -445,6 +458,25 @@ class BuildMessageTest(unittest.TestCase):
                         + [f"{label}: {value}" for label, value in facts]
                     ),
                 )
+
+    def test_a_surface_the_plugin_does_not_know_shows_every_fact_escaped(self) -> None:
+        facts = [(f"Label {n}", "[v]" * 30) for n in range(20)]
+        escaped = "\\[v\\]" * 30
+        targets = ["a-b", "[report](https://example.com)"]
+        for surface in UNKNOWN:
+            with self.subTest(surface=surface):
+                message = card.build_message(TITLE, targets, described(*facts), surface)
+                self.assertEqual(
+                    message,
+                    "\n".join(
+                        [TITLE, "", "--- Details ---", "", "Target: a\\-b", "Target: \\[report\\]\\(https://example.com\\)"]
+                        + [f"{label}: {escaped}" for label, _ in facts]
+                    ),
+                )
+
+    def test_a_mention_in_a_value_cannot_notify_on_a_surface_the_plugin_does_not_know(self) -> None:
+        message = card.build_message(TITLE, ["@room"], described(("Chat", "@everyone <!channel>")), "matrix")
+        self.assertEqual(message, f"{TITLE}{DETAILS}Target: \\@room\nChat: \\@everyone &lt;!channel&gt;")
 
     def test_a_missing_surface_gets_the_strictest_rules_and_budget(self) -> None:
         facts = [(f"Label {n}", "[v]" * 30) for n in range(20)]
