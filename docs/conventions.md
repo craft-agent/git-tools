@@ -196,7 +196,9 @@ note`). The prompt shows it wherever no headline can stand: a tool without
   target past the cut gives way to the intent, since the targets are what an
   "always" answer stores. Facts that do not fit are counted on a notice
   line, which stays even when the head alone fills the budget: a person
-  must know that something was left out. A description keeps a
+  must know that something was left out. The facts a description drops past
+  its eighth are counted on the same line, `(+N more)` after the facts, in
+  every prompt, budget or none. A description keeps a
   headline template of 120 characters with values of 80, its first eight
   facts with labels of 40 characters and values of 200 (a value template of
   200 with at most eight values, the filled value cut to 200), and a text label of

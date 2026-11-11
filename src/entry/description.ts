@@ -19,7 +19,7 @@ import {
 } from "../core"
 import { ANY_RESOURCE } from "./permission"
 import { visible } from "./visible"
-import { ENGLISH_PROMPT_WORDS, charactersLeftOut, type PromptWords } from "./words"
+import { ENGLISH_PROMPT_WORDS, charactersLeftOut, factsLeftOut, type PromptWords } from "./words"
 
 /** How long a description may take, in milliseconds, before the prompt goes without one. */
 export const DESCRIBE_TIMEOUT_MS = 10_000
@@ -39,8 +39,12 @@ export type ShownFact = { label: string; value: string; omitted?: number }
  */
 export type ShownText = { label: string; body: string; omitted?: number }
 
-/** A call's description as the prompt shows it: the headline rendered to one line, the characters made `visible`. */
-export type ShownDescription = { headline?: string; facts: ShownFact[]; text?: ShownText }
+/**
+ * A call's description as the prompt shows it: the headline rendered to one
+ * line, the characters made `visible`. `dropped` is there only when the tool
+ * gave more than `MAX_FACTS` facts: how many it dropped past them.
+ */
+export type ShownDescription = { headline?: string; facts: ShownFact[]; dropped?: number; text?: ShownText }
 
 /** The `omitted` property of a shown fact or text: the count when it is above zero, else nothing. */
 const omittedOf = (count: number) => (count > 0 ? { omitted: count } : {})
@@ -94,19 +98,21 @@ function renderedValue(value: string | CallValue, t: Translator): Pick<ShownFact
  * templates and the labels) translated, the headline and the values rendered,
  * and every label, value and text made `visible`. The headline and the labels
  * are cut by `cutDescription`; the values and the text are cut here from the
- * whole, so `omitted` counts what the cut left out of them. They are the
- * call's data and stay as they are. The `pins` are never shown, so they are
- * never copied.
+ * whole, so `omitted` counts what the cut left out of them, and `dropped`
+ * counts the facts past `MAX_FACTS`. They are the call's data and stay as
+ * they are. The `pins` are never shown, so they are never copied.
  */
 export function shownDescription(description: CallDescription, t: Translator): ShownDescription {
   const { headline, facts, text } = cutDescription(description)
   const wholeBody = description.text?.body ?? ""
+  const dropped = description.facts.length - facts.length
   return {
     ...(headline && { headline: renderedHeadline({ ...headline, text: t.template(headline.text) }) }),
     facts: facts.map((fact, index) => ({
       label: visible(t.word(fact.label, MAX_LABEL_LENGTH)),
       ...renderedValue(description.facts[index]!.value, t),
     })),
+    ...(dropped > 0 && { dropped }),
     ...(text && {
       text: {
         label: visible(t.word(text.label, MAX_TEXT_LABEL_LENGTH)),
@@ -196,7 +202,8 @@ export function standIn(spec: Pick<ToolSpec, "title" | "intent">, t: Translator)
  * The whole text of an approval prompt, in the one shape of every native
  * plugin: the headline (`firstLine`, the stand-in, without one); a Details section with a
  * `Target` line per resource, unless the only resource is `*` (what cannot be
- * told), then one line per fact; and a section of the text under its own
+ * told), then one line per fact and the notice of the facts dropped past the
+ * eighth (`factsLeftOut`), if any; and a section of the text under its own
  * label. A section with nothing to show is left out. A fact whose value was
  * cut ends its line with the notice of the characters left out, and a cut
  * text is followed by the same notice on a line of its own (see
@@ -218,7 +225,8 @@ export function approvalPrompt(
   const facts = (description?.facts ?? []).map(
     ({ label, value, omitted }) => `${label}: ${value}${omitted ? ` ${charactersLeftOut(omitted, words)}` : ""}`,
   )
-  const details = [...targets, ...facts]
+  const dropped = description?.dropped ? [factsLeftOut(description.dropped, words)] : []
+  const details = [...targets, ...facts, ...dropped]
 
   const lines = [description?.headline ?? visible(firstLine)]
   if (details.length > 0) lines.push("", sectionHeading(words.details), "", ...details)
