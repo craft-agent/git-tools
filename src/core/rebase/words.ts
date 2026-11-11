@@ -23,7 +23,6 @@ export const REBASE_TRANSLATIONS: Translations = {
     "About to add the layer {name} on {branch}": "{branch} の上にレイヤー {name} を追加しようとしています",
     "About to cut {branch} into {layers} layers and add {name} on top":
       "{branch} を {layers} 個のレイヤーに分割し、最上段に {name} を追加しようとしています",
-    "New branches": "新しいブランチ",
     "{name} on top": "最上段に {name}",
     "{cuts}; {name} on top": "{cuts}、最上段に {name}",
   },

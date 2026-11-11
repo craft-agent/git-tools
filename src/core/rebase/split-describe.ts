@@ -1,10 +1,7 @@
-import { commitsFact } from "../git-facts"
+import { commitsFact, NEW_BRANCHES_LABEL } from "../git-facts"
 import { shortSha } from "../rewrite"
 import type { CallDescription, CallFact, CallHeadline } from "../tool"
 import type { SplitPlan } from "./split-plan"
-
-/** The label of the fact that lists the branches the call creates. */
-const NEW_BRANCHES_LABEL = "New branches"
 
 /** The separator between the new branches of the `New branches` fact. */
 const BRANCH_SEPARATOR = "; "
