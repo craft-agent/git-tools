@@ -125,7 +125,9 @@ class HandlerTest(FakeCliCase):
         self.assertIn("did not finish", result["error"])
 
     def test_a_cli_that_cannot_start_is_an_error_result(self) -> None:
-        broken = runtime.Runtime(node=str(self.dir / "no-node"), cli=FAKE_CLI, skills_dir=self.skills_dir)
+        broken = runtime.Runtime(
+            node=str(self.dir / "no-node"), cli=FAKE_CLI, skills_dir=self.skills_dir, find_node=lambda: None
+        )
         result = json.loads(tools.make_handler(broken, "demo_thing_create", [])({}))
         self.assertIn("could not be started", result["error"])
 

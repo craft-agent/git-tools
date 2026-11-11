@@ -75,7 +75,9 @@ class ListingTest(FakeCliCase):
             self.assert_registers_nothing(ctx, logs)
 
     def test_a_cli_that_cannot_start_registers_nothing(self) -> None:
-        self.runtime = runtime.Runtime(node=str(self.dir / "no-node"), cli=FAKE_CLI, skills_dir=self.skills_dir)
+        self.runtime = runtime.Runtime(
+            node=str(self.dir / "no-node"), cli=FAKE_CLI, skills_dir=self.skills_dir, find_node=lambda: None
+        )
         with self.assertLogs(plugin.logger, "WARNING") as logs:
             ctx = self.register()
             self.assert_registers_nothing(ctx, logs)

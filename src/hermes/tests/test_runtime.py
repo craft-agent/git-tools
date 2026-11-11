@@ -14,7 +14,7 @@ from pathlib import Path
 from typing import Any
 from unittest import mock
 
-from support import ROOT, FakeCliCase, runtime, tools
+from support import FAKE_CLI, ROOT, FakeCliCase, runtime, tools
 
 
 class RuntimeTest(unittest.TestCase):
@@ -127,6 +127,68 @@ class ProcessGroupTest(FakeCliCase):
         result = self.run_until_timeout(ignore_sigterm=True)
         self.assertIn("did not finish", result["error"])
         self.assert_all_stopped(self.pids())
+
+
+class NodeGoneTest(FakeCliCase):
+    """A call whose recorded node was removed while Hermes ran looks for node again before it fails."""
+
+    def gone_runtime(self, *found: Any) -> tuple[Any, mock.Mock]:
+        lookup = mock.Mock(side_effect=list(found))
+        gone = runtime.Runtime(node=str(self.dir / "gone" / "node"), cli=FAKE_CLI, skills_dir=self.skills_dir)
+        gone.find_node = lookup
+        self.write_fixture()
+        return gone, lookup
+
+    def test_a_gone_node_is_found_again_and_kept(self) -> None:
+        gone, lookup = self.gone_runtime(sys.executable)
+        self.assertEqual(gone.run(["list"], timeout=10).code, 0)
+        self.assertEqual(gone.node, sys.executable)
+        self.assertEqual(gone.run(["list"], timeout=10).code, 0)
+        self.assertEqual(lookup.call_count, 1)
+        self.assertEqual([call["argv"] for call in self.calls()], [["list"], ["list"]])
+
+    def test_without_another_node_the_error_names_the_gone_node_and_the_fix(self) -> None:
+        for found in (None, "", RuntimeError("pm is not set up")):
+            with self.subTest(found=found):
+                gone, lookup = self.gone_runtime(found)
+                before = gone.node
+                with self.assertRaises(runtime.CliError) as raised:
+                    gone.run(["list"], timeout=10)
+                self.assertIn(f"node is gone from {before}", str(raised.exception))
+                self.assertIn("install Node.js 24 or later, then restart Hermes", str(raised.exception))
+                self.assertEqual(gone.node, before)
+                self.assertEqual(lookup.call_count, 1)
+
+    def test_a_lookup_that_finds_the_same_gone_node_finds_none(self) -> None:
+        gone, _ = self.gone_runtime(str(self.dir / "gone" / "node"))
+        with self.assertRaisesRegex(runtime.CliError, "node is gone from"):
+            gone.run(["list"], timeout=10)
+
+    def test_a_node_that_is_there_but_cannot_start_is_not_looked_for_again(self) -> None:
+        unrunnable = self.dir / "node"
+        unrunnable.write_text("", encoding="utf-8")
+        unrunnable.chmod(0o644)
+        lookup = mock.Mock(return_value=sys.executable)
+        broken = runtime.Runtime(node=str(unrunnable), cli=FAKE_CLI, skills_dir=self.skills_dir, find_node=lookup)
+        with self.assertRaisesRegex(runtime.CliError, "could not be started: .*Errno"):
+            broken.run(["list"], timeout=10)
+        lookup.assert_not_called()
+        self.assertEqual(broken.node, str(unrunnable))
+
+    def test_a_node_another_call_found_again_is_taken_without_looking(self) -> None:
+        gone, lookup = self.gone_runtime()
+        old = gone.node
+        gone.node = sys.executable
+        self.assertEqual(gone._find_again(old), sys.executable)
+        lookup.assert_not_called()
+
+    def test_the_default_lookup_is_the_plugins(self) -> None:
+        gone = runtime.Runtime(node=str(self.dir / "gone" / "node"), cli=FAKE_CLI, skills_dir=self.skills_dir)
+        self.write_fixture()
+        with mock.patch.object(runtime, "_find_node", return_value=sys.executable) as lookup:
+            self.assertEqual(gone.run(["list"], timeout=10).code, 0)
+        lookup.assert_called_once_with()
+        self.assertEqual(gone.node, sys.executable)
 
 
 if __name__ == "__main__":

@@ -119,6 +119,10 @@ hermes plugins enable git-tools
 If a Hermes gateway is already running, restart it (`hermes gateway restart`) to
 load the plugin.
 
+The plugin runs the Node it found when Hermes started. If a version manager
+removes that version while Hermes runs, a call looks for Node again; when it
+finds none, restart Hermes from a shell where `node` runs.
+
 ### Any other MCP host
 
 Add the server to the host's MCP configuration. Flags go in `args`:

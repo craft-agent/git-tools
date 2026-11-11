@@ -313,7 +313,9 @@ class ApprovalHookTest(FakeCliCase):
         with mock.patch.object(approval, "TARGET_TIMEOUT_SECONDS", 0.3):
             decision = hook(tool_name="demo_widget_update", args={})
         self.assertRegex(decision["rule_key"], rf"^{re.escape(key('demo_widget_update', '*'))}:once-[0-9a-f]{{32}}$")
-        broken = runtime.Runtime(node=str(self.dir / "no-node"), cli=FAKE_CLI, skills_dir=self.skills_dir)
+        broken = runtime.Runtime(
+            node=str(self.dir / "no-node"), cli=FAKE_CLI, skills_dir=self.skills_dir, find_node=lambda: None
+        )
         tool = listing.ToolInfo.from_listing(LISTING[2])
         decision = approval.make_hook(broken, [tool])(tool_name="demo_widget_update", args={})
         self.assertRegex(decision["rule_key"], rf"^{re.escape(key('demo_widget_update', '*'))}:once-[0-9a-f]{{32}}$")
