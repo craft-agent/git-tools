@@ -11,6 +11,7 @@ import {
   type PluginDeps,
 } from "./shared"
 import type { OpenCodePlugin, V2Context, V2Tool, V2ToolContext, V2ToolResult } from "./types"
+import { changesWorktrees, refreshWorktrees, registerWorktreeStrategy } from "./worktrees"
 
 /** The directory of a session, or `undefined` when the harness cannot name it. */
 async function sessionDirectory(ctx: V2Context, sessionID: string): Promise<string | undefined> {
@@ -55,6 +56,7 @@ function v2Tool(
         })
       }
       const result = await runTool(spec, input, { cwd: directory ?? process.cwd(), ownDir, options, signal }, pin)
+      if (changesWorktrees(spec)) await refreshWorktrees(ctx, sessionID)
       return { content: JSON.stringify(result), output: result }
     },
   }
@@ -64,7 +66,8 @@ function v2Tool(
  * The `setup` of the OpenCode V2 plugin: registers the tools the plugin
  * options select, each asking the harness's permission before a non-read call,
  * and the package's skills, those linked to a toolset only when the options
- * leave that toolset a selected tool. A settings mistake throws, so the
+ * leave that toolset a selected tool, and a worktree strategy when a selected
+ * tool of the worktree toolset writes. A settings mistake throws, so the
  * harness reports the plugin as failed.
  */
 export function createV2Setup(specs: ToolSpec[], deps: PluginDeps = {}): OpenCodePlugin["setup"] {
@@ -86,5 +89,6 @@ export function createV2Setup(specs: ToolSpec[], deps: PluginDeps = {}): OpenCod
         for (const skill of skills) editor.add(skill)
       })
     }
+    await registerWorktreeStrategy(ctx, selected, deps)
   }
 }

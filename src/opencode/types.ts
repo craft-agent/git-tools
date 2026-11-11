@@ -48,17 +48,40 @@ export type V2Skill = {
 /** Mirrors the V2 `ctx.tool.transform` and `ctx.skill.transform` registration, reduced to `add`. */
 export type V2Transform<Item> = (callback: (editor: { add(item: Item): void }) => void) => Promise<unknown>
 
+/** Mirrors an entry a strategy's `list` returns: the project's root directory or one of its worktrees. */
+export type V2WorktreeEntry = {
+  directory: string
+  type: "root" | "worktree"
+}
+
+/** Mirrors the `WorktreeDefinition` a V2 `WorktreeEditor.add` takes (`@opencode/plugin`, promise API). */
+export type V2WorktreeDefinition = {
+  id: string
+  /** `directory` is where OpenCode suggests the worktree goes; `branch` is the starting ref, not a branch name. */
+  create(input: { sourceDirectory: string; directory: string; branch?: string }): Promise<{ directory: string }>
+  remove(input: { directory: string; force: boolean }): Promise<void>
+  list(sourceDirectory: string): Promise<V2WorktreeEntry[]>
+}
+
+/** Mirrors the `Worktree.OperationError` class newer releases of `@opencode/plugin` export. */
+export type V2OperationError = new (input: { message: string; forceRequired?: boolean }) => Error
+
 /** Mirrors the context a V2 plugin's `setup` receives (`@opencode/plugin`, promise API). */
 export type V2Context = {
   options?: PluginOptions
   session: {
-    get(input: { sessionID: string }): Promise<{ location?: { directory?: string } }>
+    get(input: { sessionID: string }): Promise<{ projectID?: string; location?: { directory?: string } }>
   }
   permission: {
     assert(input: V2PermissionRequest): Promise<void>
   }
   tool: { transform: V2Transform<V2Tool> }
   skill: { transform: V2Transform<V2Skill> }
+  /** Absent in a harness that predates worktree strategies. */
+  worktree?: {
+    transform?: V2Transform<V2WorktreeDefinition>
+    refresh?(input: { projectID: string }): Promise<unknown>
+  }
 }
 
 /** Mirrors the `ask` input of the V1 tool context (`@opencode-ai/plugin`). */
