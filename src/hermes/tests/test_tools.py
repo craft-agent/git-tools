@@ -51,6 +51,40 @@ class RegisterTest(FakeCliCase):
             self.assertEqual(ctx.tools["demo_widget_update"]["emoji"], "🔀")
             self.assertEqual(ctx.tools["demo_item_add"]["emoji"], "")
 
+    def test_emoji_setting_overrides_and_adds_toolset_emoji(self) -> None:
+        with mock.patch.dict(tools.TOOLSET_EMOJI, {"things": "🧩", "widgets": "🔀"}):
+            ctx = self.register(config={"emoji": {"things": "🗒️", "items": "📦"}})
+        self.assertEqual(ctx.tools["demo_thing_read"]["emoji"], "🗒️")
+        self.assertEqual(ctx.tools["demo_thing_create"]["emoji"], "🗒️")
+        self.assertEqual(ctx.tools["demo_widget_update"]["emoji"], "🔀")
+        self.assertEqual(ctx.tools["demo_item_add"]["emoji"], "📦")
+
+    def test_an_empty_emoji_setting_removes_the_toolset_emoji(self) -> None:
+        with mock.patch.dict(tools.TOOLSET_EMOJI, {"things": "🧩", "widgets": "🔀"}):
+            ctx = self.register(config={"emoji": {"things": ""}})
+        self.assertEqual(ctx.tools["demo_thing_read"]["emoji"], "")
+        self.assertEqual(ctx.tools["demo_thing_create"]["emoji"], "")
+        self.assertEqual(ctx.tools["demo_widget_update"]["emoji"], "🔀")
+
+    def test_wrong_emoji_types_leave_package_emoji_and_register_every_tool(self) -> None:
+        for value in ("🗒️", ["things"], 3, {"things": 3, "widgets": None, "items": ["📦"]}):
+            with self.subTest(value=value), mock.patch.dict(tools.TOOLSET_EMOJI, {"things": "🧩", "widgets": "🔀"}):
+                ctx = self.register(config={"emoji": value})
+                self.assertEqual(list(ctx.tools), [entry["id"] for entry in LISTING])
+                self.assertEqual(ctx.tools["demo_thing_read"]["emoji"], "🧩")
+                self.assertEqual(ctx.tools["demo_thing_create"]["emoji"], "🧩")
+                self.assertEqual(ctx.tools["demo_widget_update"]["emoji"], "🔀")
+                self.assertEqual(ctx.tools["demo_item_add"]["emoji"], "")
+
+    def test_unknown_toolset_emoji_is_ignored(self) -> None:
+        with mock.patch.dict(tools.TOOLSET_EMOJI, {"things": "🧩", "widgets": "🔀"}):
+            ctx = self.register(config={"emoji": {"unknown": "❓", "things": "🗒️"}})
+        self.assertEqual(list(ctx.tools), [entry["id"] for entry in LISTING])
+        self.assertEqual(ctx.tools["demo_thing_read"]["emoji"], "🗒️")
+        self.assertEqual(ctx.tools["demo_thing_create"]["emoji"], "🗒️")
+        self.assertEqual(ctx.tools["demo_widget_update"]["emoji"], "🔀")
+        self.assertNotIn("❓", [tool["emoji"] for tool in ctx.tools.values()])
+
     def test_registers_the_approval_hook_on_pre_tool_call(self) -> None:
         ctx = self.register()
         self.assertEqual([name for name, _ in ctx.hooks], ["pre_tool_call", "pre_tool_call"])
