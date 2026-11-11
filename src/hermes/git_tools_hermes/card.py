@@ -181,7 +181,8 @@ class Description:
     """What a call carries: a headline, short ``(label, value)`` facts and a ``(label, body)`` text, as ``describe`` gave them.
 
     ``fact_omitted`` holds, per fact, the code points the tool's cut left out of its value, or is empty when no
-    value was cut; ``text_omitted`` is the same for the text (0 for none).
+    value was cut; ``text_omitted`` is the same for the text (0 for none). ``dropped`` counts the facts the tool's
+    description left out past the eighth (0 for none).
     """
 
     headline: str | None
@@ -189,10 +190,11 @@ class Description:
     text: tuple[str, str] | None
     fact_omitted: tuple[int, ...] = ()
     text_omitted: int = 0
+    dropped: int = 0
 
 
 def _parse_omitted(raw: Any) -> int:
-    """How many code points a cut left out: ``raw`` when it is a positive integer, else 0 (never an error)."""
+    """How many characters or facts were left out: ``raw`` when it is a positive integer, else 0 (never an error)."""
     return raw if isinstance(raw, int) and not isinstance(raw, bool) and raw > 0 else 0
 
 
@@ -218,10 +220,10 @@ def _parse_text(raw: Any) -> tuple[str, str, int] | None:
 def parse_description(raw: Any) -> Description | None:
     """The description the command line printed, or ``None`` for any other shape or for one that says nothing.
 
-    ``{"headline"?: str, "facts": [{"label": str, "value": str, "omitted"?: int}, ...], "text"?: {"label": str,
-    "body": str, "omitted"?: int}}``; extra keys are ignored. A headline that
-    is not a non-blank string is dropped alone, and so is an ``omitted`` that
-    is not a positive integer; a bad fact or a bad text voids the whole
+    ``{"headline"?: str, "facts": [{"label": str, "value": str, "omitted"?: int}, ...], "dropped"?: int,
+    "text"?: {"label": str, "body": str, "omitted"?: int}}``; extra keys are ignored. A headline that
+    is not a non-blank string is dropped alone, and so is an ``omitted`` or a ``dropped`` that
+    is not a positive integer (or a ``dropped`` without facts); a bad fact or a bad text voids the whole
     description. The command line has already marked every string;
     ``build_message`` marks again, which changes nothing.
     """
@@ -252,6 +254,7 @@ def parse_description(raw: Any) -> Description | None:
         text=text,
         fact_omitted=fact_omitted if any(fact_omitted) else (),
         text_omitted=text_omitted,
+        dropped=_parse_omitted(raw.get("dropped")) if facts else 0,
     )
 
 
@@ -342,7 +345,12 @@ def _section_heading(name: str) -> str:
 
 
 def _fit_facts(
-    surface: Surface, first: str, targets: list[str], facts: list[tuple[str, str, int]], words: Words
+    surface: Surface,
+    first: str,
+    targets: list[str],
+    facts: list[tuple[str, str, int]],
+    words: Words,
+    dropped: int = 0,
 ) -> list[str]:
     """The head and as many of ``facts`` as fit the budget, in order, with a notice line (``words.more``) for the rest.
 
@@ -352,9 +360,11 @@ def _fit_facts(
     escaped; ``facts`` are ``(label, value, left_out)``, marked and not
     escaped. The lines are escaped, and the budget is measured on them as
     joined, with the words as given. N counts the facts after the last one
-    shown, whole or cut. When the head alone is over the budget, or leaves no
-    room for the notice, no fact is shown and the notice still is, past the
-    budget: facts are never left out without a word.
+    shown, whole or cut, and the ``dropped`` facts the tool's description left
+    out past the eighth, so the notice comes even when every fact fits. When
+    the head alone is over the budget, or leaves no room for the notice, no
+    fact is shown and the notice still is, past the budget: facts are never
+    left out without a word.
 
     A whole value the tool cut (``left_out`` characters) is followed by the
     notice of those characters when the line still fits; a value the budget
@@ -379,18 +389,20 @@ def _fit_facts(
 
     head = compose([])
     if not fits(head):
-        return compose(_more(len(facts), words))
+        return compose(_more(len(facts) + dropped, words))
     # Each shown fact is its line and the line without the notice of the characters the tool left out.
     shown: list[tuple[str, str]] = []
     omitted = 0
+    # The dropped facts are counted whatever fits, so each fact leaves room for their notice.
+    certain = _more(dropped, words)
     for index, (label, value, left_out) in enumerate(facts):
         bare = escaped_fact(label, value)
         candidates = [f"{bare} {_characters_left_out(left_out, words)}", bare] if left_out else [bare]
-        whole = next((line for line in candidates if fits(compose([*lines_of(shown), line]))), None)
+        whole = next((line for line in candidates if fits(compose([*lines_of(shown), line, *certain]))), None)
         if whole is not None:
             shown.append((whole, bare))
             continue
-        rest = len(facts) - index - 1
+        rest = len(facts) - index - 1 + dropped
         cut = _cut_value(
             value, lambda part: fits(compose([*lines_of(shown), escaped_fact(label, part), *_more(rest, words)]))
         )
@@ -402,7 +414,7 @@ def _fit_facts(
             omitted = rest
         break
     else:
-        return compose(lines_of(shown))
+        omitted = dropped
     while shown and not fits(compose([*lines_of(shown), *_more(omitted, words)])):
         line, bare = shown[-1]
         if line != bare:
@@ -481,7 +493,7 @@ def build_message(
     if description:
         left_out = description.fact_omitted or (0,) * len(description.facts)
         facts = [(visible(label), visible(value), count) for (label, value), count in zip(description.facts, left_out)]
-    lines = _fit_facts(target, first, targets, facts, shown)
+    lines = _fit_facts(target, first, targets, facts, shown, description.dropped if description else 0)
     if description and description.text is not None:
         label, body = description.text
         lines += [
