@@ -416,7 +416,13 @@ class ApprovalLanguageTest(FakeCliCase):
                     self.assertFalse(any(arg.startswith("--harness-language") for arg in call["argv"]))
 
 
-JAPANESE_WORDS = {"details": "詳細", "target": "対象", "more": "（ほか {count} 件）"}
+JAPANESE_WORDS = {
+    "details": "詳細",
+    "target": "対象",
+    "more": "（ほか {count} 件）",
+    "more_character": "（ほか {count} 文字）",
+    "more_characters": "（ほか {count} 文字）",
+}
 
 
 class ApprovalWordsTest(FakeCliCase):
