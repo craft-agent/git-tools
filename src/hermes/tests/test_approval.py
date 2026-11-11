@@ -666,10 +666,10 @@ class ApprovalPinTest(FakeCliCase):
         self.answer(pin=PIN)
         stash = approval.PinStash()
         with_pin = self.decide(stash, tool_call_id="call-1")
-        self.assertEqual(stash.take("", "call-1"), PIN)
+        self.assertEqual(stash.take(("", "", "call-1")), PIN)
         self.answer()
         without_pin = self.decide(stash, tool_call_id="call-1")
-        self.assertIsNone(stash.take("", "call-1"))
+        self.assertIsNone(stash.take(("", "", "call-1")))
         self.assertEqual(with_pin, without_pin)
         self.assertEqual(set(with_pin), {"action", "message", "rule_key"})
 
@@ -679,18 +679,25 @@ class ApprovalPinTest(FakeCliCase):
         self.decide(stash, tool_call_id="call-1")
         self.answer()
         self.decide(stash, tool_call_id="call-1")
-        self.assertIsNone(stash.take("", "call-1"))
+        self.assertIsNone(stash.take(("", "", "call-1")))
 
     def test_the_approval_hook_stashes_nothing_without_a_usable_call_id(self) -> None:
         self.answer(pin=PIN)
         stash = approval.PinStash(limit=1)
+        stash.put(("", "", "sentinel"), PIN)
         for call in ({}, {"tool_call_id": ""}, {"tool_call_id": "  "}, {"tool_call_id": None}, {"tool_call_id": 4}):
             with self.subTest(call=call):
-                self.assertEqual(self.decide(stash, **call)["action"], "approve")
-        stash.put("", "sentinel", PIN)
-        self.assertEqual(stash.take("", "sentinel"), PIN)
-        self.assertIsNone(stash.take("", ""))
-        self.assertIsNone(stash.take("", "  "))
+                self.assertEqual(self.decide(stash, task_id="t", session_id="s", **call)["action"], "approve")
+        self.assertEqual(stash.take(("", "", "sentinel")), PIN)
+
+    def test_the_key_of_a_call_reads_its_task_session_and_call_ids(self) -> None:
+        self.assertEqual(approval.pin_key({"task_id": "t", "session_id": "s", "tool_call_id": "c"}), ("t", "s", "c"))
+        self.assertEqual(approval.pin_key({"task_id": " t ", "tool_call_id": " c "}), ("t", "", "c"))
+        for blank in ("", "  ", None, 3, ["t"]):
+            with self.subTest(blank=blank):
+                call = {"task_id": blank, "session_id": blank, "tool_call_id": "c"}
+                self.assertEqual(approval.pin_key(call), ("", "", "c"))
+                self.assertIsNone(approval.pin_key({"task_id": "t", "session_id": "s", "tool_call_id": blank}))
 
     def test_the_pin_hook_gives_the_pin_once_then_empty(self) -> None:
         self.answer(pin=PIN)
@@ -754,7 +761,7 @@ class ApprovalPinTest(FakeCliCase):
         tool = listing.ToolInfo.from_listing(LISTING[1])
 
         class Broken(approval.PinStash):
-            def take(self, session_id: str, call_id: str) -> str | None:
+            def take(self, key: approval.PinKey) -> str | None:
                 raise RuntimeError("boom")
 
         result = approval.make_pin_hook([tool], Broken())(tool_name="demo_thing_create", args={}, tool_call_id="c1")
@@ -763,20 +770,26 @@ class ApprovalPinTest(FakeCliCase):
     def test_the_stash_drops_the_oldest_beyond_its_limit(self) -> None:
         stash = approval.PinStash(limit=2)
         for call_id in ("a", "b", "c"):
-            stash.put("s", call_id, call_id * 64)
-        self.assertIsNone(stash.take("s", "a"))
-        self.assertEqual(stash.take("s", "b"), "b" * 64)
-        self.assertEqual(stash.take("s", "c"), "c" * 64)
+            stash.put(("t", "s", call_id), call_id * 64)
+        self.assertIsNone(stash.take(("t", "s", "a")))
+        self.assertEqual(stash.take(("t", "s", "b")), "b" * 64)
+        self.assertEqual(stash.take(("t", "s", "c")), "c" * 64)
         self.assertEqual(approval.PIN_STASH_LIMIT, 256)
 
-    def test_the_stash_keeps_the_same_call_id_apart_by_session(self) -> None:
+    def test_the_stash_keeps_the_same_call_id_apart_by_task_and_session(self) -> None:
         stash = approval.PinStash()
-        stash.put("session-a", "call_0", PIN)
-        stash.put("session-b", "call_0", OTHER_PIN)
-        self.assertEqual(stash.take("session-a", "call_0"), PIN)
-        self.assertEqual(stash.take("session-b", "call_0"), OTHER_PIN)
-        self.assertIsNone(stash.take("session-a", "call_0"))
-        self.assertIsNone(stash.take("session-b", "call_0"))
+        keys = [
+            ("", "session-a", "call_0"),
+            ("", "session-b", "call_0"),
+            ("task-a", "", "call_0"),
+            ("task-b", "", "call_0"),
+        ]
+        for index, key in enumerate(keys):
+            stash.put(key, str(index) * 64)
+        for index, key in enumerate(keys):
+            with self.subTest(key=key):
+                self.assertEqual(stash.take(key), str(index) * 64)
+                self.assertIsNone(stash.take(key))
 
     def test_each_session_gets_its_own_pin_through_the_hooks(self) -> None:
         approve, pin_hook = self.hooks()
@@ -792,15 +805,40 @@ class ApprovalPinTest(FakeCliCase):
             pin_hook(**call, session_id="session-b"), {"action": "modify", "args": {approval.PIN_ARGUMENT: OTHER_PIN}}
         )
 
-    def test_a_blank_or_missing_session_id_is_one_session(self) -> None:
+    def test_each_task_without_a_session_gets_its_own_pin_through_the_hooks(self) -> None:
+        approve, pin_hook = self.hooks()
+        call = {"tool_name": "demo_thing_create", "args": {}, "tool_call_id": "call_0"}
+        self.answer(pin=PIN)
+        approve(**call, task_id="task-a")
+        self.answer(pin=OTHER_PIN)
+        approve(**call, task_id="task-b")
+        self.assertEqual(pin_hook(**call, task_id="task-a"), {"action": "modify", "args": {approval.PIN_ARGUMENT: PIN}})
+        self.assertEqual(
+            pin_hook(**call, task_id="task-b"), {"action": "modify", "args": {approval.PIN_ARGUMENT: OTHER_PIN}}
+        )
+
+    def test_the_tasks_of_one_session_get_their_own_pins(self) -> None:
+        approve, pin_hook = self.hooks()
+        call = {"tool_name": "demo_thing_create", "args": {}, "tool_call_id": "call_0", "session_id": "s"}
+        self.answer(pin=PIN)
+        approve(**call, task_id="task-a")
+        self.answer(pin=OTHER_PIN)
+        approve(**call, task_id="task-b")
+        self.assertEqual(
+            pin_hook(**call, task_id="task-b"), {"action": "modify", "args": {approval.PIN_ARGUMENT: OTHER_PIN}}
+        )
+        self.assertEqual(pin_hook(**call, task_id="task-a"), {"action": "modify", "args": {approval.PIN_ARGUMENT: PIN}})
+
+    def test_a_blank_or_missing_task_or_session_id_is_none(self) -> None:
         approve, pin_hook = self.hooks()
         call = {"tool_name": "demo_thing_create", "args": {}, "tool_call_id": "c1"}
-        for session in ("", None, 3):
-            with self.subTest(session=session):
+        for blank in ("", "  ", None, 3):
+            with self.subTest(blank=blank):
                 self.answer(pin=PIN)
                 approve(**call)
                 self.assertEqual(
-                    pin_hook(**call, session_id=session), {"action": "modify", "args": {approval.PIN_ARGUMENT: PIN}}
+                    pin_hook(**call, task_id=blank, session_id=blank),
+                    {"action": "modify", "args": {approval.PIN_ARGUMENT: PIN}},
                 )
 
     def test_the_stash_is_safe_across_threads(self) -> None:
@@ -810,8 +848,8 @@ class ApprovalPinTest(FakeCliCase):
         def work(index: int) -> None:
             for step in range(50):
                 call_id = f"{index}-{step}"
-                stash.put("s", call_id, PIN)
-                taken.append(stash.take("s", call_id))
+                stash.put(("t", "s", call_id), PIN)
+                taken.append(stash.take(("t", "s", call_id)))
 
         threads = [threading.Thread(target=work, args=(index,)) for index in range(8)]
         for thread in threads:
