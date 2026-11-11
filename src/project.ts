@@ -9,11 +9,11 @@ export const PROJECT = {
   /** Every setting's environment variable is `<envPrefix>_<SETTING>`. */
   envPrefix: "GIT_TOOLS",
   /** The toolsets, in the order `all` lists them. */
-  toolsets: ["repo", "commit", "rebase", "push"] as readonly string[],
+  toolsets: ["repo", "commit", "rebase", "worktree", "push"] as readonly string[],
   /** The toolsets on when a setting names none. */
   defaultToolsets: ["repo", "commit", "rebase"] as readonly string[],
   /** The settings the tools themselves read, beside the ones every entry point takes; each holds text and is named in snake_case. */
-  options: ["published_text_rules"] as readonly string[],
+  options: ["published_text_rules", "worktree_root"] as readonly string[],
   /** The environment variables the tools read besides the settings, which Codex forwards to the server after them. */
   toolVariables: [
     "LANGUAGE",

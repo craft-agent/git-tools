@@ -3,6 +3,7 @@ import { z } from "zod"
 import { ToolError } from "../errors"
 import { AUTOSQUASH_PATTERN } from "../commit/message-rules"
 import { git } from "../git"
+import { realpathOrSelf } from "../paths"
 import {
   checkRewrite,
   ownRemoteRefs,
@@ -13,13 +14,10 @@ import {
 } from "../rewrite"
 import { readStack, topBranch, type Stack, type StackLayer } from "../stack"
 import { currentBranch, defaultBranchRef, isAncestor } from "../tree"
+import { LOCAL_BRANCH_PREFIX, listWorktrees } from "../worktrees"
 
 /** How many commits of a layer the read lists. */
 const MAX_LAYER_COMMITS = 30
-
-/** The `git worktree list --porcelain` lines that give a worktree's path and its checked-out local branch. */
-const WORKTREE_PREFIX = "worktree "
-const BRANCH_PREFIX = "branch refs/heads/"
 
 const REMOTE_STATES = ["same", "ahead", "behind", "diverged"] as const
 
@@ -97,14 +95,13 @@ async function remoteState(root: string, tip: string, ref: string, signal?: Abor
 
 /** The worktrees other than `root` and the branch checked out in each, by full branch name. */
 export async function otherWorktrees(root: string, signal?: AbortSignal): Promise<Map<string, string>> {
-  const out = await git(["worktree", "list", "--porcelain"], { cwd: root, signal })
+  const worktrees = await listWorktrees(root, signal)
   const self = await realpath(root)
   const checkedOut = new Map<string, string>()
-  for (const block of out.split("\n\n")) {
-    const lines = block.split("\n")
-    const path = lines.find((line) => line.startsWith(WORKTREE_PREFIX))?.slice(WORKTREE_PREFIX.length)
-    const branch = lines.find((line) => line.startsWith(BRANCH_PREFIX))?.slice(BRANCH_PREFIX.length)
-    if (path && branch && (await realpath(path).catch(() => path)) !== self) checkedOut.set(branch, path)
+  for (const { path, branch } of worktrees) {
+    if (path && branch?.startsWith(LOCAL_BRANCH_PREFIX) && (await realpathOrSelf(path)) !== self) {
+      checkedOut.set(branch.slice(LOCAL_BRANCH_PREFIX.length), path)
+    }
   }
   return checkedOut
 }

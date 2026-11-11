@@ -1,5 +1,13 @@
 import { describe, expect, test } from "bun:test"
-import { branchFact, commitsFact, filesFact, forcePushFact, GIT_FACT_TRANSLATIONS, linesFact } from "./git-facts"
+import {
+  branchFact,
+  commitsFact,
+  filesFact,
+  forcePushFact,
+  GIT_FACT_TRANSLATIONS,
+  linesFact,
+  newBranchFact,
+} from "./git-facts"
 import type { CallFact } from "./tool"
 import { translator } from "./words"
 
@@ -36,6 +44,15 @@ describe("branchFact", () => {
   })
 })
 
+describe("newBranchFact", () => {
+  test("labels the fact New branches and keeps the name and the base as values of a template", () => {
+    expect(newBranchFact("task/x", "origin/main")).toEqual({
+      label: "New branches",
+      value: { text: "{name} from {base}", values: { name: "task/x", base: "origin/main" } },
+    })
+  })
+})
+
 describe("forcePushFact", () => {
   test("labels the fact Push and says the push needs a force push", () => {
     expect(forcePushFact()).toEqual({ label: "Push", value: { text: "needs a force push" } })
@@ -52,6 +69,7 @@ describe("GIT_FACT_TRANSLATIONS", () => {
     commitsFact(1),
     commitsFact(2),
     branchFact("main"),
+    newBranchFact("task/x", "origin/main"),
   ]
   const labels = [...new Set(facts.map((fact) => fact.label))]
   const templates = facts.flatMap((fact) => (typeof fact.value === "string" ? [] : [fact.value.text]))

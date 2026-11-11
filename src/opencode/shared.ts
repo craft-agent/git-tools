@@ -16,7 +16,7 @@ import { checkPin } from "../entry/pin"
 import { PROJECT_PROFILE, type EntryProfile } from "../entry/profile"
 import { settingsFromOptions } from "../entry/settings"
 import { promptTranslator, promptWords } from "../entry/words"
-import type { PluginOptions } from "./types"
+import type { PluginOptions, V2OperationError } from "./types"
 
 /** What a plugin takes from its surroundings; each has a default, and a test supplies its own. */
 export type PluginDeps = {
@@ -30,6 +30,8 @@ export type PluginDeps = {
   ownDir?: string
   /** The translations of the tools' words, per language, for the approval prompt; defaults to none, which keeps it in English. */
   translations?: Translations
+  /** Finds OpenCode's force-required error class for a worktree removal; defaults to importing it from the harness's plugin package, `undefined` when that release does not export it. */
+  worktreeOperationError?: () => Promise<V2OperationError | undefined>
 }
 
 /** The resources an "always" answer may persist: all but `*`, which would grant every target. */

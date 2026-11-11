@@ -416,7 +416,13 @@ changes a rule above, it says so. The discussion behind them is on
   GitHub remote, and 8 s to answer. A branch that is protected is a refusal. A
   read that fails (`gh` missing or not logged in, no access, a time-out, a
   branch GitHub does not have) is a warning, not a refusal: the rewrite stays
-  local, and GitHub refuses the force push itself.
+  local, and GitHub refuses the force push itself. The landed rule of removing
+  a worktree reads whether a branch was squash-merged with one `gh api graphql`
+  query for the branch's merged pull requests, under the same limit: a match is
+  a pull request of this repository whose head commit is the branch's tip,
+  onto any base, since a stack merged from its top records each lower layer as
+  merged into the branch below. A read that fails keeps the branch, with a
+  warning.
 - **A stack is read from ancestry, and no record of it is kept.** It is the
   current branch's line: the local branches between the remote default branch
   and the top, below the current one, on its tip, or above it, grouped by tip
@@ -504,26 +510,27 @@ changes a rule above, it says so. The discussion behind them is on
   domain could show lives in `src/core/git-facts.ts`; a domain's own fact
   stays beside its tools:
 
-  | Fact                | Value                                     | Shown by                                               |
-  | ------------------- | ----------------------------------------- | ------------------------------------------------------ |
-  | `Push`              | `needs a force push`, only when it does   | amending, rebasing, pushing                            |
-  | `Accepted findings` | the fingerprints of the findings let pass | committing, amending, pushing                          |
-  | `Branches`          | each branch and its kind of push          | pushing                                                |
-  | `Change`            | `message only`, `staged changes`, …       | amending                                               |
-  | `Branch`            | the branch's name                         | committing, amending                                   |
-  | `Files`             | `{files} files`                           | staging hunks, committing, amending, resuming a rebase |
-  | `Hunks`             | `{hunks} of {total}`                      | staging hunks                                          |
-  | `Lines`             | `{added} added, {removed} removed`        | staging hunks, committing, amending                    |
-  | `Commits`           | `{commits} commits`                       | checking each commit, rebasing, pushing                |
-  | `Layers`            | the branches moved or put back, `a → b`   | rebasing, resuming a rebase                            |
-  | `After`             | the layer branch whose layers landed      | rebasing                                               |
-  | `Fixups`            | `{fixups} to fold`                        | rebasing                                               |
-  | `New branches`      | each new branch and where it starts       | cutting layer branches, adding a layer                 |
-  | `Base`              | the base's short sha and subject          | checking each commit                                   |
-  | `Setup`             | the setup command, as given               | checking each commit                                   |
-  | `Directory`         | where the commands run, when not the root | checking each commit                                   |
-  | `On failure`        | `stop at the first failure`, or not       | checking each commit                                   |
-  | `Time limit`        | `{seconds} s per run`                     | checking each commit                                   |
+  | Fact                | Value                                     | Shown by                                                  |
+  | ------------------- | ----------------------------------------- | --------------------------------------------------------- |
+  | `Push`              | `needs a force push`, only when it does   | amending, rebasing, pushing                               |
+  | `Accepted findings` | the fingerprints of the findings let pass | committing, amending, pushing                             |
+  | `Branches`          | each branch and its kind of push          | pushing                                                   |
+  | `Change`            | `message only`, `staged changes`, …       | amending                                                  |
+  | `Branch`            | the branch's name                         | committing, amending, adding a worktree                   |
+  | `Files`             | `{files} files`                           | staging hunks, committing, amending, resuming a rebase    |
+  | `Hunks`             | `{hunks} of {total}`                      | staging hunks                                             |
+  | `Lines`             | `{added} added, {removed} removed`        | staging hunks, committing, amending                       |
+  | `Commits`           | `{commits} commits`                       | checking each commit, rebasing, pushing                   |
+  | `Layers`            | the branches moved or put back, `a → b`   | rebasing, resuming a rebase                               |
+  | `After`             | the layer branch whose layers landed      | rebasing                                                  |
+  | `Fixups`            | `{fixups} to fold`                        | rebasing                                                  |
+  | `New branches`      | each new branch and where it starts       | cutting layer branches, adding a layer, adding a worktree |
+  | `Base`              | the base's short sha and subject          | checking each commit                                      |
+  | `Setup`             | the setup command, as given               | checking each commit                                      |
+  | `Directory`         | where the commands run, when not the root | checking each commit                                      |
+  | `On failure`        | `stop at the first failure`, or not       | checking each commit                                      |
+  | `Time limit`        | `{seconds} s per run`                     | checking each commit                                      |
+  | `Ignored files`     | the ignored paths a removal loses         | removing a worktree                                       |
 
   A fact the person's answer turns on comes first: amending a commit the
   branch has pushed says so before anything else, since the next push must
@@ -545,7 +552,7 @@ changes a rule above, it says so. The discussion behind them is on
   | Code                    | When                                                                                                                                           |
   | ----------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
   | `not_a_repository`      | the working directory is not inside a git repository                                                                                           |
-  | `dirty_tree`            | uncommitted changes stand in the way of the operation                                                                                          |
+  | `dirty_tree`            | uncommitted changes, or commits no branch holds, stand in the way of the operation                                                             |
   | `operation_in_progress` | another rebase, merge or cherry-pick is in progress                                                                                            |
   | `rewrite_refused`       | the rewrite rule refuses to rewrite these commits                                                                                              |
   | `push_refused`          | the push would be refused: the default branch, an operation in progress, a protected branch, a remote commit not seen here; `details.refusals` |
@@ -561,16 +568,22 @@ changes a rule above, it says so. The discussion behind them is on
 
 Beside the settings above:
 
-- **`worktree_root`**: where task worktrees go.
+- **`worktree_root`** (the option of that name): where task worktrees go, an
+  absolute path in which `~` stands for the home directory (`~` alone or a
+  leading `~/`); `~/worktrees` when unset. The layout is
+  `<root>/<repository>/<branch>`, each `/` of the branch written `-`, and the
+  repository is the last part of `origin`'s URL without `.git`, else the
+  folder name of the main checkout. Anything but an absolute path is
+  `invalid_argument` naming the setting, and the root is never created by
+  reading it
+  ([#8](https://github.com/craft-agent/git-tools/issues/8)). A consumer that
+  creates worktrees itself puts them in the same places.
 - **The published-text rules** (the option `published_text_rules`): words a
   pushed commit subject or branch name must not carry, held in a JSON file
   whose absolute path the option gives. The package ships no words: unset,
   nothing is checked, since the words a reader should not see are the
   consumer's, not the package's
   ([#9](https://github.com/craft-agent/git-tools/issues/9)).
-
-`worktree_root` has a neutral default, set when its domain is reviewed
-([#8](https://github.com/craft-agent/git-tools/issues/8)).
 
 ### The git runner
 

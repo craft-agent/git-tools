@@ -6,6 +6,7 @@ import { GIT_FACT_TRANSLATIONS } from "./core/git-facts"
 import { PUSH_TRANSLATIONS } from "./core/push/words"
 import { REBASE_TRANSLATIONS } from "./core/rebase/words"
 import { REPO_TRANSLATIONS } from "./core/repo/words"
+import { WORKTREE_TRANSLATIONS } from "./core/worktree/words"
 import { translator } from "./core/words"
 import { ALL_TOOLS } from "./tools"
 import { ALL_TRANSLATIONS } from "./words"
@@ -13,13 +14,14 @@ import { ALL_TRANSLATIONS } from "./words"
 const ja = translator(ALL_TRANSLATIONS, "ja")
 
 describe("ALL_TRANSLATIONS", () => {
-  test("joins the Japanese tables of the facts, the git facts, the repo, the commit, the rebase and the push tools", () => {
+  test("joins the Japanese tables of the facts, the git facts, the repo, the commit, the rebase, the worktree and the push tools", () => {
     expect(ALL_TRANSLATIONS.ja).toEqual({
       ...FACT_TRANSLATIONS.ja,
       ...GIT_FACT_TRANSLATIONS.ja,
       ...REPO_TRANSLATIONS.ja,
       ...COMMIT_TRANSLATIONS.ja,
       ...REBASE_TRANSLATIONS.ja,
+      ...WORKTREE_TRANSLATIONS.ja,
       ...PUSH_TRANSLATIONS.ja,
     })
     expect(ALL_TRANSLATIONS.ja!.Size).toBe("サイズ")
@@ -32,6 +34,7 @@ describe("ALL_TRANSLATIONS", () => {
       REPO_TRANSLATIONS,
       COMMIT_TRANSLATIONS,
       REBASE_TRANSLATIONS,
+      WORKTREE_TRANSLATIONS,
       PUSH_TRANSLATIONS,
     ].flatMap((table) => Object.keys(table.ja!))
     expect(new Set(keys).size).toBe(keys.length)

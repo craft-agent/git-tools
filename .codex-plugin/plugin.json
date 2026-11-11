@@ -22,6 +22,7 @@
         "GIT_TOOLS_EXCLUDE_TOOLS",
         "GIT_TOOLS_CONFIRM",
         "GIT_TOOLS_PUBLISHED_TEXT_RULES",
+        "GIT_TOOLS_WORKTREE_ROOT",
         "LANGUAGE",
         "LC_CTYPE",
         "LC_MESSAGES",

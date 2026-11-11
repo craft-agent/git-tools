@@ -42,6 +42,11 @@ class OptionFlagsReachTheCommandsTest(FakeCliCase):
         for call in self.calls():
             self.assertNotIn("--published-text-rules", call["argv"])
 
+    def test_every_option_of_the_project_reaches_the_commands(self) -> None:
+        self.use({"published_text_rules": "/etc/rules.json", "worktree_root": "/srv/trees"})
+        expected = [*OPTION_FLAGS, "--worktree-root", "/srv/trees"]
+        self.assertEqual(self.argv_of("run"), [["run", "demo_thing_create", "--cwd", CWD, *expected]])
+
     def test_a_wrong_option_registers_nothing(self) -> None:
         ctx = self.register({"published_text_rules": 3})
         self.assertEqual(ctx.tools, {})

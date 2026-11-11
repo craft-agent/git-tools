@@ -16,6 +16,9 @@ provides_tools:
   - git_rebase_split
   - git_rebase_start
   - git_repo_read
+  - git_worktree_add
+  - git_worktree_read
+  - git_worktree_remove
 provides_hooks:
   - pre_tool_call
 config_schema:
@@ -34,3 +37,5 @@ config_schema:
     description: The language of the approval card, such as ja. Defaults to Hermes's display language, else English.
   published_text_rules:
     description: The absolute path of a JSON file of published-text rules for the push tools. Unset, nothing is checked.
+  worktree_root:
+    description: The absolute path where task worktrees go, "~" allowed. Unset, ~/worktrees. The layout is <root>/<repository>/<branch>, with each "/" of the branch written "-".

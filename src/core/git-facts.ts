@@ -21,6 +21,14 @@ export function branchFact(name: string): CallFact {
   return { label: "Branch", value: name }
 }
 
+/** The label of the fact that lists the branches a call creates. */
+export const NEW_BRANCHES_LABEL = "New branches"
+
+/** The `New branches` fact for one branch: its name and the base it is cut from. */
+export function newBranchFact(name: string, base: string): CallFact {
+  return { label: NEW_BRANCHES_LABEL, value: { text: "{name} from {base}", values: { name, base } } }
+}
+
 /** The `Commits` fact: how many commits a call covers, as `1 commit` or `3 commits`. */
 export function commitsFact(count: number): CallFact {
   return {
@@ -40,6 +48,8 @@ export const GIT_FACT_TRANSLATIONS: Translations = {
     Push: "プッシュ",
     "needs a force push": "force push が必要",
     Branch: "ブランチ",
+    "New branches": "新しいブランチ",
+    "{name} from {base}": "{name}（{base} から）",
     Lines: "行数",
     "{added} added, {removed} removed": "追加 {added} 行、削除 {removed} 行",
     Files: "ファイル数",

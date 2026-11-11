@@ -5,9 +5,8 @@ Git tools for coding agents: state, commits, rewrites and stacked branches, work
 The tools cover the state of a working tree, commits, history rewrites and
 stacked branches, worktrees and pushing, against any git remote. Pull requests
 and native stacks on GitHub are
-[github-tools](https://github.com/craft-agent/github-tools)'. The tools are
-being built; the delivery below is in place, and the toolsets are listed under
-[Tools and skills](#tools-and-skills) as they land.
+[github-tools](https://github.com/craft-agent/github-tools)'. The toolsets are
+listed under [Tools and skills](#tools-and-skills).
 
 | Harness        | Delivery                                       | Pinned by                      |
 | -------------- | ---------------------------------------------- | ------------------------------ |
@@ -59,6 +58,16 @@ OpenCode V1 takes the package as a string, or as a pair with its options:
 OpenCode allows any action no rule names, so the plugin's request is granted
 silently unless a rule says `ask`. Read tools never ask, so the `git_*` glob
 is safe.
+
+With the `worktree` toolset on and the profile not read-only, the V2 plugin
+also registers a worktree strategy, so OpenCode's own new worktree and removal
+follow the layout and the landed rule of the worktree tools: the name OpenCode
+asks for becomes the branch, and a removal git refuses for changed files offers
+OpenCode's force prompt where the harness supports it, while the tools
+themselves never force. After `git_worktree_add` or `git_worktree_remove` the
+plugin refreshes OpenCode's worktree list, so the change shows at once.
+OpenCode's built-in worktree tools are left as they are; turn them off with
+permission rules. V1 has no worktree strategies.
 
 V1 registers no skills. Unpack the package and copy its `skills/*` folders into
 `~/.config/opencode/skills/`:
@@ -142,8 +151,7 @@ Add the server to the host's MCP configuration. Flags go in `args`:
 
 Each toolset comes with a skill that tells an agent how to use its tools.
 There is one toolset per domain; `repo`, `commit` and `rebase` are on by
-default, `worktree` and `push` are opt-in. `repo`, `commit`, `rebase` and
-`push` are in place; `worktree` is being built.
+default, `worktree` and `push` are opt-in.
 
 A skill names its toolset under `metadata` in its frontmatter
 (`metadata: { toolset: commit }`, written as a block). OpenCode V2 and Hermes
@@ -200,6 +208,19 @@ A stack is read from ancestry, so a branch alone is a stack of one layer. The
 | `git_rebase_start`  | overwrite | rebases every layer onto the latest default branch, or folds the fixups in place, under the rule for rewriting commits; a stop on conflicts is a paused result             |
 | `git_rebase_resume` | overwrite | continues, skips or aborts a stopped rebase                                                                                                                                |
 | `git_rebase_split`  | add       | cuts the branch into lower layer branches at given commits, or adds an empty layer on top                                                                                  |
+
+### `worktree`
+
+One read tool that lists the worktrees, and two write tools that add one where
+the layout puts it and remove one without losing work. The toolset is opt-in.
+The `git-worktree` skill says how they fit together, and the layout is under
+[Settings](#settings).
+
+| Tool                  | Class     | Does                                                                                                                                                                                                                               |
+| --------------------- | --------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `git_worktree_read`   | read      | `list`: every worktree of the repository from git alone: its directory, branch and commit, whether it is the main one or the caller's, locked or gone, and whether it sits where the layout puts it                                |
+| `git_worktree_add`    | add       | adds a worktree for a branch at `<root>/<repository>/<branch>`: an existing branch as it is, a new one cut from `from`, else from origin's fetched default branch, with no upstream and no hooks on the checkout                   |
+| `git_worktree_remove` | overwrite | removes a worktree, never forced: refuses changed files, commits no ref holds and an operation in progress; deletes its branch only once proven landed (ancestry, or a merged pull request on GitHub), and says why a branch stays |
 
 ### `push`
 
@@ -278,11 +299,14 @@ variable, and an option or setting wins over the variable too.
 | `confirm`              | `--confirm`              | `GIT_TOOLS_CONFIRM`              | MCP server only: `harness` (default) or `elicitation`, as the conventions say                              |
 | `language`             | `--language`             | `GIT_TOOLS_LANGUAGE`             | native plugins only: the approval prompt's language, such as `ja`                                          |
 | `published_text_rules` | `--published-text-rules` | `GIT_TOOLS_PUBLISHED_TEXT_RULES` | the absolute path of a JSON file of published-text rules (see the push toolset); unset, nothing is checked |
+| `worktree_root`        | `--worktree-root`        | `GIT_TOOLS_WORKTREE_ROOT`        | the absolute path where task worktrees go (`~` allowed); unset, `~/worktrees`                              |
 
-Lists are comma-separated in a flag or a variable. `published_text_rules` holds
-text, trimmed and blank meaning unset, and is read by the tools themselves; the
-plugin options and Hermes settings name it the same way. Where each harness
-reads them:
+Lists are comma-separated in a flag or a variable. `published_text_rules` and
+`worktree_root` hold text, trimmed and blank meaning unset, and are read by the
+tools themselves; the plugin options and Hermes settings name them the same
+way. The layout is `<root>/<repository>/<branch>`, with each `/` of the branch
+written `-`; the repository is the last part of `origin`'s URL without `.git`,
+else the folder name of the main checkout. Where each harness reads them:
 
 - **OpenCode** takes the plugin `options` shown above, with lists as arrays and
   `read_only` as a boolean, and falls back to the variables. V2 runs plugins in
@@ -301,6 +325,7 @@ reads them:
           read_only: false
           exclude_tools: []
           published_text_rules: /home/me/.config/git-tools/published-text.json
+          worktree_root: ~/worktrees
   ```
 
   Without a `language` setting, the approval card follows Hermes's own
