@@ -1,6 +1,8 @@
 ---
 name: git-commit
 description: "Use when building commits through the git_commit_* tools: listing unstaged hunks and staging exactly the chosen ones (git_commit_read hunks, git_commit_stage), checking a message or a diff before committing (lint, secrets), committing what is staged with a checked message (git_commit_create), committing a fixup of an earlier commit, deciding between amend, fixup and a new commit (amend) and amending HEAD (git_commit_amend), and checking that every commit of a branch passes on its own (git_commit_verify). Covers the digest that pins staging, reading check_failed details, letting a secret finding through by its fingerprint, the rule for which commits may be rewritten, and error codes. Not for how to cut a change into commits or word a message, and not for rebasing, worktrees or pushing."
+metadata:
+  toolset: commit
 ---
 
 # Building commits

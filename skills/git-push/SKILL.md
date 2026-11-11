@@ -1,6 +1,8 @@
 ---
 name: git-push
 description: "Use when pushing a branch or a stack of layer branches to a remote through the git_push_* tools: previewing what a push would send (git_push_read preview: the kind of push per branch, the commits the remote lacks, what a force push drops, refusals, warnings, the secret scan and the published-text rules) and pushing exactly that preview's send (git_push_send), letting false-positive findings through by fingerprint, and starting over after a stale push. Covers the preview-then-send flow, lease-based force pushes, the published-text rules file, handing the pushed commits to a pull request tool, and error codes. Not for committing (git-commit), rebasing (git-rebase), or opening pull requests."
+metadata:
+  toolset: push
 ---
 
 # Pushing branches and stacks

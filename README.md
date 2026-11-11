@@ -141,6 +141,16 @@ There is one toolset per domain; `repo`, `commit` and `rebase` are on by
 default, `worktree` and `push` are opt-in. `repo`, `commit`, `rebase` and
 `push` are in place; `worktree` is being built.
 
+A skill names its toolset under `metadata` in its frontmatter
+(`metadata: { toolset: commit }`, written as a block). OpenCode V2 and Hermes
+register it only when the settings register at least one of that toolset's
+tools, so a profile with the toolset off, or with all its tools removed, does
+not see it; a skill without a toolset is always registered. Claude Code,
+Codex, Grok Build and Antigravity install the skill folder whole and pass the
+settings only to the MCP server, so they list every skill whatever the
+settings select. OpenCode V1 registers no skills, and its copied skills are
+all listed too.
+
 | Toolset    | Covers                                                                   |
 | ---------- | ------------------------------------------------------------------------ |
 | `repo`     | local reads: status, history, where a change came from, conflicts        |
@@ -211,7 +221,8 @@ The toolset is opt-in. The `git-push` skill says how they fit together.
 3. List it in `src/tools.ts`. A new toolset goes into `toolsets` in
    `src/project.ts` (and `defaultToolsets` when it is on by default), and a
    variable the tool reads besides the settings into `toolVariables`.
-4. Add or update the toolset's skill, `skills/<prefix>-<toolset>/SKILL.md`.
+4. Add or update the toolset's skill, `skills/<prefix>-<toolset>/SKILL.md`,
+   whose frontmatter names the toolset under `metadata`.
 5. Run `pnpm run build && pnpm run manifests` to list the tool in
    `plugin.yaml` and its variables in Codex's manifest, then describe it under
    "Tools and skills".
@@ -331,7 +342,8 @@ reads them:
   and run by `git-tools-cli`.
 - `src/hermes/`, `plugin.yaml` and `__init__.py` — the Hermes plugin.
 - `skills/` — one skill per toolset, `skills/<name>/SKILL.md`, which every
-  harness that takes skills loads from the package or plugin root.
+  harness that takes skills loads from the package or plugin root; the native
+  plugins load only those of the toolsets that are on.
 - `.claude-plugin/`, `.codex-plugin/`, `.agents/plugins/`, `.mcp.json`,
   `.antigravity-plugin/` and `mcp_config.json` — the plugin manifests of the
   other harnesses. Codex reads `.codex-plugin/plugin.json`; a root

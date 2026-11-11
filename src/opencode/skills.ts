@@ -13,7 +13,19 @@ const TRAILING_COMMENT = /[ \t]+#.*$/
 const SINGLE_QUOTED = /^'((?:[^']|'')*)'(?:[ \t]+#.*)?$/
 const DOUBLE_QUOTED = /^"((?:[^"\\]|\\.)*)"(?:[ \t]+#.*)?$/
 
-type Frontmatter = { name?: string; description?: string }
+/** The `metadata:` line that opens the block: no value, at most a comment. */
+const METADATA_OPEN = /^metadata[ \t]*:(?:[ \t]+#.*|[ \t]*)$/
+/** A line with nothing in it or only a comment; it never ends a `metadata` block. */
+const BLANK_OR_COMMENT = /^[ \t]*(?:#.*)?$/
+/** The leading whitespace of an indented line, which sets the `metadata` block's own indentation. */
+const INDENT = /^[ \t]+/
+/** The `toolset` key of a `metadata` block, with its raw value. */
+const TOOLSET_LINE = /^toolset[ \t]*:[ \t]*(.*?)[ \t]*$/
+
+type Frontmatter = { name?: string; description?: string; toolset?: string }
+
+/** A skill of the package and the toolset it documents, when it names one. */
+export type PackageSkill = { skill: V2Skill; toolset?: string }
 
 function unquote(value: string): string | undefined {
   const single = SINGLE_QUOTED.exec(value)
@@ -35,27 +47,55 @@ function scalar(raw: string): string | undefined {
   return text === "" ? undefined : text
 }
 
+/** The `toolset` value of a `metadata` block's child line at the block's own indentation. */
+function readToolset(line: string, indent: string): string | undefined {
+  if (!line.startsWith(indent)) return undefined
+  const match = TOOLSET_LINE.exec(line.slice(indent.length))
+  return match ? scalar(match[1]!) : undefined
+}
+
 function readFrontmatter(block: string): Frontmatter {
   const found: Frontmatter = {}
+  let inMetadata = false
+  let indent: string | undefined
   for (const line of block.split(/\r?\n/)) {
+    if (inMetadata) {
+      if (BLANK_OR_COMMENT.test(line)) continue
+      const leading = INDENT.exec(line)?.[0]
+      if (leading !== undefined) {
+        indent ??= leading
+        const toolset = readToolset(line, indent)
+        if (toolset !== undefined && leading === indent) found.toolset = toolset
+        continue
+      }
+      inMetadata = false
+    }
+    if (METADATA_OPEN.test(line)) {
+      inMetadata = true
+      indent = undefined
+      continue
+    }
     const match = KEY_LINE.exec(line)
     if (!match) continue
     const value = scalar(match[2]!)
-    if (value !== undefined) found[match[1] as keyof Frontmatter] = value
+    if (value !== undefined) found[match[1] as "name" | "description"] = value
   }
   return found
 }
 
-function parseSkill(directory: string, text: string, path: string): V2Skill {
+function parseSkill(directory: string, text: string, path: string): PackageSkill {
   const match = FRONTMATTER.exec(text)
-  const { name, description }: Frontmatter = match ? readFrontmatter(match[1] ?? "") : {}
+  const { name, description, toolset }: Frontmatter = match ? readFrontmatter(match[1] ?? "") : {}
   const id = name ?? directory
   return {
-    id,
-    name: id,
-    ...(description !== undefined && { description }),
-    path,
-    content: match ? text.slice(match[0].length) : text,
+    skill: {
+      id,
+      name: id,
+      ...(description !== undefined && { description }),
+      path,
+      content: match ? text.slice(match[0].length) : text,
+    },
+    ...(toolset !== undefined && { toolset }),
   }
 }
 
@@ -80,9 +120,10 @@ async function readSkillFile(path: string): Promise<string | undefined> {
  * the frontmatter `description`, and the content is what follows the
  * frontmatter. Only plain and quoted single-line values are read. A missing or
  * empty directory gives no skills, and a folder without a `SKILL.md` is skipped.
- * When two folders give the same id, the first in folder order wins.
+ * When two folders give the same id, the first in folder order wins. A skill
+ * links to a toolset with `toolset` in a frontmatter `metadata` block.
  */
-export async function loadSkills(dir: URL | string): Promise<V2Skill[]> {
+export async function readSkills(dir: URL | string): Promise<PackageSkill[]> {
   const root = resolve(typeof dir === "string" ? dir : fileURLToPath(dir))
   let entries: string[]
   try {
@@ -94,13 +135,25 @@ export async function loadSkills(dir: URL | string): Promise<V2Skill[]> {
     throw error
   }
 
-  const skills = new Map<string, V2Skill>()
+  const skills = new Map<string, PackageSkill>()
   for (const directory of entries.sort()) {
     const path = join(root, directory, SKILL_FILE)
     const text = await readSkillFile(path)
     if (text === undefined) continue
-    const skill = parseSkill(directory, text, path)
-    if (!skills.has(skill.id)) skills.set(skill.id, skill)
+    const found = parseSkill(directory, text, path)
+    if (!skills.has(found.skill.id)) skills.set(found.skill.id, found)
   }
   return [...skills.values()]
+}
+
+/**
+ * The skills of {@link readSkills} that belong to `toolsets`: a skill linked to
+ * a toolset outside the set is dropped, a skill with no link is always kept,
+ * and without `toolsets` every skill is kept. A dropped skill still claims its
+ * id, so a later skill of the same id does not take its place.
+ */
+export async function loadSkills(dir: URL | string, toolsets?: ReadonlySet<string>): Promise<V2Skill[]> {
+  return (await readSkills(dir))
+    .filter(({ toolset }) => toolsets === undefined || toolset === undefined || toolsets.has(toolset))
+    .map(({ skill }) => skill)
 }
