@@ -1,6 +1,8 @@
 ---
 name: git-rebase
 description: "Use when rebasing a branch or a stack of layer branches through the git_rebase_* tools: reading the stack of the checked-out branch (git_rebase_read stack), rebasing every layer onto the latest default branch or folding fixups in place (git_rebase_start, keep_base, after), continuing, skipping or aborting a rebase that stopped on conflicts or an empty commit (git_rebase_resume), and cutting a branch into layers or adding one on top (git_rebase_split). Covers how a stack is read from ancestry, fixing a lower layer with a fixup on the top, the paused result, the rule for which commits may be rewritten, and error codes. Not for how to cut a change into layers, not for committing (git-commit), and not for pushing or pull requests."
+metadata:
+  toolset: rebase
 ---
 
 # Rebasing branches and stacks

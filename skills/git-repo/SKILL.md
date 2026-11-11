@@ -1,6 +1,8 @@
 ---
 name: git-repo
 description: "Use when reading where a local git repository stands through git_repo_read: the branch, its upstream and how it stands against the remote default branch, staged, unstaged, untracked and conflicted files, a rebase, merge, cherry-pick, revert or bisect in progress, stashes and worktrees (status); the conflicts an operation left, with what ours and theirs mean in it (conflicts); recent commit subjects and convention files for inferring how this repository words its commits and pull requests (conventions); and the commit a change came from, by sha, blame or pickaxe (origin). Covers which method answers which question, what each reads, and error codes. Not for changing the repository (committing, rebasing, worktrees, pushing) and not for pull requests or issues on GitHub."
+metadata:
+  toolset: repo
 ---
 
 # Reading a git repository

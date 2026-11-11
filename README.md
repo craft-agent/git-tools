@@ -142,7 +142,7 @@ default, `worktree` and `push` are opt-in. `repo`, `commit`, `rebase` and
 `push` are in place; `worktree` is being built.
 
 A skill names its toolset under `metadata` in its frontmatter
-(`metadata: { toolset: notes }`, written as a block). OpenCode V2 and Hermes
+(`metadata: { toolset: commit }`, written as a block). OpenCode V2 and Hermes
 register it only when the settings register at least one of that toolset's
 tools, so a profile with the toolset off, or with all its tools removed, does
 not see it; a skill without a toolset is always registered. Claude Code,
