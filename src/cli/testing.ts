@@ -131,7 +131,13 @@ export const specs: ToolSpec[] = [
 ]
 
 /** The plugin's own words in English, as `target` answers without a language. */
-export const ENGLISH_WORDS = { details: "Details", target: "Target", more: "(+{count} more)" }
+export const ENGLISH_WORDS = {
+  details: "Details",
+  target: "Target",
+  more: "(+{count} more)",
+  more_character: "(+{count} more character)",
+  more_characters: "(+{count} more characters)",
+}
 
 /** Japanese words for the described fixture's title, headline, fact label and text label. */
 export const TRANSLATIONS: Translations = {

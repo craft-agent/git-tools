@@ -3,14 +3,30 @@ import { visible } from "./visible"
 
 /**
  * The plugin's own words of a prompt, in one language: the Details heading,
- * the Target label, and the notice of facts left out with its `{count}`
- * placeholder. Only a card with a budget leaves facts out, so `more` is for
- * the cards drawn outside TypeScript, which get it from the command line.
+ * the Target label, the notice of facts left out with its `{count}`
+ * placeholder, and the notices of characters left out of a cut text or value,
+ * in the singular and the plural, with the same placeholder. Only a card with
+ * a budget leaves facts out, so `more` is for the cards drawn outside
+ * TypeScript, which get it from the command line; every prompt may leave
+ * characters out, so the other two are used by all. They are in snake case
+ * because the command line hands the words to the Hermes plugin as JSON.
  */
-export type PromptWords = { details: string; target: string; more: string }
+export type PromptWords = {
+  details: string
+  target: string
+  more: string
+  more_character: string
+  more_characters: string
+}
 
 /** The prompt's own words in English. */
-export const ENGLISH_PROMPT_WORDS: PromptWords = { details: "Details", target: "Target", more: "(+{count} more)" }
+export const ENGLISH_PROMPT_WORDS: PromptWords = {
+  details: "Details",
+  target: "Target",
+  more: "(+{count} more)",
+  more_character: "(+{count} more character)",
+  more_characters: "(+{count} more characters)",
+}
 
 /** The translations of the plugin's own words. */
 export const PLUGIN_TRANSLATIONS: Translations = {
@@ -18,6 +34,8 @@ export const PLUGIN_TRANSLATIONS: Translations = {
     [ENGLISH_PROMPT_WORDS.details]: "詳細",
     [ENGLISH_PROMPT_WORDS.target]: "対象",
     [ENGLISH_PROMPT_WORDS.more]: "（ほか {count} 件）",
+    [ENGLISH_PROMPT_WORDS.more_character]: "（ほか {count} 文字）",
+    [ENGLISH_PROMPT_WORDS.more_characters]: "（ほか {count} 文字）",
   },
 }
 
@@ -27,7 +45,15 @@ export function promptWords(t: Translator): PromptWords {
     details: visible(t.word(ENGLISH_PROMPT_WORDS.details)),
     target: visible(t.word(ENGLISH_PROMPT_WORDS.target)),
     more: visible(t.template(ENGLISH_PROMPT_WORDS.more)),
+    more_character: visible(t.template(ENGLISH_PROMPT_WORDS.more_character)),
+    more_characters: visible(t.template(ENGLISH_PROMPT_WORDS.more_characters)),
   }
+}
+
+/** The notice of `count` characters left out of a cut text or value: the singular word for one, else the plural, with `{count}` replaced by the number as it is. */
+export function charactersLeftOut(count: number, words: PromptWords): string {
+  const notice = count === 1 ? words.more_character : words.more_characters
+  return notice.replaceAll("{count}", String(count))
 }
 
 /** The translator for a prompt language over a package's translations and the plugin's own (the package's words win). */
