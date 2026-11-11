@@ -5,10 +5,10 @@ import { visible } from "./visible"
  * The plugin's own words of a prompt, in one language: the Details heading,
  * the Target label, the notice of facts left out with its `{count}`
  * placeholder, and the notices of characters left out of a cut text or value,
- * in the singular and the plural, with the same placeholder. Only a card with
- * a budget leaves facts out, so `more` is for the cards drawn outside
- * TypeScript, which get it from the command line; every prompt may leave
- * characters out, so the other two are used by all. They are in snake case
+ * in the singular and the plural, with the same placeholder. Every prompt
+ * counts the facts a description drops past its eighth with `more`, and a
+ * card with a budget counts the facts it leaves out with it too; every prompt
+ * may leave characters out of a cut text or value. They are in snake case
  * because the command line hands the words to the Hermes plugin as JSON.
  */
 export type PromptWords = {
@@ -48,6 +48,11 @@ export function promptWords(t: Translator): PromptWords {
     more_character: visible(t.template(ENGLISH_PROMPT_WORDS.more_character)),
     more_characters: visible(t.template(ENGLISH_PROMPT_WORDS.more_characters)),
   }
+}
+
+/** The notice of `count` facts left out, with `{count}` replaced by the number as it is. */
+export function factsLeftOut(count: number, words: PromptWords): string {
+  return words.more.replaceAll("{count}", String(count))
 }
 
 /** The notice of `count` characters left out of a cut text or value: the singular word for one, else the plural, with `{count}` replaced by the number as it is. */
