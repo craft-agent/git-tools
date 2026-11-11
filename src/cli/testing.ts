@@ -10,7 +10,7 @@ import { runCli, type CliIo } from "./cli"
 export const PROFILE: EntryProfile = {
   envPrefix: "DEMO",
   toolsets: { names: ["alpha", "beta"], defaults: ["alpha"] },
-  options: [NOTE_OPTION],
+  options: { [NOTE_OPTION]: "text" },
 }
 
 const input = z.object({

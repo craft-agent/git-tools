@@ -20,7 +20,7 @@ describe("settingVariables", () => {
     ])
   })
 
-  test("uses the package's own prefix and tool options by default", () => {
+  test("uses the package's own prefix by default", () => {
     expect(settingVariables()).toEqual(
       settingVariables({ ...profile, envPrefix: PROJECT.envPrefix, options: PROJECT.options }),
     )
@@ -194,7 +194,7 @@ describe("parseSettings", () => {
   })
 
   test("with no toolsets defined, a named toolset is rejected and the message says so", () => {
-    const none: EntryProfile = { envPrefix: "DEMO", toolsets: { names: [], defaults: [] }, options: [] }
+    const none: EntryProfile = { envPrefix: "DEMO", toolsets: { names: [], defaults: [] } }
     expect(failure(() => parseSettings(["--toolsets", "alpha"], {}, none)).message).toContain("no toolsets are defined")
     expect(parseSettings(["--toolsets", "all"], {}, none).toolsets).toBe("all")
   })

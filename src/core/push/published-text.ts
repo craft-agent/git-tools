@@ -113,7 +113,8 @@ export async function loadPublishedTextRules(
   options: ToolOptions | undefined,
   signal?: AbortSignal,
 ): Promise<PublishedTextRule[]> {
-  const path = options?.[PUBLISHED_TEXT_RULES_OPTION]?.trim()
+  const option = options?.[PUBLISHED_TEXT_RULES_OPTION]
+  const path = typeof option === "string" ? option.trim() : undefined
   if (!path) return []
   if (!isAbsolute(path)) throw invalidRules(path, "the value must be an absolute path")
   return compileRules(path, parseRulesJson(path, await readRulesFile(path, signal)))

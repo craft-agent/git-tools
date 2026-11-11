@@ -8,7 +8,7 @@ import type { EntryProfile } from "./profile"
 export const profile: EntryProfile = {
   envPrefix: "DEMO",
   toolsets: { names: ["alpha", "beta", "gamma"], defaults: ["alpha"] },
-  options: [NOTE_OPTION],
+  options: { [NOTE_OPTION]: "text" },
 }
 
 export function failure(run: () => unknown): Error {
