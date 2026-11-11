@@ -13,14 +13,14 @@ import { WORKTREE_ROOT_OPTION } from "./layout"
 const FETCH_TIMEOUT_MS = 60_000
 
 /** The branches tried, after the ones the repository and the remote name, as `origin`'s default. */
-const CONVENTIONAL_DEFAULTS = ["main", "master"]
+export const CONVENTIONAL_DEFAULTS = ["main", "master"]
 
 const HEAD_REF = "HEAD"
 
 type Base = NonNullable<AddedWorktree["base"]>
 
 /** Fetches `origin`; false when the fetch failed or ran out of time. A cancellation still throws. */
-async function fetchOrigin(root: string, signal?: AbortSignal): Promise<boolean> {
+export async function fetchOrigin(root: string, signal?: AbortSignal): Promise<boolean> {
   try {
     await git(["fetch", "--quiet", ORIGIN_REMOTE], { cwd: root, signal, timeoutMs: FETCH_TIMEOUT_MS })
     return true
@@ -60,7 +60,7 @@ async function liveDefault(root: string, signal?: AbortSignal): Promise<string |
  * here, else the one the remote names, else `origin/main`, else
  * `origin/master`; the first that resolves wins.
  */
-async function originDefault(root: string, signal?: AbortSignal): Promise<Base | null> {
+export async function originDefault(root: string, signal?: AbortSignal): Promise<Base | null> {
   const recorded = await recordedDefault(root, signal)
   const named = recorded === null ? await liveDefault(root, signal) : null
   const refs = [
