@@ -39,6 +39,6 @@ config_schema:
     type: dict
     description: 'The emoji shown beside each toolset, by toolset name; "" shows none. Merged over the package''s emoji.'
   published_text_rules:
-    description: The absolute path (~ allowed) of a JSON file of published-text rules for the push tools. Unset, nothing is checked.
+    description: The path (~ allowed, as for every path setting) of a JSON file of published-text rules for the push tools. Unset, nothing is checked.
   worktree_root:
-    description: The absolute path where task worktrees go, "~" allowed. Unset, ~/worktrees. The layout is <root>/<repository>/<branch>, with each "/" of the branch written "-".
+    description: The path where task worktrees go (~ allowed, as for every path setting). Unset, ~/worktrees. The layout is <root>/<repository>/<branch>, with each "/" of the branch written "-".

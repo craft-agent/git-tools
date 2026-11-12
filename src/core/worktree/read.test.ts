@@ -123,19 +123,17 @@ describe("git_worktree_read", () => {
     expect(byDirectory.get(join(root, "gone"))).toMatchObject({ branch: "gone", prunable: true, in_layout: true })
   })
 
-  test("takes the root from the worktree_root setting, ~ expanded, and compares the layout against it", async () => {
+  test("takes the absolute root from the worktree_root setting and compares the layout against it", async () => {
     const repo = await open()
     await repo.git(["worktree", "add", "-b", "feat", join(repo.home, "trees", "tools", "feat")])
     await repo.git(["worktree", "add", "-b", "default", join(repo.home, "worktrees", "tools", "default")])
 
-    for (const setting of ["~/trees", ` ${join(repo.home, "trees")} `]) {
-      const listing = await list(repo.dir, { worktree_root: setting })
-      expect(listing.root).toBe(join(repo.home, "trees"))
-      const byBranch = byBranchName(listing)
-      expect(byBranch.get("main")?.in_layout).toBe(false)
-      expect(byBranch.get("feat")?.in_layout).toBe(true)
-      expect(byBranch.get("default")?.in_layout).toBe(false)
-    }
+    const listing = await list(repo.dir, { worktree_root: join(repo.home, "trees") })
+    expect(listing.root).toBe(join(repo.home, "trees"))
+    const byBranch = byBranchName(listing)
+    expect(byBranch.get("main")?.in_layout).toBe(false)
+    expect(byBranch.get("feat")?.in_layout).toBe(true)
+    expect(byBranch.get("default")?.in_layout).toBe(false)
   })
 
   test("refuses a worktree_root that is not absolute as invalid_argument", async () => {

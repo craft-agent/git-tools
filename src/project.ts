@@ -15,7 +15,7 @@ export const PROJECT = {
   /** The toolsets on when a setting names none. */
   defaultToolsets: ["repo", "commit", "rebase"] as readonly string[],
   /** The package's own settings, which the tools themselves read: each snake_case name and its type, with bounds when it needs them. */
-  options: { published_text_rules: "text", worktree_root: "text" } as Readonly<Record<string, OptionSpec>>,
+  options: { published_text_rules: "path", worktree_root: "path" } as Readonly<Record<string, OptionSpec>>,
   /** The environment variables the tools read besides the settings, which Codex forwards to the server after them. */
   toolVariables: [
     "LANGUAGE",

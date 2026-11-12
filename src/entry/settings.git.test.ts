@@ -17,12 +17,12 @@ const OPTIONS = {
     variable: "GIT_TOOLS_PUBLISHED_TEXT_RULES",
     value: "/rules.json",
   },
-  worktree_root: { flag: "--worktree-root", variable: "GIT_TOOLS_WORKTREE_ROOT", value: "~/trees" },
+  worktree_root: { flag: "--worktree-root", variable: "GIT_TOOLS_WORKTREE_ROOT", value: "/trees" },
 }
 
 describe("the options of git-tools", () => {
-  test("are both text", () => {
-    expect(PROJECT.options).toEqual({ published_text_rules: "text", worktree_root: "text" })
+  test("are both paths", () => {
+    expect(PROJECT.options).toEqual({ published_text_rules: "path", worktree_root: "path" })
     expect(PROJECT_PROFILE.options).toEqual(PROJECT.options)
   })
 
@@ -56,7 +56,9 @@ describe("the options of git-tools", () => {
 
     test("is refused as a plugin option when it is not text, naming it", () => {
       for (const given of [1, true, ["a"], null, {}]) {
-        expect(failure(() => settingsFromOptions({ [name]: given }, {})).message).toBe(`Option "${name}" must be text.`)
+        expect(failure(() => settingsFromOptions({ [name]: given }, {})).message).toBe(
+          `Option "${name}" must be an absolute path.`,
+        )
       }
     })
 
@@ -68,6 +70,6 @@ describe("the options of git-tools", () => {
 
   test("both are given together", () => {
     const flags = Object.values(OPTIONS).flatMap(({ flag, value }) => [flag, value])
-    expect(parseSettings(flags, {}).options).toEqual({ published_text_rules: "/rules.json", worktree_root: "~/trees" })
+    expect(parseSettings(flags, {}).options).toEqual({ published_text_rules: "/rules.json", worktree_root: "/trees" })
   })
 })

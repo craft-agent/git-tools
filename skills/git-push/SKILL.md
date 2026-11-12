@@ -93,8 +93,8 @@ The send fails with `check_failed` (`details.check` `secrets` or
 
 The words a pushed branch name or commit subject must not carry are the
 consumer's: the package ships none, and with the `published_text_rules`
-setting unset nothing is checked. The setting is the absolute path (`~`
-allowed) of a JSON file, read on every call:
+setting unset nothing is checked. The setting is the path (`~` allowed, as for
+every path setting) of a JSON file, read on every call:
 
 ```json
 [

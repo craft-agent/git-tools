@@ -14,8 +14,8 @@ class GitOptionFlagsTest(unittest.TestCase):
     def flags(self, **config: Any) -> list[str]:
         return settings.settings_flags(StubContext(config))
 
-    def test_the_options_are_both_text(self) -> None:
-        self.assertEqual(project.OPTIONS, {"published_text_rules": "text", "worktree_root": "text"})
+    def test_the_options_are_both_paths(self) -> None:
+        self.assertEqual(project.OPTIONS, {"published_text_rules": "path", "worktree_root": "path"})
 
     def test_the_worktree_root_becomes_its_flag(self) -> None:
         self.assertEqual(self.flags(worktree_root=" ~/trees "), ["--worktree-root", "~/trees"])

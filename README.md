@@ -303,22 +303,26 @@ Where a write is asked about, and where it is not:
 Every entry point takes the same settings. A flag wins over its environment
 variable, and an option or setting wins over the variable too.
 
-| Setting                | Flag                     | Variable                         | Meaning                                                                                                                  |
-| ---------------------- | ------------------------ | -------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
-| `toolsets`             | `--toolsets`             | `GIT_TOOLS_TOOLSETS`             | the toolsets that are on, or `all`; default those `src/project.ts` names                                                 |
-| `read_only`            | `--read-only`            | `GIT_TOOLS_READ_ONLY`            | registers no tool that writes; wins over every other setting                                                             |
-| `tools`                | `--tools`                | `GIT_TOOLS_TOOLS`                | single tools to add by ID, whatever their toolset                                                                        |
-| `exclude_tools`        | `--exclude-tools`        | `GIT_TOOLS_EXCLUDE_TOOLS`        | single tools to remove by ID; wins over `tools` and `toolsets`                                                           |
-| `confirm`              | `--confirm`              | `GIT_TOOLS_CONFIRM`              | MCP server only: `harness` (default) or `elicitation`, as the conventions say                                            |
-| `language`             | `--language`             | `GIT_TOOLS_LANGUAGE`             | native plugins only: the approval prompt's language, such as `ja`                                                        |
-| `emoji`                | —                        | —                                | Hermes only: the emoji shown beside each toolset, by toolset name (`""` for none)                                        |
-| `published_text_rules` | `--published-text-rules` | `GIT_TOOLS_PUBLISHED_TEXT_RULES` | the absolute path (`~` allowed) of a JSON file of published-text rules (see the push toolset); unset, nothing is checked |
-| `worktree_root`        | `--worktree-root`        | `GIT_TOOLS_WORKTREE_ROOT`        | the absolute path where task worktrees go (`~` allowed); unset, `~/worktrees`                                            |
+| Setting                | Flag                     | Variable                         | Meaning                                                                                           |
+| ---------------------- | ------------------------ | -------------------------------- | ------------------------------------------------------------------------------------------------- |
+| `toolsets`             | `--toolsets`             | `GIT_TOOLS_TOOLSETS`             | the toolsets that are on, or `all`; default those `src/project.ts` names                          |
+| `read_only`            | `--read-only`            | `GIT_TOOLS_READ_ONLY`            | registers no tool that writes; wins over every other setting                                      |
+| `tools`                | `--tools`                | `GIT_TOOLS_TOOLS`                | single tools to add by ID, whatever their toolset                                                 |
+| `exclude_tools`        | `--exclude-tools`        | `GIT_TOOLS_EXCLUDE_TOOLS`        | single tools to remove by ID; wins over `tools` and `toolsets`                                    |
+| `confirm`              | `--confirm`              | `GIT_TOOLS_CONFIRM`              | MCP server only: `harness` (default) or `elicitation`, as the conventions say                     |
+| `language`             | `--language`             | `GIT_TOOLS_LANGUAGE`             | native plugins only: the approval prompt's language, such as `ja`                                 |
+| `emoji`                | —                        | —                                | Hermes only: the emoji shown beside each toolset, by toolset name (`""` for none)                 |
+| `published_text_rules` | `--published-text-rules` | `GIT_TOOLS_PUBLISHED_TEXT_RULES` | the path of a JSON file of published-text rules (see the push toolset); unset, nothing is checked |
+| `worktree_root`        | `--worktree-root`        | `GIT_TOOLS_WORKTREE_ROOT`        | the path where task worktrees go; unset, `~/worktrees`                                            |
 
 Lists are comma-separated in a flag or a variable. A package's own settings,
 listed in `options` in `src/project.ts`, take a row each here and are read the
-same way: `published_text_rules` and `worktree_root` hold text, trimmed and
-blank meaning unset, and the tools read them themselves. The layout is
+same way. A `path` is trimmed; `~` and `~/…` (also with the platform separator)
+stand for the home directory (`HOME` when it is absolute, else the account's).
+It must then be absolute and reaches the tool normalized, without a filesystem
+check. Blank paths count as unset. Refused values are `invalid_argument`, naming
+the flag, variable or option and what it must be. Hermes passes paths to the
+command line, which checks them. The layout is
 `<root>/<repository>/<branch>`, with each `/` of the branch written `-`; the
 repository is the last part of `origin`'s URL without `.git`, else the folder
 name of the main checkout. Where each harness reads them:
@@ -339,7 +343,7 @@ name of the main checkout. Where each harness reads them:
         settings:
           read_only: false
           exclude_tools: []
-          published_text_rules: ~/.config/git-tools/published-text.json
+          published_text_rules: /home/me/.config/git-tools/published-text.json
           worktree_root: ~/worktrees
   ```
 
