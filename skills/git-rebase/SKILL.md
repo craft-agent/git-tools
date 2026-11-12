@@ -55,8 +55,8 @@ below, and returns to the branch it started on.
   replays; a commit whose change the base already has is dropped. `onto`
   names another commit or ref.
 - **Folding fixups in place** (`keep_base`): replays on the current base with
-  no fetch, folding `fixup!`, `squash!` and `amend!` commits into their
-  targets.
+  no fetch, folding each commit marked `fixup!` or `squash!` or `amend!`
+  into its target.
 - **After a lower layer landed** (`after`): when a layer was merged by a
   squash, its commits are not on the default branch as they are. `after`
   names that layer: only the layers above it are replayed onto the new base,
