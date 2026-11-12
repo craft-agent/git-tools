@@ -60,6 +60,16 @@ async function isCheckedOut(root: string, branch: string, signal?: AbortSignal):
   return (await listWorktrees(root, signal)).some((entry) => entry.branch === `${LOCAL_BRANCH_PREFIX}${branch}`)
 }
 
+/** The commit `branch` points at now, or null when it no longer exists. */
+async function currentTip(root: string, branch: string, signal?: AbortSignal): Promise<string | null> {
+  try {
+    return (await git(["rev-parse", "--verify", `${LOCAL_BRANCH_PREFIX}${branch}`], { cwd: root, signal })).trim()
+  } catch (error) {
+    if (!isToolError(error)) throw error
+    return null
+  }
+}
+
 /**
  * Deletes the branch of the removed worktree when it is proven to have
  * landed; otherwise keeps it and says why. The branch of a detached worktree,
@@ -76,11 +86,15 @@ async function settleBranch(request: RemoveRequest, plan: RemovePlan): Promise<B
 
   const { landed, warnings } = await provenLanded({ root: callerRoot, branch, tip, signal })
   if (landed === null) return kept("not_landed", null, warnings)
+  if (await isCheckedOut(callerRoot, branch, signal)) return kept("checked_out")
   try {
-    await git(["branch", "-D", branch], { cwd: callerRoot, signal })
+    await git(["update-ref", "-d", `${LOCAL_BRANCH_PREFIX}${branch}`, tip], { cwd: callerRoot, signal })
   } catch (error) {
     if (!isToolError(error)) throw error
-    return kept("delete_failed", landed, [...warnings, `could not delete ${branch}: ${error.message}`])
+    const failure = [...warnings, `could not delete ${branch}: ${error.message}`]
+    const current = await currentTip(callerRoot, branch, signal)
+    if (current !== null && current !== tip) return kept("moved", landed, failure)
+    return kept("delete_failed", landed, current === null ? [...failure, `${branch} is gone`] : failure)
   }
   return { landed, branch_deleted: true, kept_because: null, warnings }
 }

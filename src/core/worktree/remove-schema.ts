@@ -1,7 +1,7 @@
 import { z } from "zod"
 
 /** Why a branch was kept when its worktree was removed. */
-const KEPT_REASONS = ["detached", "default_branch", "checked_out", "not_landed", "delete_failed"] as const
+const KEPT_REASONS = ["detached", "default_branch", "checked_out", "not_landed", "moved", "delete_failed"] as const
 
 /** The proof that a branch landed: its commits are in origin's default branch, or a merged pull request carried them. */
 const landedSchema = z.discriminatedUnion("by", [
@@ -33,7 +33,7 @@ export const removedSchema = z.object({
     .enum(KEPT_REASONS)
     .nullable()
     .describe(
-      "Why the branch stays: detached (there is none), default_branch, checked_out (in another worktree), not_landed (no proof) or delete_failed (git refused, see warnings); null when it was deleted.",
+      "Why the branch stays: detached (there is none), default_branch, checked_out (in another worktree), not_landed (no proof), moved (it moved after the landed check, so its newer commits may not have landed) or delete_failed (git refused, see warnings); null when it was deleted.",
     ),
   warnings: z
     .array(z.string())
