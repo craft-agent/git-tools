@@ -173,6 +173,28 @@ export const intentSpecs: ToolSpec[] = [
   }),
 ]
 
+export const GATED_ID = "demo_thing_guard"
+
+/** The tool that has a gate refusing every call with `forbidden`, to add after `specs`, which has none. */
+export const gatedSpecs: ToolSpec[] = [
+  defineTool({
+    id: GATED_ID,
+    title: GATED_ID,
+    description: GATED_ID,
+    toolset: "alpha",
+    class: "add",
+    input: writeInput,
+    output,
+    targets: areaTargets,
+    gate() {
+      throw new ToolError("forbidden", "Out of reach.")
+    },
+    async execute(args, ctx) {
+      return { tool: GATED_ID, cwd: ctx.cwd, count: args.count, own_dir: ctx.ownDir }
+    },
+  }),
+]
+
 export type Run = { code: number; stdout: string; stderr: string }
 
 /** Runs the command line over the fixture specs and collects what it writes. */

@@ -2,6 +2,7 @@ import { inputJsonSchema, type ToolOptions, type ToolSpec, type Translator } fro
 import { DESCRIBE_TIMEOUT_MS } from "../entry/description"
 import { approvalOf } from "../entry/pin"
 import {
+  harnessError,
   needsPermission,
   permissionMetadata,
   persistableResources,
@@ -57,6 +58,7 @@ function v1Tool(spec: ToolSpec, ownDir: string | undefined, t: Translator, optio
       let pin: string | undefined
       if (needsPermission(spec)) {
         const approval = await approvalOf(spec, args, ctx, DESCRIBE_TIMEOUT_MS, t)
+        if (approval.refused) throw harnessError(approval.refused)
         const { resources, description } = approval
         pin = approval.pin
         await context.ask({

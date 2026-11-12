@@ -177,7 +177,7 @@ describe("checkPin", () => {
       const approval = await approvalOf(fixture(state), {}, CTX)
       const cutOne = await callDescription(fixture(state), {}, CTX)
       expect(cutOne).toBeDefined()
-      expect(approval.pin).toBe(pinOf(approval.resources, cutOne as CallDescription))
+      expect(approval.pin).toBe(pinOf(approval.resources!, cutOne as CallDescription))
     })
   })
 

@@ -166,6 +166,23 @@ export function pinSpecs(events: string[], state: PinState): ToolSpec[] {
   ]
 }
 
+export const GATED_READ_ID = "demo_gate_read"
+export const GATED_ADD_ID = "demo_gate_create"
+
+/** What a harness reports when the gate fixtures refuse. */
+export const GATE_REFUSAL = "forbidden: Out of reach."
+
+/** A read tool and an add tool of `alpha` whose gates refuse every call with `forbidden`. */
+export function gatedSpecs(events: string[]): ToolSpec[] {
+  const gate = () => {
+    throw new ToolError("forbidden", "Out of reach.")
+  }
+  return [
+    defineTool({ ...fixture(GATED_READ_ID, "alpha", "read", events), gate }),
+    defineTool({ ...fixture(GATED_ADD_ID, "alpha", "add", events), gate }),
+  ]
+}
+
 /** A new directory, by real path, that `cleanups` removes. */
 export function tempDir(cleanups: (() => void)[]): string {
   const dir = realpathSync(mkdtempSync(join(tmpdir(), "opencode-dir-")))

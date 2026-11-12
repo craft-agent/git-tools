@@ -132,6 +132,21 @@ describe("calls", () => {
     expect(calls).toEqual([])
   })
 
+  test("a call the gate refuses is the tool error result and execute never runs", async () => {
+    const calls: Call[] = []
+    const gated = defineTool({
+      ...tool("demo_thing_create", "alpha", "add", calls),
+      gate() {
+        throw new ToolError("forbidden", "Out of reach.")
+      },
+    })
+    const { client } = await connect([gated], settings())
+    const result = await call(client, "demo_thing_create", { count: 1 })
+    expect(result.isError).toBe(true)
+    expect(JSON.parse(textOf(result))).toEqual({ error: { code: "forbidden", message: "Out of reach." } })
+    expect(calls).toEqual([])
+  })
+
   test("a call without arguments runs with an empty object", async () => {
     const calls: Call[] = []
     const { client } = await connect([tool("demo_thing_create", "alpha", "add", calls)], settings())
