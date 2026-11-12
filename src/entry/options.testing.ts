@@ -7,6 +7,8 @@ import { defineTool, type ToolSpec } from "../core"
 export const NOTE_OPTION = "note_text"
 export const NOTE_ID = "demo_note_stamp"
 
+const optionValueSchema = z.union([z.string(), z.boolean(), z.number(), z.array(z.string()).readonly()])
+
 /** An add tool of `alpha` that returns `ctx.options` and shows the note option as a fact of its description. */
 export const noteSpec: ToolSpec = defineTool({
   id: NOTE_ID,
@@ -15,9 +17,11 @@ export const noteSpec: ToolSpec = defineTool({
   toolset: "alpha",
   class: "add",
   targets: () => ["north"],
-  describe: (_args, ctx) => ({ facts: [{ label: "Note", value: ctx.options?.[NOTE_OPTION] ?? "none" }] }),
+  describe: (_args, ctx) => ({
+    facts: [{ label: "Note", value: String(ctx.options?.[NOTE_OPTION] ?? "none") }],
+  }),
   input: z.object({}),
-  output: z.object({ options: z.record(z.string(), z.string()) }),
+  output: z.object({ options: z.record(z.string(), optionValueSchema) }),
   async execute(_args, ctx) {
     return { options: { ...ctx.options } }
   },

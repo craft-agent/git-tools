@@ -17,7 +17,11 @@ describe("tool options", () => {
   })
 
   test("the options come from the command line of the server", async () => {
-    const profile = { envPrefix: "DEMO", toolsets: { names: ["alpha"], defaults: ["alpha"] }, options: [NOTE_OPTION] }
+    const profile = {
+      envPrefix: "DEMO",
+      toolsets: { names: ["alpha"], defaults: ["alpha"] },
+      options: { [NOTE_OPTION]: "text" } as const,
+    }
     const entry = parseSettings(["--note-text", "from flag"], {}, profile)
     const { client } = await connect([noteSpec], entry)
     expect((await call(client, NOTE_ID)).structuredContent).toEqual({ options: { [NOTE_OPTION]: "from flag" } })

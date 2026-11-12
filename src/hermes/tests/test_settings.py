@@ -55,40 +55,50 @@ class SettingsFlagsTest(unittest.TestCase):
 
 
 class OptionFlagsTest(unittest.TestCase):
-    def flags(self, **config: Any) -> list[str]:
-        return settings.settings_flags(StubContext(config))
-
     def test_the_options_are_those_of_the_project(self) -> None:
-        self.assertEqual(project.OPTIONS, ("published_text_rules", "worktree_root"))
+        self.assertEqual(project.OPTIONS, {"published_text_rules": "text", "worktree_root": "text"})
 
-    def test_the_worktree_root_becomes_its_flag(self) -> None:
-        self.assertEqual(self.flags(worktree_root=" ~/trees "), ["--worktree-root", "~/trees"])
-        self.assertEqual(self.flags(worktree_root=" "), [])
-
-    def test_an_option_becomes_its_flag_after_the_other_settings(self) -> None:
-        self.assertEqual(
-            self.flags(published_text_rules="/etc/rules.json", read_only=True),
-            ["--read-only", "--published-text-rules", "/etc/rules.json"],
+    def test_each_kind_becomes_a_flag(self) -> None:
+        options = {"note_text": "text", "note_pinned": "boolean", "note_count": "number", "note_tags": "list"}
+        ctx = StubContext(
+            {"note_text": " hello \n", "note_pinned": True, "note_count": -2.5, "note_tags": [" a ", "", " b"]}
         )
+        expected = ["--note-text", "hello", "--note-pinned", "--note-count", "-2.5", "--note-tags", "a,b"]
+        self.assertEqual(settings.option_flags(ctx, options), expected)
+        with mock.patch.object(project, "OPTIONS", options):
+            self.assertEqual(settings.settings_flags(ctx), expected)
 
-    def test_the_option_is_stripped(self) -> None:
-        self.assertEqual(
-            self.flags(published_text_rules=" /etc/rules.json \n"), ["--published-text-rules", "/etc/rules.json"]
-        )
-
-    def test_absent_and_blank_options_give_no_flag(self) -> None:
-        for config in ({}, {"published_text_rules": None}, {"published_text_rules": ""}, {"published_text_rules": " \t"}):
+    def test_absent_and_empty_values_give_no_flags(self) -> None:
+        options = {"note_text": "text", "note_pinned": "boolean", "note_count": "number", "note_tags": "list"}
+        for config in (
+            {},
+            {"note_text": None},
+            {"note_text": " \t", "note_pinned": False, "note_tags": [" ", ""]},
+            {"note_tags": []},
+        ):
             with self.subTest(config=config):
-                self.assertEqual(self.flags(**config), [])
+                self.assertEqual(settings.option_flags(StubContext(config), options), [])
 
-    def test_an_option_that_is_not_text_is_refused(self) -> None:
-        for value in (3, True, ["/etc/rules.json"], {"path": "/etc/rules.json"}):
-            with self.subTest(value=value), self.assertRaises(settings.SettingsError):
-                self.flags(published_text_rules=value)
+    def test_zero_is_not_absent(self) -> None:
+        self.assertEqual(
+            settings.option_flags(StubContext({"note_count": 0}), {"note_count": "number"}), ["--note-count", "0"]
+        )
 
-    def test_option_flags_are_the_option_part_alone(self) -> None:
-        ctx = StubContext({"published_text_rules": "/etc/rules.json", "read_only": True, "tools": ["demo_thing_read"]})
-        self.assertEqual(settings.option_flags(ctx), ["--published-text-rules", "/etc/rules.json"])
+    def test_wrong_types_are_refused(self) -> None:
+        for kind, values in (
+            ("text", [True, 3, []]),
+            ("boolean", ["true", 1, []]),
+            ("number", [True, "3", [], float("nan"), float("inf"), -float("inf")]),
+            ("list", ["a", [1], ["a,b"], True]),
+            ("unknown", ["value"]),
+        ):
+            for value in values:
+                with self.subTest(kind=kind, value=value), self.assertRaises(settings.SettingsError):
+                    settings.option_flags(StubContext({"note_text": value}), {"note_text": kind})
+
+    def test_option_flags_excludes_selection_and_language(self) -> None:
+        ctx = StubContext({"note_text": "hello", "read_only": True, "toolsets": ["things"], "language": "ja"})
+        self.assertEqual(settings.option_flags(ctx, {"note_text": "text"}), ["--note-text", "hello"])
 
 
 class LanguageSettingTest(unittest.TestCase):

@@ -36,7 +36,8 @@ function expandHome(value: string): string {
  * an absolute path is `invalid_argument` naming the setting.
  */
 export function worktreeRoot(ctx: Pick<ToolContext, "options">): string {
-  const value = ctx.options?.[WORKTREE_ROOT_OPTION]?.trim()
+  const option = ctx.options?.[WORKTREE_ROOT_OPTION]
+  const value = typeof option === "string" ? option.trim() : undefined
   if (!value) return join(homeDirectory(), DEFAULT_ROOT_FOLDER)
   const expanded = expandHome(value)
   if (!isAbsolute(expanded)) {

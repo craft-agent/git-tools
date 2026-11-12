@@ -12,7 +12,7 @@ import type { EntryProfile } from "../entry/profile"
 export const PROFILE: EntryProfile = {
   envPrefix: "DEMO",
   toolsets: { names: ["alpha", "beta"], defaults: ["alpha"] },
-  options: [NOTE_OPTION],
+  options: { [NOTE_OPTION]: "text" },
 }
 
 export const toolInput = z.object({

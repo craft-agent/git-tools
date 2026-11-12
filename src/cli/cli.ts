@@ -230,9 +230,9 @@ function errorDetail(error: unknown): string {
  * language) of that description and the resources when there is a description.
  * `target` takes `--language <tag>`, else `<envPrefix>_LANGUAGE`, else `--harness-language <tag>` (the harness's own
  * display language) as the prompt language; none, or one without a table,
- * keeps English. `list`, `run` and `target` also take the package's tool
- * options, as flags or `<envPrefix>_<OPTION>` variables, and `run` and
- * `target` hand their values to the tool as `options`. Standard output carries only the JSON document; a
+ * keeps English. `list`, `run` and `target` also take the package's tool options,
+ * as flags or `<envPrefix>_<OPTION>` variables, and `run` and `target` hand their
+ * values to the tool as `options`. Standard output carries only the JSON document; a
  * mistake in the command line is one line on standard error and `EXIT_USAGE`.
  * Resolves to the exit code.
  */

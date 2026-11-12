@@ -34,16 +34,22 @@ export type CallDescription = {
   pins?: Record<string, string>
 }
 
+/** The kind of value a package's own setting holds. */
+export type OptionType = "text" | "boolean" | "number" | "list"
+
+/** A value of one of the package's own settings. */
+export type ToolOptionValue = string | boolean | number | readonly string[]
+
 /** The values of the package's own settings, by name; one not given is absent. */
-export type ToolOptions = Readonly<Record<string, string>>
+export type ToolOptions = Readonly<Record<string, ToolOptionValue>>
 
 export type ToolContext = {
   /** The working directory the call runs in. */
   cwd: string
-  /** The package's own settings the call can read, such as a path to a file of rules. */
-  options?: ToolOptions
   /** A directory that is never the caller's working tree (where these tools are installed); a tool must refuse to treat it as the caller's tree. */
   ownDir?: string
+  /** The package's own settings the call can read, such as a path to a file of rules. */
+  options?: ToolOptions
   signal?: AbortSignal
   /** Asks the person to approve; absent when the harness's own approval already covers the call. */
   confirm?(request: ConfirmRequest): Promise<boolean>

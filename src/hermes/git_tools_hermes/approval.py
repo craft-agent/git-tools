@@ -162,18 +162,13 @@ def resolve_target(
     """What ``target`` prints: ``["*"]`` for resources that cannot be told, no description for one absent or bad.
 
     ``language`` is the plugin's ``language`` setting and ``harness_language`` reads Hermes' display language
-    per call; neither may fail the run, and ``target`` picks among them. ``option_flags`` are the flags of the
-    plugin's tool options, which the call's description may read as ``run`` does.
+    per call; neither may fail the run, and ``target`` picks among them.
     """
     try:
         result = runtime.run(
             [
-                "target",
-                tool_id,
-                "--cwd",
-                agent_cwd(),
-                *language_flags(language, _known(harness_language)),
-                *(option_flags or []),
+                "target", tool_id, "--cwd", agent_cwd(),
+                *language_flags(language, _known(harness_language)), *(option_flags or []),
             ],
             stdin=json.dumps(run_arguments(args)),
             timeout=TARGET_TIMEOUT_SECONDS,
@@ -232,8 +227,7 @@ def make_hook(
 
     Whether a person is there to ask, and what happens when none is, is
     Hermes' own gate to decide. ``language`` is the plugin's ``language``
-    setting; ``harness_language`` is read on every call; ``option_flags``
-    are the flags of the plugin's tool options, passed to ``target``. When ``pins`` is
+    setting; ``harness_language`` is read on every call. When ``pins`` is
     given, the pin ``target`` answered is kept in it under the call's
     ``pin_key`` for the pin hook; the decision is the same either way.
     """
@@ -309,7 +303,6 @@ def register_approval(
 ) -> None:
     """Hold every non-read call of ``tools`` for approval, with the card in ``language`` (the plugin's setting).
 
-    ``option_flags`` are the flags of the plugin's tool options, which ``target`` reads as ``run`` does.
     Two hooks, in this order, since Hermes runs them in registration order: the approval hook
     stashes the pin of what the card shows, then the pin hook gives it to the call.
     """
@@ -317,12 +310,7 @@ def register_approval(
     ctx.register_hook(
         HOOK_NAME,
         make_hook(
-            runtime,
-            tools,
-            surface=lambda: session_surface(ctx),
-            language=language,
-            pins=pins,
-            option_flags=option_flags,
+            runtime, tools, surface=lambda: session_surface(ctx), language=language, pins=pins, option_flags=option_flags
         ),
     )
     ctx.register_hook(HOOK_NAME, make_pin_hook(tools, pins))

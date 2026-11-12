@@ -312,14 +312,16 @@ Every entry point takes the same settings:
   are ignored rather than refused: the setting only changes what is shown, so a
   typo must not take every tool away.
 - **Options** are the package's own settings, the ones the tools themselves
-  read, listed in `options` in `src/project.ts`. Each holds text and is named
-  in snake_case; its flag is the name with `_` as `-`, its variable is
-  `<envPrefix>_<NAME>` uppercased, and its plugin option or setting is the
-  name itself. A flag wins over its variable, an option over its variable,
-  and blank text counts as unset. They reach a tool as `context.options`,
-  keyed by name, and one that is not given is absent: a neutral default means
-  unset, and the tool then does nothing extra. A tool reads an option when it
-  runs, so a change applies on the next call.
+  read, listed in `options` in `src/project.ts` (and `OPTIONS` in the Hermes
+  plugin's `project.py`), each mapping a snake_case name to its type (`text`,
+  `boolean`, `number` or `list`). Its flag is the name with `_` as `-` (a
+  `boolean` flag takes no value), its variable is `<envPrefix>_<NAME>`
+  uppercased, and its plugin option or setting is the name itself. A flag wins
+  over its variable, an option over its variable, and a blank text or empty
+  list counts as unset. They reach a tool as `context.options`, keyed by name,
+  and one that is not given is absent: a neutral default means unset, and the
+  tool then does nothing extra. A tool reads an option when it runs, so a
+  change applies on the next call.
 
 ## Skills
 
@@ -578,7 +580,8 @@ changes a rule above, it says so. The discussion behind them is on
 
 ### Settings of git-tools
 
-Beside the settings above:
+Beside the settings above, two options of type `text`, read as the "Options"
+bullet says:
 
 - **`worktree_root`** (the option of that name): where task worktrees go, an
   absolute path in which `~` stands for the home directory (`~` alone or a

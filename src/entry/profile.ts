@@ -1,8 +1,12 @@
-import type { Toolsets } from "../core"
+import type { OptionType, Toolsets } from "../core"
 import { PROJECT } from "../project"
 
-/** What an entry point takes from the package's identity: the prefix of its settings' environment variables, its toolsets and the names of its tool options. */
-export type EntryProfile = { envPrefix: string; toolsets: Toolsets; options: readonly string[] }
+/** What an entry point takes from the package's identity: the prefix of its settings' environment variables, its toolsets and the types of its tool options. */
+export type EntryProfile = {
+  envPrefix: string
+  toolsets: Toolsets
+  options?: Readonly<Record<string, OptionType>>
+}
 
 /** The profile of this package, which every entry point uses unless a test supplies its own. */
 export const PROJECT_PROFILE: EntryProfile = {

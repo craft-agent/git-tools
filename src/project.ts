@@ -1,3 +1,5 @@
+import type { OptionType } from "./core"
+
 /** What makes this package itself; a project made from the starter sets these once (the setup script does). */
 export const PROJECT = {
   /** The plugin, MCP server and program name. */
@@ -12,8 +14,8 @@ export const PROJECT = {
   toolsets: ["repo", "commit", "rebase", "worktree", "push"] as readonly string[],
   /** The toolsets on when a setting names none. */
   defaultToolsets: ["repo", "commit", "rebase"] as readonly string[],
-  /** The settings the tools themselves read, beside the ones every entry point takes; each holds text and is named in snake_case. */
-  options: ["published_text_rules", "worktree_root"] as readonly string[],
+  /** The package's own settings, which the tools themselves read: each snake_case name and its type. */
+  options: { published_text_rules: "text", worktree_root: "text" } as Readonly<Record<string, OptionType>>,
   /** The environment variables the tools read besides the settings, which Codex forwards to the server after them. */
   toolVariables: [
     "LANGUAGE",
