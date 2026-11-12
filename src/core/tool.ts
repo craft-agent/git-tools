@@ -40,6 +40,19 @@ export type CallDescription = {
  */
 export type OptionType = "text" | "boolean" | "number" | "list" | "path" | "paths"
 
+/**
+ * How a package declares one of its own settings: its type, or an object that
+ * adds bounds. `integer` (only `true`) asks for a whole number; `min` and `max`
+ * are inclusive and bound a number's value or the count of a list's items. A
+ * bound applies to a value that is given, never to a setting left unset. An
+ * object with only `type` means the same as the type.
+ */
+export type OptionSpec =
+  | OptionType
+  | { type: "number"; integer?: true; min?: number; max?: number }
+  | { type: "list" | "paths"; min?: number; max?: number }
+  | { type: OptionType }
+
 /** A value of one of the package's own settings. */
 export type ToolOptionValue = string | boolean | number | readonly string[]
 

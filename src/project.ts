@@ -1,4 +1,4 @@
-import type { OptionType } from "./core"
+import type { OptionSpec } from "./core"
 
 /** What makes this package itself; a project made from the starter sets these once (the setup script does). */
 export const PROJECT = {
@@ -14,8 +14,8 @@ export const PROJECT = {
   toolsets: ["repo", "commit", "rebase", "worktree", "push"] as readonly string[],
   /** The toolsets on when a setting names none. */
   defaultToolsets: ["repo", "commit", "rebase"] as readonly string[],
-  /** The package's own settings, which the tools themselves read: each snake_case name and its type. */
-  options: { published_text_rules: "text", worktree_root: "text" } as Readonly<Record<string, OptionType>>,
+  /** The package's own settings, which the tools themselves read: each snake_case name and its type, with bounds when it needs them. */
+  options: { published_text_rules: "text", worktree_root: "text" } as Readonly<Record<string, OptionSpec>>,
   /** The environment variables the tools read besides the settings, which Codex forwards to the server after them. */
   toolVariables: [
     "LANGUAGE",

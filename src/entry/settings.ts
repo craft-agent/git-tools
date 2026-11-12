@@ -2,6 +2,7 @@ import { homedir } from "node:os"
 import { isAbsolute, join, resolve as resolvePath, sep } from "node:path"
 import {
   ToolError,
+  type OptionSpec,
   type OptionType,
   type ToolOptions,
   type ToolOptionValue,
@@ -40,12 +41,12 @@ function profileOptions(profile: EntryProfile): NonNullable<EntryProfile["option
 }
 
 function settingOptions(profile: EntryProfile): Record<string, Option> {
-  const toolOptions = Object.entries(profileOptions(profile)).map(([name, kind]): [string, Option] => [
+  const toolOptions = Object.entries(profileOptions(profile)).map(([name, spec]): [string, Option] => [
     name,
     {
       flag: `--${name.replace(/_/g, "-")}`,
       envSuffix: name.toUpperCase(),
-      ...(kind === "boolean" && { boolean: true as const }),
+      ...(optionType(spec) === "boolean" && { boolean: true as const }),
     },
   ])
   return { ...OPTIONS, ...Object.fromEntries(toolOptions) }
@@ -171,7 +172,69 @@ function envText(
   return text === undefined || text.trim() === "" ? undefined : { text, source: variable }
 }
 
-function parseOptionText(kind: OptionType, given: SettingText, env: Environment): ToolOptionValue | undefined {
+type OptionBounds = { type: OptionType; integer?: true; min?: number; max?: number }
+
+function optionType(spec: OptionSpec): OptionType {
+  return typeof spec === "string" ? spec : spec.type
+}
+
+function itemCount(count: number): string {
+  return count === 1 ? "1 item" : `${count} items`
+}
+
+function numberBoundsError({ integer, min, max }: OptionBounds, source: string): ToolError {
+  const range =
+    min !== undefined && max !== undefined
+      ? ` from ${min} to ${max}`
+      : min !== undefined
+        ? ` of at least ${min}`
+        : max !== undefined
+          ? ` of at most ${max}`
+          : ""
+  return new ToolError("invalid_argument", `${source} must be ${integer ? "a whole number" : "a number"}${range}.`)
+}
+
+function countBoundsError({ min, max }: OptionBounds, source: string): ToolError {
+  const range =
+    min !== undefined && max !== undefined
+      ? `from ${min} to ${max} items`
+      : min !== undefined
+        ? `at least ${itemCount(min)}`
+        : `at most ${itemCount(max!)}`
+  return new ToolError("invalid_argument", `${source} must list ${range}.`)
+}
+
+/** The value a setting given by `source` may take: one that is given must meet its declaration's bounds; an unset one is not checked. */
+function withinBounds(
+  spec: OptionSpec,
+  value: ToolOptionValue | undefined,
+  source: string,
+): ToolOptionValue | undefined {
+  if (value === undefined || typeof spec === "string") return value
+  const bounds: OptionBounds = spec
+  const { integer, min, max } = bounds
+  if (typeof value === "number") {
+    if (
+      (integer && !Number.isInteger(value)) ||
+      (min !== undefined && value < min) ||
+      (max !== undefined && value > max)
+    ) {
+      throw numberBoundsError(bounds, source)
+    }
+  } else if (
+    typeof value === "object" &&
+    ((min !== undefined && value.length < min) || (max !== undefined && value.length > max))
+  ) {
+    throw countBoundsError(bounds, source)
+  }
+  return value
+}
+
+function parseOptionText(spec: OptionSpec, given: SettingText, env: Environment): ToolOptionValue | undefined {
+  return withinBounds(spec, parseTypedText(optionType(spec), given, env), given.source)
+}
+
+function parseTypedText(kind: OptionType, given: SettingText, env: Environment): ToolOptionValue | undefined {
   switch (kind) {
     case "text":
       return nonBlank(given.text)
@@ -198,25 +261,15 @@ function optionsFrom(
   profile: EntryProfile,
 ): ToolOptions {
   const options: Record<string, ToolOptionValue> = {}
-  for (const [name, kind] of Object.entries(profileOptions(profile))) {
+  for (const [name, spec] of Object.entries(profileOptions(profile))) {
     if (flags[name] !== undefined) {
-      if (kind === "text") {
-        const text = nonBlank(flags[name])
-        if (text !== undefined) options[name] = text
-        continue
-      }
-      if (kind === "list") {
-        const items = splitList(flags[name])
-        if (items.length > 0) options[name] = items
-        continue
-      }
-      const parsed = parseOptionText(kind, { text: flags[name], source: settingOptions(profile)[name]!.flag }, env)
+      const parsed = parseOptionText(spec, { text: flags[name], source: settingOptions(profile)[name]!.flag }, env)
       if (parsed !== undefined) options[name] = parsed
       continue
     }
     const fromEnv = envText(name, env, profile)
     if (fromEnv !== undefined) {
-      const parsed = parseOptionText(kind, fromEnv, env)
+      const parsed = parseOptionText(spec, fromEnv, env)
       if (parsed !== undefined) options[name] = parsed
     }
   }
@@ -353,7 +406,16 @@ function languageOption(value: unknown): string | undefined {
   return nonBlank(value)
 }
 
-function toolOption(name: string, kind: OptionType, value: unknown, env: Environment): ToolOptionValue | undefined {
+function toolOption(name: string, spec: OptionSpec, value: unknown, env: Environment): ToolOptionValue | undefined {
+  return withinBounds(spec, toolOptionOfType(name, optionType(spec), value, env), `Option "${name}"`)
+}
+
+function toolOptionOfType(
+  name: string,
+  kind: OptionType,
+  value: unknown,
+  env: Environment,
+): ToolOptionValue | undefined {
   switch (kind) {
     case "text":
       if (typeof value !== "string") throw optionError(name, "text")
@@ -419,13 +481,13 @@ export function settingsFromOptions(
   }
 
   const parsedOptions: Record<string, ToolOptionValue> = {}
-  for (const [name, kind] of Object.entries(profileOptions(profile))) {
+  for (const [name, spec] of Object.entries(profileOptions(profile))) {
     let parsed: ToolOptionValue | undefined
     if (given[name] !== undefined) {
-      parsed = toolOption(name, kind, given[name], env)
+      parsed = toolOption(name, spec, given[name], env)
     } else {
       const fromEnv = envText(name, env, profile)
-      if (fromEnv !== undefined) parsed = parseOptionText(kind, fromEnv, env)
+      if (fromEnv !== undefined) parsed = parseOptionText(spec, fromEnv, env)
     }
     if (parsed !== undefined) parsedOptions[name] = parsed
   }
