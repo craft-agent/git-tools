@@ -5,10 +5,15 @@ import { tempRepo, type TempRepo } from "../../testing/git-repo"
 import {
   addTaskWorktree,
   branchExists,
+  commitIn,
   layoutDirectory,
   REMOTE_REPOSITORY,
   removeIn,
+  revision,
+  worktreeRootOf,
 } from "../../testing/worktree-fixtures"
+import { planRemove, type RemoveRequest } from "./remove-plan"
+import { removePlanned } from "./remove-run"
 
 const repos: TempRepo[] = []
 
@@ -124,6 +129,33 @@ describe("git_worktree_remove and the branch", () => {
     expect(removed.kept_because).toBe("delete_failed")
     expect(removed.landed).toEqual({ by: "ancestry", into: "origin/main" })
     expect(removed.warnings).toHaveLength(1)
-    expect(removed.warnings[0]).toStartWith("could not delete task/a: git branch failed")
+    expect(removed.warnings[0]).toStartWith("could not delete task/a: git update-ref failed")
+  })
+
+  test("deletes a landed branch", async () => {
+    const repo = await open()
+    const directory = await addTaskWorktree(repo, "task/a")
+
+    const removed = await removeIn(repo, directory)
+
+    expect(removed).toMatchObject({ branch_deleted: true, kept_because: null })
+    expect(await branchExists(repo, "task/a")).toBe(false)
+  })
+
+  test("keeps a landed branch that moved before the deletion, with its newer commit", async () => {
+    const repo = await open()
+    const directory = await addTaskWorktree(repo, "task/a")
+    const request: RemoveRequest = {
+      callerRoot: repo.dir,
+      worktreeRoot: worktreeRootOf(repo),
+      directory,
+    }
+    const plan = await planRemove(request)
+    const newer = await commitIn(directory, "newer", { "newer.txt": "x" })
+
+    const removed = await removePlanned(request, plan)
+
+    expect(removed).toMatchObject({ branch_deleted: false, kept_because: "moved" })
+    expect(await revision(repo, "task/a")).toBe(newer)
   })
 })

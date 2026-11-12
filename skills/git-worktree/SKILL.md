@@ -95,6 +95,7 @@ Otherwise the branch stays, and `kept_because` says why:
 | `default_branch` | the branch is the default branch, which is never deleted                    |
 | `checked_out`    | another worktree has the branch checked out                                 |
 | `not_landed`     | nothing proved it landed: unmerged, or a merge the remote has not shown yet |
+| `moved`          | it gained commits after the landed check, so they may not have landed       |
 | `delete_failed`  | it landed, but git could not delete it; `warnings` has git's message        |
 
 `landed` says how a deleted branch was proven: `ancestry` with the remote
