@@ -73,6 +73,17 @@ class ScanTest(unittest.TestCase):
         self.assertIn("hardcoded_secret", result.stdout)
         self.assertNotIn("::error", result.stdout)
 
+    def test_a_caution_finding_fails_and_is_listed(self) -> None:
+        with tempfile.TemporaryDirectory() as tree:
+            snippet = "`fixup" + "!" + "`, `squash" + "!" + "`"
+            write(tree, "skills/demo/SKILL.md", f"Fold {snippet} commits into their targets.\n")
+            result = run_scan(tree, HERMES_AGENT_DIR=SCANNER_DIR or "", GITHUB_ACTIONS="true")
+        self.assertEqual(result.returncode, 1, result.stdout)
+        self.assertIn("caution", result.stdout)
+        self.assertIn("Findings that make Hermes ask for confirmation:", result.stdout)
+        self.assertIn("skills/demo/SKILL.md:1", result.stdout)
+        self.assertIn("::error file=skills/demo/SKILL.md,line=1,", result.stdout)
+
     def test_github_actions_gets_an_annotation(self) -> None:
         with tempfile.TemporaryDirectory() as tree:
             self.blocking_tree(tree)

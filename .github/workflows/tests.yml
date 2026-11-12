@@ -68,9 +68,9 @@ jobs:
         run: pnpm run manifests:check
       - name: Smoke test the MCP server, the plugin and the CLI under Node
         run: pnpm run smoke
-      # Hermes scans a plugin when it installs it, and a `dangerous` verdict
-      # blocks the install even with `--force`. Its own scanner runs here on
-      # the tree a release tag carries: the repository's files and `dist/`.
+      # Hermes scans a plugin when it installs it, and only a `safe` verdict
+      # installs unattended. Its own scanner runs here on the tree a release
+      # tag carries, the repository's files and `dist/`, and fails otherwise.
       - name: Check out the Hermes plugin scanner
         uses: actions/checkout@v7
         with:

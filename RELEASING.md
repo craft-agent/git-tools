@@ -80,20 +80,30 @@ one is wanted.
 
 ## Hermes install scan
 
-Hermes scans a plugin when it installs it, and a `dangerous` verdict blocks
-the install: `--force` does not override it. A package can pass every other
-check and still be uninstallable in Hermes, so the Tests workflow runs Hermes'
-own scanner (`tools/plugin_guard.py` of Hermes Agent) on the tree a release tag
-carries: the repository's files plus the built `dist/`. Release Drafter
-follows only a successful Tests run, so a tree Hermes would block never gets a
-draft.
+Hermes scans a plugin when it installs it, and only a `safe` verdict installs
+unattended. A `caution` verdict asks on a terminal and is refused where no one
+can answer (a headless run, the Desktop app) unless `--force` is given; a
+`dangerous` verdict is refused even with `--force`. A package can pass every
+other check and still not install from the README's command, so the Tests
+workflow runs Hermes' own scanner (`tools/plugin_guard.py` of Hermes Agent) on
+the tree a release tag carries: the repository's files plus the built `dist/`.
+It fails unless the verdict is `safe`, and Release Drafter follows only a
+successful Tests run, so such a tree never gets a draft.
 
-- **A blocking finding** fails the run and is listed by file, line and rule
-  (`scripts/hermes_scan.py`). A made-up credential in a fixture is the usual
-  cause: the `hardcoded_secret` rule matches a `token`, `secret`, `password` or
-  `api_key` key with a quoted value of 20 or more characters. Shorten the value
-  or move the fixture under a `tests/` directory, where findings weigh less.
-- **A `caution` finding**, which Hermes installs after asking, only warns.
+Each finding that decides the verdict is listed by file, line and rule
+(`scripts/hermes_scan.py`) and annotated as an error:
+
+- **A blocking finding** (critical) makes the verdict `dangerous`. A made-up
+  credential in a fixture is the usual cause: the `hardcoded_secret` rule
+  matches a `token`, `secret`, `password` or `api_key` key with a quoted value
+  of 20 or more characters. Shorten the value or move the fixture under a
+  `tests/` directory, where findings weigh less.
+- **A finding that asks** (high) makes it `caution`. In a skill or other
+  Markdown, the usual cause is text Hermes reads as an inline shell command: a
+  `!` followed by a backtick and a command, as when a backtick-wrapped
+  `fixup!` is followed by a comma and another backtick. Hermes runs such text
+  through a shell when its `skills.inline_shell` setting is on. Reword it so no
+  `!` is followed by a backtick.
 - **The scanner is pinned** to one Hermes Agent commit, `HERMES_AGENT_COMMIT`
   in `.github/workflows/tests.yml`. Raise it deliberately, to a commit of
   Hermes Agent's default branch, and check that the Tests run still passes.
