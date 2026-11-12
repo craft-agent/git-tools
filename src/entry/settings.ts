@@ -1,3 +1,5 @@
+import { homedir } from "node:os"
+import { isAbsolute, join, resolve as resolvePath, sep } from "node:path"
 import {
   ToolError,
   type OptionType,
@@ -144,6 +146,21 @@ function parseNumber(value: string, source: string): number {
 /** A setting given as text, and where it came from, for error messages. */
 type SettingText = { text: string; source: string }
 
+type Environment = Record<string, string | undefined>
+
+/** The path a `path` setting names: `~` stands for the home directory (`env.HOME` when absolute, else the user's), the result must be absolute and is normalized. */
+function absolutePath(text: string, source: string, env: Environment): string {
+  const home = env.HOME !== undefined && isAbsolute(env.HOME) ? env.HOME : homedir()
+  const expanded =
+    text === "~" || text.startsWith("~/") || text.startsWith(`~${sep}`) ? join(home, text.slice(1)) : text
+  if (!isAbsolute(expanded)) throw new ToolError("invalid_argument", `${source} must be an absolute path.`)
+  return resolvePath(expanded)
+}
+
+function absolutePaths(items: string[], source: string, env: Environment): string[] | undefined {
+  return items.length > 0 ? items.map((item) => absolutePath(item, source, env)) : undefined
+}
+
 function envText(
   name: string,
   env: Record<string, string | undefined>,
@@ -154,7 +171,7 @@ function envText(
   return text === undefined || text.trim() === "" ? undefined : { text, source: variable }
 }
 
-function parseOptionText(kind: OptionType, given: SettingText): ToolOptionValue | undefined {
+function parseOptionText(kind: OptionType, given: SettingText, env: Environment): ToolOptionValue | undefined {
   switch (kind) {
     case "text":
       return nonBlank(given.text)
@@ -166,6 +183,12 @@ function parseOptionText(kind: OptionType, given: SettingText): ToolOptionValue 
       const items = splitList(given.text)
       return items.length > 0 ? items : undefined
     }
+    case "path": {
+      const text = nonBlank(given.text)
+      return text === undefined ? undefined : absolutePath(text, given.source, env)
+    }
+    case "paths":
+      return absolutePaths(splitList(given.text), given.source, env)
   }
 }
 
@@ -187,13 +210,13 @@ function optionsFrom(
         if (items.length > 0) options[name] = items
         continue
       }
-      const parsed = parseOptionText(kind, { text: flags[name], source: settingOptions(profile)[name]!.flag })
+      const parsed = parseOptionText(kind, { text: flags[name], source: settingOptions(profile)[name]!.flag }, env)
       if (parsed !== undefined) options[name] = parsed
       continue
     }
     const fromEnv = envText(name, env, profile)
     if (fromEnv !== undefined) {
-      const parsed = parseOptionText(kind, fromEnv)
+      const parsed = parseOptionText(kind, fromEnv, env)
       if (parsed !== undefined) options[name] = parsed
     }
   }
@@ -330,7 +353,7 @@ function languageOption(value: unknown): string | undefined {
   return nonBlank(value)
 }
 
-function toolOption(name: string, kind: OptionType, value: unknown): ToolOptionValue | undefined {
+function toolOption(name: string, kind: OptionType, value: unknown, env: Environment): ToolOptionValue | undefined {
   switch (kind) {
     case "text":
       if (typeof value !== "string") throw optionError(name, "text")
@@ -346,6 +369,20 @@ function toolOption(name: string, kind: OptionType, value: unknown): ToolOptionV
       if (!list) throw optionError(name, "a list of strings")
       const items = list.map((item) => item.trim()).filter((item) => item !== "")
       return items.length > 0 ? items : undefined
+    }
+    case "path": {
+      if (typeof value !== "string") throw optionError(name, "an absolute path")
+      const text = nonBlank(value)
+      return text === undefined ? undefined : absolutePath(text, `Option "${name}"`, env)
+    }
+    case "paths": {
+      const list = stringList(value)
+      if (!list) throw optionError(name, "a list of absolute paths")
+      return absolutePaths(
+        list.flatMap((item) => nonBlank(item) ?? []),
+        `Option "${name}"`,
+        env,
+      )
     }
   }
 }
@@ -385,10 +422,10 @@ export function settingsFromOptions(
   for (const [name, kind] of Object.entries(profileOptions(profile))) {
     let parsed: ToolOptionValue | undefined
     if (given[name] !== undefined) {
-      parsed = toolOption(name, kind, given[name])
+      parsed = toolOption(name, kind, given[name], env)
     } else {
       const fromEnv = envText(name, env, profile)
-      if (fromEnv !== undefined) parsed = parseOptionText(kind, fromEnv)
+      if (fromEnv !== undefined) parsed = parseOptionText(kind, fromEnv, env)
     }
     if (parsed !== undefined) parsedOptions[name] = parsed
   }

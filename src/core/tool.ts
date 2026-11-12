@@ -34,8 +34,11 @@ export type CallDescription = {
   pins?: Record<string, string>
 }
 
-/** The kind of value a package's own setting holds. */
-export type OptionType = "text" | "boolean" | "number" | "list"
+/**
+ * The kind of value a package's own setting holds: `path` is an absolute path
+ * (text), `paths` a list of them.
+ */
+export type OptionType = "text" | "boolean" | "number" | "list" | "path" | "paths"
 
 /** A value of one of the package's own settings. */
 export type ToolOptionValue = string | boolean | number | readonly string[]

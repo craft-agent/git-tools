@@ -1,4 +1,6 @@
 import { describe, expect, test } from "bun:test"
+import { homedir } from "node:os"
+import { join } from "node:path"
 import type { EntryProfile } from "./profile"
 import {
   forwardedVariables,
@@ -154,6 +156,95 @@ describe("plugin tool options", () => {
     const message = failure(() => fromOptions({ nope: 1 })).message
     expect(message).toContain('Unknown option "nope"')
     for (const name of Object.keys(typedProfile.options!)) expect(message).toContain(name)
+  })
+})
+
+describe("path tool options", () => {
+  const pathProfile: EntryProfile = { ...profile, options: { notes_dir: "path", extra_dirs: "paths" } }
+  const home = "/home/demo"
+  const read = (argv: string[], variables: Record<string, string | undefined> = {}) =>
+    parseSettings(argv, { HOME: home, ...variables }, pathProfile).options
+  const readOption = (value: unknown, variables: Record<string, string | undefined> = {}) =>
+    settingsFromOptions({ notes_dir: value }, { HOME: home, ...variables }, pathProfile).options
+
+  test("reads an absolute path from a flag, the = form, a variable and a plugin option", () => {
+    const expected = { notes_dir: "/srv/notes" }
+    expect(read(["--notes-dir", " /srv/notes "])).toEqual(expected)
+    expect(read(["--notes-dir=/srv/notes"])).toEqual(expected)
+    expect(read([], { DEMO_NOTES_DIR: " /srv/notes " })).toEqual(expected)
+    expect(readOption(" /srv/notes ")).toEqual(expected)
+    expect(read(["--notes-dir=/flag"], { DEMO_NOTES_DIR: "/env" })).toEqual({ notes_dir: "/flag" })
+  })
+
+  test.each([
+    ["~", home],
+    ["~/", home],
+    ["~/x", `${home}/x`],
+    ["~/x/../y/", `${home}/y`],
+    ["/a/b/../c", "/a/c"],
+    ["/a//b/./c/", "/a/b/c"],
+  ])("expands and normalizes %s", (text, expected) => {
+    expect(read([`--notes-dir=${text}`]).notes_dir).toBe(expected)
+    expect(read([], { DEMO_NOTES_DIR: text }).notes_dir).toBe(expected)
+    expect(readOption(text).notes_dir).toBe(expected)
+  })
+
+  test("takes the home directory from an absolute HOME in the given environment, else from the system", () => {
+    expect(parseSettings(["--notes-dir=~/x"], { HOME: "/other" }, pathProfile).options.notes_dir).toBe("/other/x")
+    for (const variables of [{ HOME: "relative/home" }, { HOME: "" }, {}]) {
+      expect(parseSettings(["--notes-dir=~/x"], variables, pathProfile).options.notes_dir).toBe(join(homedir(), "x"))
+    }
+  })
+
+  test("refuses a relative path, naming the source", () => {
+    for (const text of ["x", "./x", "../x", "~user/x", "~x"]) {
+      expect(failure(() => read([`--notes-dir=${text}`])).message).toBe("--notes-dir must be an absolute path.")
+      expect(failure(() => read([], { DEMO_NOTES_DIR: text })).message).toBe("DEMO_NOTES_DIR must be an absolute path.")
+      expect(failure(() => readOption(text)).message).toBe('Option "notes_dir" must be an absolute path.')
+    }
+  })
+
+  test("treats a blank path as unset, and a blank flag suppresses the variable", () => {
+    expect(read(["--notes-dir= "], { DEMO_NOTES_DIR: "/env" })).toEqual({})
+    expect(read([], { DEMO_NOTES_DIR: " " })).toEqual({})
+    expect(readOption(" ", { DEMO_NOTES_DIR: "/env" })).toEqual({})
+    expect(readOption(undefined, { DEMO_NOTES_DIR: "/env" })).toEqual({ notes_dir: "/env" })
+  })
+
+  test("rejects a plugin path that is not text", () => {
+    for (const value of [1, null, ["/a"]]) {
+      expect(failure(() => readOption(value)).message).toBe('Option "notes_dir" must be an absolute path.')
+    }
+  })
+
+  test("reads paths as a list, checking and normalizing each item", () => {
+    const expected = { extra_dirs: ["/a/c", `${home}/x`, "/b"] }
+    expect(read(["--extra-dirs", " /a/b/../c, ,~/x,/b,"])).toEqual(expected)
+    expect(read([], { DEMO_EXTRA_DIRS: "/a/b/../c,~/x, ,/b" })).toEqual(expected)
+    expect(
+      settingsFromOptions({ extra_dirs: [" /a/b/../c ", "", "~/x", " ", "/b"] }, { HOME: home }, pathProfile).options,
+    ).toEqual(expected)
+  })
+
+  test("refuses the first relative item of paths, naming the source", () => {
+    expect(failure(() => read(["--extra-dirs=/a,b,/c"])).message).toBe("--extra-dirs must be an absolute path.")
+    expect(failure(() => read([], { DEMO_EXTRA_DIRS: "/a,~u/b" })).message).toBe(
+      "DEMO_EXTRA_DIRS must be an absolute path.",
+    )
+    expect(failure(() => settingsFromOptions({ extra_dirs: ["/a", "b"] }, {}, pathProfile)).message).toBe(
+      'Option "extra_dirs" must be an absolute path.',
+    )
+  })
+
+  test("treats paths with no item left as unset, and rejects a plugin value that is not a list of strings", () => {
+    expect(read(["--extra-dirs=, ,"], { DEMO_EXTRA_DIRS: "/env" })).toEqual({})
+    expect(read([], { DEMO_EXTRA_DIRS: " , " })).toEqual({})
+    expect(settingsFromOptions({ extra_dirs: ["", " "] }, { DEMO_EXTRA_DIRS: "/env" }, pathProfile).options).toEqual({})
+    for (const value of ["/a", [1], null]) {
+      expect(failure(() => settingsFromOptions({ extra_dirs: value }, {}, pathProfile)).message).toBe(
+        'Option "extra_dirs" must be a list of absolute paths.',
+      )
+    }
   })
 })
 

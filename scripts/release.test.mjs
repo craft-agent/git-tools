@@ -122,7 +122,7 @@ describe("MCP configurations", () => {
   test("the package's options are typed snake_case settings shared with Hermes", () => {
     for (const [name, kind] of Object.entries(PROJECT.options)) {
       expect(name).toMatch(/^[a-z]+(?:_[a-z]+)*$/)
-      expect(["text", "boolean", "number", "list"]).toContain(kind)
+      expect(["text", "boolean", "number", "list", "path", "paths"]).toContain(kind)
     }
     const declaration = read(`${HERMES_PACKAGE}/project.py`).match(/^OPTIONS: dict\[str, str\] = (\{[^}]*\})/m)
     expect(declaration).not.toBeNull()
