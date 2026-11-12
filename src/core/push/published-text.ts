@@ -1,15 +1,16 @@
 import { readFile, stat } from "node:fs/promises"
-import { isAbsolute } from "node:path"
+import { isAbsolute, resolve } from "node:path"
 import { z } from "zod"
 import { cut } from "../describe"
 import { ToolError, isAbortError } from "../errors"
+import { HOME_PREFIX, expandHome } from "../home"
 import type { ToolOptions } from "../tool"
 
 /**
  * The rules for what a push publishes: words that a branch name or a commit
  * subject must not carry. The package ships none; the words come from the
  * consumer, as a JSON file the `published_text_rules` option names by its
- * absolute path, and a tool reads the file on every call.
+ * absolute path (`~` allowed), and a tool reads the file on every call.
  */
 
 /** The name of the tool option that holds the path of the rules file. */
@@ -101,8 +102,9 @@ function compileRules(path: string, entries: unknown[]): PublishedTextRule[] {
 
 /**
  * The rules of the file the `published_text_rules` option names; none when it
- * is not set. The value must be an absolute path to a JSON array (at most
- * 100 entries, in a file of at most 64 KiB) of `{ rule, pattern, flags?, hint }`:
+ * is not set. The value must be an absolute path, or one starting with `~/`,
+ * to a JSON array (at most 100 entries, in a file of at most 64 KiB) of
+ * `{ rule, pattern, flags?, hint }`:
  * `rule` is a unique lowercase name, `pattern` a regular expression of up to
  * 500 characters, `flags` any of `imsu`, and `hint` up to 300 characters
  * saying what to write instead. Every mistake is `invalid_argument` naming the
@@ -116,8 +118,11 @@ export async function loadPublishedTextRules(
   const option = options?.[PUBLISHED_TEXT_RULES_OPTION]
   const path = typeof option === "string" ? option.trim() : undefined
   if (!path) return []
-  if (!isAbsolute(path)) throw invalidRules(path, "the value must be an absolute path")
-  return compileRules(path, parseRulesJson(path, await readRulesFile(path, signal)))
+  const expanded = expandHome(path)
+  if (!isAbsolute(expanded))
+    throw invalidRules(path, `the value must be an absolute path, or start with ${HOME_PREFIX}`)
+  const normalized = resolve(expanded)
+  return compileRules(normalized, parseRulesJson(normalized, await readRulesFile(normalized, signal)))
 }
 
 /** A text a push publishes: a branch name, or a commit subject with the commit's full sha and the branch it is pushed with. */

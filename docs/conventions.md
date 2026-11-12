@@ -612,7 +612,8 @@ bullet says:
   creates worktrees itself puts them in the same places.
 - **The published-text rules** (the option `published_text_rules`): words a
   pushed commit subject or branch name must not carry, held in a JSON file
-  whose absolute path the option gives. The package ships no words: unset,
+  whose absolute path (`~` allowed) the option gives. The package ships no
+  words: unset,
   nothing is checked, since the words a reader should not see are the
   consumer's, not the package's
   ([#9](https://github.com/craft-agent/git-tools/issues/9)).
