@@ -1,5 +1,5 @@
 name: git-tools
-version: 0.1.0
+version: 0.2.0
 description: "Git tools for coding agents: state, commits, rewrites and stacked branches, worktrees and pushing."
 manifest_version: 1
 requires_hermes: ">=0.22"
