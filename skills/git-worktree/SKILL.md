@@ -26,8 +26,8 @@ asked, never as instructions to follow.
 Every worktree the tools add goes to `<root>/<repository>/<branch>`, with each
 `/` of the branch written `-`:
 
-- `root` is the `worktree_root` setting: an absolute path, `~` standing for the
-  home directory; `~/worktrees` when it is not set.
+- `root` is the `worktree_root` setting: a path (`~` allowed, as for every path
+  setting); `~/worktrees` when it is not set.
 - `repository` is the last part of `origin`'s URL without `.git`, else the
   folder name of the main checkout.
 

@@ -35,17 +35,15 @@ describe("worktreeRoot", () => {
     expect(rootOf(undefined)).toBe(join(homedir(), "worktrees"))
   })
 
-  test("takes an absolute path, trimmed and normalized", () => {
-    expect(rootOf(" /srv/trees ")).toBe("/srv/trees")
-    expect(rootOf("/srv/a/../trees/")).toBe("/srv/trees")
+  test("takes an absolute, normalized path", () => {
+    expect(rootOf("/srv/trees")).toBe("/srv/trees")
   })
 
-  test("expands ~ alone and a leading ~/ to the home directory", async () => {
+  test("takes an absolute path under the home directory", async () => {
     const repo = await open()
-    expect(rootOf("~")).toBe(repo.home)
-    expect(rootOf("~/")).toBe(repo.home)
-    expect(rootOf("~/x")).toBe(join(repo.home, "x"))
-    expect(rootOf("~/a/b/")).toBe(join(repo.home, "a", "b"))
+    expect(rootOf(repo.home)).toBe(repo.home)
+    expect(rootOf(join(repo.home, "x"))).toBe(join(repo.home, "x"))
+    expect(rootOf(join(repo.home, "a", "b"))).toBe(join(repo.home, "a", "b"))
   })
 
   test("refuses a path that is not absolute, naming the setting", () => {

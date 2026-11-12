@@ -1,7 +1,7 @@
-import { basename, dirname, isAbsolute, join, resolve } from "node:path"
+import { homedir } from "node:os"
+import { basename, dirname, isAbsolute, join } from "node:path"
 import { ToolError } from "../errors"
 import { git, gitResult } from "../git"
-import { HOME_PREFIX, expandHome, homeDirectory } from "../home"
 import type { ToolContext } from "../tool"
 
 /** The name of the `worktree_root` option, which says where task worktrees go. */
@@ -18,22 +18,20 @@ const NOT_A_NAME = [".", ".."]
 
 /**
  * Where task worktrees go: the `worktree_root` option, `~/worktrees` when it
- * is not set. `~` alone or a leading `~/` stands for the home directory; the
- * result is absolute and normalized. Nothing is created. A value that is not
- * an absolute path is `invalid_argument` naming the setting.
+ * is not set. The option arrives absolute and normalized. Nothing is created.
+ * A value that is not an absolute path is `invalid_argument` naming the setting.
  */
 export function worktreeRoot(ctx: Pick<ToolContext, "options">): string {
   const option = ctx.options?.[WORKTREE_ROOT_OPTION]
   const value = typeof option === "string" ? option.trim() : undefined
-  if (!value) return join(homeDirectory(), DEFAULT_ROOT_FOLDER)
-  const expanded = expandHome(value)
-  if (!isAbsolute(expanded)) {
+  if (!value) return join(process.env.HOME?.trim() || homedir(), DEFAULT_ROOT_FOLDER)
+  if (!isAbsolute(value)) {
     throw new ToolError(
       "invalid_argument",
-      `The ${WORKTREE_ROOT_OPTION} setting (${value}): the value must be an absolute path, or start with ${HOME_PREFIX}.`,
+      `The ${WORKTREE_ROOT_OPTION} setting (${value}): the value must be an absolute path.`,
     )
   }
-  return resolve(expanded)
+  return value
 }
 
 /**

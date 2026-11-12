@@ -597,12 +597,11 @@ changes a rule above, it says so. The discussion behind them is on
 
 ### Settings of git-tools
 
-Beside the settings above, two options of type `text`, read as the "Options"
+Beside the settings above, two options of type `path`, read as the "Options"
 bullet says:
 
-- **`worktree_root`** (the option of that name): where task worktrees go, an
-  absolute path in which `~` stands for the home directory (`~` alone or a
-  leading `~/`); `~/worktrees` when unset. The layout is
+- **`worktree_root`** (the option of that name): where task worktrees go;
+  `~/worktrees` when unset. The layout is
   `<root>/<repository>/<branch>`, each `/` of the branch written `-`, and the
   repository is the last part of `origin`'s URL without `.git`, else the
   folder name of the main checkout. Anything but an absolute path is
@@ -612,9 +611,8 @@ bullet says:
   creates worktrees itself puts them in the same places.
 - **The published-text rules** (the option `published_text_rules`): words a
   pushed commit subject or branch name must not carry, held in a JSON file
-  whose absolute path (`~` allowed) the option gives. The package ships no
-  words: unset,
-  nothing is checked, since the words a reader should not see are the
+  whose path the option gives. The package ships no words: unset, nothing is
+  checked, since the words a reader should not see are the
   consumer's, not the package's
   ([#9](https://github.com/craft-agent/git-tools/issues/9)).
 

@@ -54,29 +54,15 @@ describe("loadPublishedTextRules", () => {
     expect(rules[1]!.hint).toBe("Finish it.")
   })
 
-  test("a leading ~/ loads rules from the home directory", async () => {
-    const home = process.env.HOME
-    try {
-      process.env.HOME = dir
-      await rulesFile([ENTRY], "rules.json")
-      expect(await load("~/rules.json")).toEqual([{ rule: ENTRY.rule, pattern: /wip/, hint: ENTRY.hint }])
-    } finally {
-      if (home === undefined) delete process.env.HOME
-      else process.env.HOME = home
-    }
+  test("an absolute path loads rules", async () => {
+    const path = await rulesFile([ENTRY], "rules.json")
+    expect(await load(path)).toEqual([{ rule: ENTRY.rule, pattern: /wip/, hint: ENTRY.hint }])
   })
 
-  test("~ alone is refused when the home directory is not a file", async () => {
-    const home = process.env.HOME
-    try {
-      process.env.HOME = dir
-      const message = await refusal("~")
-      expect(message).toContain(dir)
-      expect(message).toContain("it is not a file")
-    } finally {
-      if (home === undefined) delete process.env.HOME
-      else process.env.HOME = home
-    }
+  test("a directory is refused as not a file", async () => {
+    const message = await refusal(dir)
+    expect(message).toContain(dir)
+    expect(message).toContain("it is not a file")
   })
 
   test("an empty array is no rules", async () => {
@@ -94,7 +80,7 @@ describe("loadPublishedTextRules", () => {
     const message = await refusal("rules.json")
     expect(message).toContain(PUBLISHED_TEXT_RULES_OPTION)
     expect(message).toContain("rules.json")
-    expect(message).toContain("the value must be an absolute path, or start with ~/")
+    expect(message).toContain("the value must be an absolute path")
   })
 
   test("a missing file, a directory and an oversized file are refused, naming the path", async () => {

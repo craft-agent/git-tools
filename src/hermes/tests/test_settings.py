@@ -56,7 +56,7 @@ class SettingsFlagsTest(unittest.TestCase):
 
 class OptionFlagsTest(unittest.TestCase):
     def test_the_options_are_those_of_the_project(self) -> None:
-        self.assertEqual(project.OPTIONS, {"published_text_rules": "text", "worktree_root": "text"})
+        self.assertEqual(project.OPTIONS, {"published_text_rules": "path", "worktree_root": "path"})
 
     def test_each_kind_becomes_a_flag(self) -> None:
         options = {"note_text": "text", "note_pinned": "boolean", "note_count": "number", "note_tags": "list"}
