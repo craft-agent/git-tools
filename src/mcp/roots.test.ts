@@ -3,6 +3,7 @@ import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from "nod
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { pathToFileURL } from "node:url"
+import { SANDBOX_STATE_META } from "./roots"
 import type { ServerOptions } from "./server"
 import { call, cleanups, connect, runCleanups, settings, settle, tool, type Call, type ClientSetup } from "./testing"
 
@@ -21,12 +22,101 @@ describe("working directory", () => {
   async function setup(client: ClientSetup, options?: ServerOptions) {
     const calls: Call[] = []
     const connected = await connect([tool("demo_thing_read", "alpha", "read", calls)], settings(), client, options)
-    const cwd = async () => {
-      await call(connected.client, "demo_thing_read")
+    const cwd = async (meta?: Record<string, unknown>) => {
+      await call(connected.client, "demo_thing_read", {}, meta)
       return calls.at(-1)!.ctx.cwd
     }
     return { ...connected, calls, cwd }
   }
+
+  test("the server asks Codex for sandbox state metadata", async () => {
+    const { client } = await setup({})
+    expect(client.getServerCapabilities()?.experimental?.[SANDBOX_STATE_META]).toEqual({})
+  })
+
+  test("sandboxCwd as a file URI wins over roots and the fallback without listing roots", async () => {
+    const session = dir()
+    const { cwd, seen } = await setup({ capabilities: roots, roots: { dirs: [dir()] } }, { cwd: () => "/fallback" })
+    expect(await cwd({ [SANDBOX_STATE_META]: { sandboxCwd: pathToFileURL(session).href } })).toBe(session)
+    expect(seen.rootsRequests).toBe(0)
+  })
+
+  test("sandboxCwd as an absolute path wins over workspaces", async () => {
+    const session = dir()
+    const { cwd } = await setup({}, { cwd: () => "/fallback" })
+    expect(
+      await cwd({
+        [SANDBOX_STATE_META]: { sandboxCwd: session },
+        "x-codex-turn-metadata": { workspaces: { [dir()]: {} } },
+      }),
+    ).toBe(session)
+  })
+
+  test("missing and install-directory sandboxCwd values fall through to workspaces, roots or fallback", async () => {
+    const own = dir()
+    const nested = join(own, "src")
+    mkdirSync(nested)
+    const workspace = dir()
+    const root = dir()
+    const { cwd } = await setup(
+      { capabilities: roots, roots: { dirs: [root] } },
+      { ownDir: own, cwd: () => "/fallback" },
+    )
+    const { cwd: fallback } = await setup({}, { ownDir: own, cwd: () => "/fallback" })
+    for (const sandboxCwd of [MISSING_URI, own, nested]) {
+      expect(
+        await cwd({
+          [SANDBOX_STATE_META]: { sandboxCwd },
+          "x-codex-turn-metadata": { workspaces: { [workspace]: {} } },
+        }),
+      ).toBe(workspace)
+      const meta = {
+        [SANDBOX_STATE_META]: { sandboxCwd },
+        "x-codex-turn-metadata": { workspaces: { [own]: {} } },
+      }
+      expect(await cwd(meta)).toBe(root)
+      expect(await fallback(meta)).toBe("/fallback")
+    }
+  })
+
+  test("one workspace path or URI is used without listing roots, but two workspaces are ignored", async () => {
+    const workspace = dir()
+    const { cwd, seen } = await setup({ capabilities: roots, roots: { dirs: [] } }, { cwd: () => "/fallback" })
+    for (const key of [workspace, pathToFileURL(workspace).href]) {
+      expect(await cwd({ "x-codex-turn-metadata": { workspaces: { [key]: {} } } })).toBe(workspace)
+    }
+    expect(seen.rootsRequests).toBe(0)
+    expect(await cwd({ "x-codex-turn-metadata": { workspaces: { [workspace]: {}, [dir()]: {} } } })).toBe("/fallback")
+  })
+
+  test("call metadata is never cached or substituted for cached roots", async () => {
+    const session = dir()
+    const root = dir()
+    const { cwd, seen } = await setup({ capabilities: roots, roots: { dirs: [root] } })
+    const meta = { [SANDBOX_STATE_META]: { sandboxCwd: session } }
+    expect(await cwd(meta)).toBe(session)
+    expect(await cwd()).toBe(root)
+    expect(await cwd(meta)).toBe(session)
+    expect(await cwd()).toBe(root)
+    expect(seen.rootsRequests).toBe(1)
+    const { cwd: fallback } = await setup({}, { cwd: () => "/fallback" })
+    expect(await fallback(meta)).toBe(session)
+    expect(await fallback()).toBe("/fallback")
+  })
+
+  test("malformed metadata falls back without error", async () => {
+    const { cwd } = await setup({}, { cwd: () => "/fallback" })
+    for (const meta of [
+      { [SANDBOX_STATE_META]: "x" },
+      { [SANDBOX_STATE_META]: null },
+      { [SANDBOX_STATE_META]: { sandboxCwd: 1 } },
+      { [SANDBOX_STATE_META]: { sandboxCwd: "relative/path" } },
+      { "x-codex-turn-metadata": null },
+      { "x-codex-turn-metadata": { workspaces: [] } },
+    ]) {
+      expect(await cwd(meta)).toBe("/fallback")
+    }
+  })
 
   test("a root that is a local directory is the working directory", async () => {
     const root = dir()

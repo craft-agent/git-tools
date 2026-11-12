@@ -126,6 +126,11 @@ export function textOf(result: CallToolResult): string {
   return block.text
 }
 
-export async function call(client: Client, name: string, args: Record<string, unknown> = {}) {
-  return (await client.callTool({ name, arguments: args })) as CallToolResult
+export async function call(
+  client: Client,
+  name: string,
+  args: Record<string, unknown> = {},
+  meta?: Record<string, unknown>,
+) {
+  return (await client.callTool({ name, arguments: args, _meta: meta })) as CallToolResult
 }
