@@ -247,7 +247,10 @@ The toolset is opt-in. The `git-push` skill says how they fit together.
    `<prefix>_<domain>_<verb>`, a title and description, the Zod argument and
    output schemas, its toolset and write class, and `execute(args, context)`.
    A write tool also gives `targets(args, context)`: what the call writes to,
-   as a permission rule should name it.
+   as a permission rule should name it. A tool whose settings can put some
+   calls out of reach whatever the person answers gives
+   `gate(args, context)`, which throws for such a call; it is refused before
+   anyone is asked, and before `execute`.
 2. Test it beside the spec (`<verb>.test.ts`), calling it through `invoke` as
    the entry points do. A tool that runs a program is tested against a fake of
    that program on `PATH`; no test reaches a real service.
@@ -297,6 +300,12 @@ Where a write is asked about, and where it is not:
   then server). `agy -p` refuses a tool it cannot ask about.
 - **Hermes** `hermes chat -q` refuses a write it cannot ask about; `hermes -z`
   and `--yolo` skip approval, so writes then run unasked.
+
+A call a tool's `gate` refuses never runs, whatever the answer. OpenCode and
+Hermes refuse it before they ask, so no prompt shows it; Hermes blocks it with
+the tool's error. Claude Code, Codex, Grok Build and Antigravity draw their
+own prompt before the MCP server sees the call, so they may still ask about
+it; the server then refuses it.
 
 ## Settings
 
