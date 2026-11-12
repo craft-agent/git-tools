@@ -47,11 +47,13 @@ def emoji_setting(ctx: PluginContext, defaults: Mapping[str, str] | None = None)
     return merged
 
 
-def _option_flag(name: str, kind: str, value: Any) -> list[str]:
+def _option_flag(name: str, declaration: str | dict[str, object], value: Any) -> list[str]:
+    kind = declaration["type"] if isinstance(declaration, dict) else declaration
     flag = f"--{name.replace('_', '-')}"
-    if kind == "text":
+    if kind in ("text", "path"):
         if not isinstance(value, str):
-            raise SettingsError(f'setting "{name}" must be text')
+            expected = "a path" if kind == "path" else "text"
+            raise SettingsError(f'setting "{name}" must be {expected}')
         return [flag, text] if (text := value.strip()) else []
     if kind == "boolean":
         if not isinstance(value, bool):
@@ -61,21 +63,25 @@ def _option_flag(name: str, kind: str, value: Any) -> list[str]:
         if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value):
             raise SettingsError(f'setting "{name}" must be a finite number')
         return [flag, str(value)]
-    if kind == "list":
+    if kind in ("list", "paths"):
         if not isinstance(value, list) or not all(isinstance(item, str) and "," not in item for item in value):
-            raise SettingsError(f'setting "{name}" must be a list of strings without commas')
+            expected = "paths" if kind == "paths" else "strings"
+            raise SettingsError(f'setting "{name}" must be a list of {expected} without commas')
         items = [item.strip() for item in value if item.strip()]
         return [flag, ",".join(items)] if items else []
     raise SettingsError(f'unknown option type "{kind}" for "{name}"')
 
 
-def option_flags(ctx: PluginContext, options: Mapping[str, str] | None = None) -> list[str]:
-    """The package's tool options as flags, with absent settings left to the command line's environment."""
+def option_flags(ctx: PluginContext, options: Mapping[str, str | dict[str, object]] | None = None) -> list[str]:
+    """The package's tool options as flags, with absent settings left to the command line's environment.
+
+    Bounds and path absoluteness are checked by the command line, not here.
+    """
     flags: list[str] = []
-    for name, kind in (project.OPTIONS if options is None else options).items():
+    for name, declaration in (project.OPTIONS if options is None else options).items():
         value = ctx.get_config(name)
         if value is not None:
-            flags += _option_flag(name, kind, value)
+            flags += _option_flag(name, declaration, value)
     return flags
 
 

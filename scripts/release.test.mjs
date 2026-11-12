@@ -139,9 +139,11 @@ describe("MCP configurations", () => {
       }
       if (bounds.min !== undefined && bounds.max !== undefined) expect(bounds.min).toBeLessThanOrEqual(bounds.max)
     }
-    const declaration = read(`${HERMES_PACKAGE}/project.py`).match(/^OPTIONS: dict\[str, str\] = (\{[^}]*\})/m)
+    const declaration = read(`${HERMES_PACKAGE}/project.py`).match(
+      /^OPTIONS: dict\[str, str \| dict\[str, object\]\] = (\{.*\})$/m,
+    )
     expect(declaration).not.toBeNull()
-    expect(JSON.parse(declaration[1])).toEqual(PROJECT.options)
+    expect(JSON.parse(declaration[1].replace(/\bTrue\b/g, "true"))).toEqual(PROJECT.options)
   })
 })
 
