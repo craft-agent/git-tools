@@ -6,7 +6,7 @@ import json
 from collections.abc import Callable, Mapping
 from typing import Any
 
-from .approval import PIN_ARGUMENT, parse_pin, run_arguments
+from .approval import PIN_ARGUMENT, error_text, parse_pin, run_arguments
 from .context import PluginContext
 from .listing import ToolInfo
 from . import project
@@ -39,11 +39,8 @@ def _read_document(stdout: str) -> dict[str, Any] | None:
 def _failure(code: int, stdout: str, stderr: str) -> str:
     """The error result of a command line that did not succeed: its ``<code>: <message>`` and details line, or its stderr."""
     error = (_read_document(stdout) or {}).get("error")
-    if isinstance(error, dict) and isinstance(error.get("code"), str) and isinstance(error.get("message"), str):
-        message = f"{error['code']}: {error['message']}"
-        details = error.get("details")
-        if isinstance(details, dict):
-            message = f"{message}\n" + json.dumps(details, ensure_ascii=False, separators=(",", ":"))
+    message = error_text(error)
+    if message is not None:
         return error_result(message)
     detail = stderr.strip() or f"exit status {code}"
     return error_result(f"{project.CLI_NAME} failed: {detail}")

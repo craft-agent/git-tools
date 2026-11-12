@@ -861,6 +861,57 @@ class ApprovalPinTest(FakeCliCase):
         self.assertEqual(taken, [PIN] * 400)
 
 
+class ApprovalRefusedTest(FakeCliCase):
+    def answer(self, refused: Any, **fields: Any) -> None:
+        self.reply("target demo_thing_create", stdout=json.dumps({"refused": refused, **fields}))
+        self.write_fixture()
+
+    def decide(self, pins: Any = None, tool_name: str = "demo_thing_create", **call: Any) -> Any:
+        tools = [listing.ToolInfo.from_listing(item) for item in LISTING]
+        return approval.make_hook(self.runtime, tools, pins=pins)(tool_name=tool_name, args={}, **call)
+
+    def test_a_refused_call_is_blocked_with_its_code_and_message(self) -> None:
+        self.answer({"code": "out_of_reach", "message": "Kept out of reach."})
+        self.assertEqual(self.decide(), {"action": "block", "message": "out_of_reach: Kept out of reach."})
+
+    def test_a_refusal_carries_its_details_on_their_own_line(self) -> None:
+        self.answer({"code": "out_of_reach", "message": "No.", "details": {"object": "a"}})
+        self.assertEqual(self.decide(), {"action": "block", "message": 'out_of_reach: No.\n{"object":"a"}'})
+
+    def test_a_block_clears_the_pin_stashed_for_its_call(self) -> None:
+        stash = approval.PinStash()
+        stash.put(("", "", "call-1"), PIN)
+        stash.put(("", "", "call-2"), PIN)
+        self.answer({"code": "out_of_reach", "message": "No."}, pin=OTHER_PIN)
+        self.assertEqual(self.decide(stash, tool_call_id="call-1")["action"], "block")
+        self.assertIsNone(stash.take(("", "", "call-1")))
+        self.assertEqual(stash.take(("", "", "call-2")), PIN)
+
+    def test_a_malformed_refusal_is_ignored(self) -> None:
+        for refused in ("no", ["x"], {}, {"code": "c"}, {"message": "m"}, {"code": " ", "message": "m"},
+                        {"code": "c", "message": ""}, {"code": 1, "message": "m"}):
+            with self.subTest(refused=refused):
+                self.answer(refused, resources=["target/one"])
+                target = approval.resolve_target(self.runtime, "demo_thing_create", {})
+                self.assertIsNone(target.refused)
+                self.assertEqual(target.resources, ["target/one"])
+                self.assertEqual(self.decide()["action"], "approve")
+
+    def test_a_failed_target_still_asks_with_any_resource(self) -> None:
+        self.reply(
+            "target demo_thing_create", code=1, stdout=json.dumps({"refused": {"code": "c", "message": "m"}})
+        )
+        self.write_fixture()
+        target = approval.resolve_target(self.runtime, "demo_thing_create", {})
+        self.assertIsNone(target.refused)
+        self.assertEqual(target.resources, [approval.ANY_RESOURCE])
+        self.assertEqual(self.decide()["action"], "approve")
+
+    def test_a_read_is_left_alone(self) -> None:
+        self.answer({"code": "c", "message": "m"})
+        self.assertIsNone(self.decide(tool_name="demo_thing_read"))
+
+
 class DisplayLanguageTest(unittest.TestCase):
     def hermes_says(self, get_language: Any) -> Any:
         """Put an ``agent.i18n`` whose ``get_language`` is ``get_language`` where ``import`` finds it."""
