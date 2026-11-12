@@ -1,9 +1,10 @@
 """Run Hermes Agent's own plugin install scanner on a tree.
 
-Hermes scans a plugin when it is installed, and a dangerous verdict blocks the
-install; `--force` does not override it. This script runs the same scanner
-(`tools/plugin_guard.py` from a hermes-agent checkout) on the tree a release
-carries, and exits 1 when Hermes would block it.
+Hermes scans a plugin when it is installed. Only a safe verdict installs
+unattended: a caution verdict asks first on a terminal and is refused where no
+one can answer, and a dangerous one is refused even with `--force`. This script
+runs the same scanner (`tools/plugin_guard.py` from a hermes-agent checkout) on
+the tree a release carries, and exits 1 unless the verdict is safe.
 """
 
 from __future__ import annotations
@@ -18,8 +19,8 @@ SCANNER_ENV = "HERMES_AGENT_DIR"
 SCANNER_MODULE = Path("tools") / "plugin_guard.py"
 STRUCTURAL_FILE = "(directory)"
 LISTED_SEVERITIES = (
-    ("critical", "error", "Blocking findings:"),
-    ("high", "warning", "Findings that make Hermes ask for confirmation:"),
+    ("critical", "Blocking findings:"),
+    ("high", "Findings that make Hermes ask for confirmation:"),
 )
 
 
@@ -38,8 +39,8 @@ def location(finding: Any) -> str:
     return f"{finding.file}:{finding.line}" if finding.line > 0 else finding.file
 
 
-def annotation(level: str, finding: Any) -> str:
-    """Build the workflow command that annotates a finding."""
+def annotation(finding: Any) -> str:
+    """Build the workflow command that annotates a finding as an error."""
     properties = []
     if finding.file != STRUCTURAL_FILE:
         properties.append(f"file={escape_property(finding.file)}")
@@ -47,7 +48,7 @@ def annotation(level: str, finding: Any) -> str:
         properties.append(f"line={finding.line}")
     properties.append(f"title={escape_property(f'Hermes install scan: {finding.pattern_id}')}")
     message = escape_data(f"{finding.description}: {finding.match}")
-    return f"::{level} {','.join(properties)}::{message}"
+    return f"::error {','.join(properties)}::{message}"
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -82,7 +83,7 @@ def main(argv: list[str] | None = None) -> int:
 
     annotate = os.environ.get("GITHUB_ACTIONS") == "true"
     findings = sorted(result.findings, key=lambda f: (f.file, f.line, f.pattern_id))
-    for severity, level, header in LISTED_SEVERITIES:
+    for severity, header in LISTED_SEVERITIES:
         listed = [finding for finding in findings if finding.severity == severity]
         if not listed:
             continue
@@ -90,9 +91,9 @@ def main(argv: list[str] | None = None) -> int:
         for finding in listed:
             print(f"  {location(finding)}: {finding.pattern_id} ({severity}) {finding.description}: {finding.match}")
             if annotate:
-                print(annotation(level, finding))
+                print(annotation(finding))
 
-    return 1 if allowed is False else 0
+    return 0 if allowed is True else 1
 
 
 if __name__ == "__main__":
