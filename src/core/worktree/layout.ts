@@ -1,7 +1,7 @@
-import { homedir } from "node:os"
 import { basename, dirname, isAbsolute, join, resolve } from "node:path"
 import { ToolError } from "../errors"
 import { git, gitResult } from "../git"
+import { HOME_PREFIX, expandHome, homeDirectory } from "../home"
 import type { ToolContext } from "../tool"
 
 /** The name of the `worktree_root` option, which says where task worktrees go. */
@@ -10,24 +10,11 @@ export const WORKTREE_ROOT_OPTION = "worktree_root"
 /** The folder under the home directory that holds the worktrees when `worktree_root` is not set. */
 const DEFAULT_ROOT_FOLDER = "worktrees"
 
-const HOME_MARK = "~"
-const HOME_PREFIX = "~/"
 const GIT_DIRECTORY = ".git"
 const GIT_SUFFIX = /\.git$/
 const URL_SEPARATOR = /[/:]/
 const TRAILING_SLASHES = /\/+$/
 const NOT_A_NAME = [".", ".."]
-
-/** The home directory: `HOME` as it is now, which git sees too (Bun's `os.homedir()` would not follow a change), else the account's. */
-function homeDirectory(): string {
-  return process.env.HOME?.trim() || homedir()
-}
-
-/** `value` with `~` alone, or a leading `~/`, replaced by the home directory. */
-function expandHome(value: string): string {
-  if (value === HOME_MARK) return homeDirectory()
-  return value.startsWith(HOME_PREFIX) ? join(homeDirectory(), value.slice(HOME_PREFIX.length)) : value
-}
 
 /**
  * Where task worktrees go: the `worktree_root` option, `~/worktrees` when it
