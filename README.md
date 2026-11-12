@@ -100,6 +100,12 @@ install directory and passes no roots, so the server takes each call's directory
 from what Codex sends with the call: its sandbox state, which the server asks
 for, else the one workspace it names.
 
+The plugin declares `default_tools_approval_mode = "writes"`: Codex asks before
+every tool not marked read-only. A user's
+`[plugins."<plugin>".mcp_servers.<server>]` setting can only tighten it. Setting
+`auto` there yields `prompt` (reads asked too), since Codex treats `auto` and
+`writes` as incomparable.
+
 ### Grok Build
 
 ```sh
@@ -276,8 +282,11 @@ Where a write is asked about, and where it is not:
 
 - **OpenCode** grants any action no rule names, so a write runs unasked unless
   a rule asks for it: add the `git_*` rule shown under [OpenCode](#opencode).
-- **Codex** under `codex exec`, and **Grok Build** under `grok -p`, refuse a
-  write they cannot ask about, unless it is allowed beforehand.
+- **Codex** asks before every write because of the plugin's approval mode.
+  Under `codex exec` it refuses with "MCP tool call requires approval, but
+  approval policy is never".
+- **Grok Build** under `grok -p` refuses a write it cannot ask about, unless it
+  is allowed beforehand.
 - **Grok Build** calls the plugin's tools through its `use_tool` tool, and the
   agent often names a tool without its server first. Grok checks the rules
   against the name as given, so the server-qualified rule alone does not match

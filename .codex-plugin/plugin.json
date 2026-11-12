@@ -15,6 +15,7 @@
       "command": "node",
       "args": ["dist/mcp.js"],
       "cwd": ".",
+      "default_tools_approval_mode": "writes",
       "env_vars": [
         "GIT_TOOLS_TOOLSETS",
         "GIT_TOOLS_READ_ONLY",

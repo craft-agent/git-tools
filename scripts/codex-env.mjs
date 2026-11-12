@@ -11,9 +11,12 @@ export const CODEX_MANIFEST = ".codex-plugin/plugin.json"
 /** The absolute path to Codex's legacy manifest. */
 export const CODEX_MANIFEST_PATH = fileURLToPath(new URL(`../${CODEX_MANIFEST}`, import.meta.url))
 
+/** Codex asks before every tool not annotated read-only, whatever its other hints; a user can only tighten a plugin's declared mode. */
+export const CODEX_APPROVAL_MODE = "writes"
+
 const ROOT = fileURLToPath(new URL("../", import.meta.url))
 
-/** Updates the single MCP server's `env_vars` in Codex's manifest text and formats it. */
+/** Updates the single MCP server's `env_vars` and `default_tools_approval_mode` in Codex's manifest text and formats it. */
 export async function renderCodexEnv(text, variables) {
   const doc = JSON.parse(text)
   const servers = Object.values(doc.mcpServers ?? {})
@@ -21,6 +24,7 @@ export async function renderCodexEnv(text, variables) {
     throw new Error(`${CODEX_MANIFEST} needs exactly one server in \`mcpServers\`.`)
   }
   servers[0].env_vars = [...variables]
+  servers[0].default_tools_approval_mode = CODEX_APPROVAL_MODE
   const config = await resolveConfig(CODEX_MANIFEST_PATH)
   return format(JSON.stringify(doc, null, 2), { ...config, filepath: CODEX_MANIFEST_PATH })
 }

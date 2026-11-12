@@ -2,7 +2,13 @@ import { describe, expect, test } from "bun:test"
 import { readFileSync } from "node:fs"
 import { check, resolveConfig } from "prettier"
 import { forwardedVariables } from "../src/entry/settings"
-import { CODEX_MANIFEST_PATH, importModuleText, loadForwardedVariables, renderCodexEnv } from "./codex-env.mjs"
+import {
+  CODEX_APPROVAL_MODE,
+  CODEX_MANIFEST_PATH,
+  importModuleText,
+  loadForwardedVariables,
+  renderCodexEnv,
+} from "./codex-env.mjs"
 
 const realManifest = readFileSync(CODEX_MANIFEST_PATH, "utf8")
 
@@ -28,6 +34,17 @@ describe("Codex environment variables", () => {
 
     const config = await resolveConfig(CODEX_MANIFEST_PATH)
     expect(await check(result, { ...config, filepath: CODEX_MANIFEST_PATH })).toBe(true)
+  })
+
+  test("sets writes approval when the mode is absent or auto", async () => {
+    for (const mode of [undefined, "auto"]) {
+      const manifest = JSON.parse(realManifest)
+      const [server] = Object.values(manifest.mcpServers)
+      if (mode === undefined) delete server.default_tools_approval_mode
+      else server.default_tools_approval_mode = mode
+      const rendered = JSON.parse(await renderCodexEnv(JSON.stringify(manifest), forwardedVariables()))
+      expect(Object.values(rendered.mcpServers)[0].default_tools_approval_mode).toBe(CODEX_APPROVAL_MODE)
+    }
   })
 
   test("throws when the manifest has zero or two servers", async () => {
