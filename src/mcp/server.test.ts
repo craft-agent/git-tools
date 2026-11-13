@@ -2,7 +2,7 @@ import { afterEach, describe, expect, test } from "bun:test"
 import { REQUIRES_USER_INTERACTION, annotations, selectTools } from "../core"
 import { PROJECT_PROFILE } from "../entry/profile"
 import type { EntrySettings } from "../entry/settings"
-import { ALL_TOOLS } from "../tools"
+import { PACKAGE_TOOLS } from "../entry/tools"
 import { createServer } from "./server"
 import { TOOLSETS, connect, runCleanups, settings, tool, type Call } from "./testing"
 
@@ -126,14 +126,14 @@ describe("the class of a tool", () => {
 describe("the package's tools", () => {
   test("each is published with its class's annotations, an object output and a strict input", async () => {
     const { client } = await connect(
-      ALL_TOOLS,
+      PACKAGE_TOOLS,
       settings({ toolsets: "all" }),
       {},
       { toolsets: PROJECT_PROFILE.toolsets },
     )
     const { tools } = await client.listTools()
-    expect(tools.map((t) => t.name)).toEqual(ALL_TOOLS.map((spec) => spec.id))
-    for (const spec of ALL_TOOLS) {
+    expect(tools.map((t) => t.name)).toEqual(PACKAGE_TOOLS.map((spec) => spec.id))
+    for (const spec of PACKAGE_TOOLS) {
       const listed = tools.find((t) => t.name === spec.id)!
       expect(listed.annotations).toEqual(annotations(spec))
       expect(listed.outputSchema?.type).toBe("object")
