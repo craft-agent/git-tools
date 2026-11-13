@@ -6,9 +6,9 @@ import json
 from collections.abc import Callable, Mapping
 from typing import Any
 
-from .approval import PIN_ARGUMENT, error_text, parse_pin, run_arguments
+from .approval import GUARD_FAILED_TEXT, PIN_ARGUMENT, Guard, error_text, parse_pin, run_arguments
 from .context import PluginContext
-from .listing import ToolInfo
+from .listing import READ_CLASS, ToolInfo
 from . import project
 from .runtime import CliError, Runtime, agent_cwd
 
@@ -46,7 +46,9 @@ def _failure(code: int, stdout: str, stderr: str) -> str:
     return error_result(f"{project.CLI_NAME} failed: {detail}")
 
 
-def make_handler(runtime: Runtime, tool_id: str, flags: list[str]) -> Callable[..., str]:
+def make_handler(
+    runtime: Runtime, tool_id: str, flags: list[str], guard: Guard | None = None
+) -> Callable[..., str]:
     """The handler Hermes calls for one tool: it takes the arguments as one dict and never raises.
 
     The pin the pin hook set (``PIN_ARGUMENT``) is taken out of the arguments and, when it is a
@@ -55,6 +57,8 @@ def make_handler(runtime: Runtime, tool_id: str, flags: list[str]) -> Callable[.
 
     def handler(args: dict[str, Any], **kwargs: Any) -> str:
         try:
+            if guard is not None and (refused := guard()) is not None:
+                return error_result(refused or GUARD_FAILED_TEXT)
             pin = parse_pin(args.get(PIN_ARGUMENT))
             result = runtime.run(
                 ["run", tool_id, "--cwd", agent_cwd(), *flags, *([f"--pin={pin}"] if pin else [])],
@@ -79,6 +83,7 @@ def register_tools(
     tools: list[ToolInfo],
     flags: list[str],
     emoji: Mapping[str, str] | None = None,
+    guard: Guard | None = None,
 ) -> None:
     """Register each listed tool under its own ID, grouped in one Hermes toolset per package toolset."""
     toolset_emoji = TOOLSET_EMOJI if emoji is None else emoji
@@ -87,7 +92,7 @@ def register_tools(
             name=tool.id,
             toolset=TOOLSET_PREFIX + tool.toolset.replace("_", "-"),
             schema={"name": tool.id, "description": tool.description, "parameters": tool.input_schema},
-            handler=make_handler(runtime, tool.id, flags),
+            handler=make_handler(runtime, tool.id, flags, guard if tool.write_class != READ_CLASS else None),
             emoji=toolset_emoji.get(tool.toolset, ""),
             description=tool.title,
         )

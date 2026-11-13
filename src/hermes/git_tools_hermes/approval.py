@@ -247,10 +247,12 @@ def make_hook(
     harness_language: Callable[[], str | None] = lambda: display_language(),
     pins: PinStash | None = None,
     option_flags: list[str] | None = None,
+    guard: Guard | None = None,
 ) -> Callable[..., dict[str, str] | None]:
     """The ``pre_tool_call`` hook: it sends every call of these tools but a read to the person's approval.
 
     A call ``target`` refuses is blocked without asking: the model gets the refusal as the tool's error.
+    A ``guard`` refusal blocks before ``target`` runs or approval is asked.
 
     Whether a person is there to ask, and what happens when none is, is
     Hermes' own gate to decide. ``language`` is the plugin's ``language``
@@ -264,8 +266,17 @@ def make_hook(
         tool = by_id.get(tool_name)
         if tool is None or tool.write_class == READ_CLASS:
             return None
-        target = resolve_target(runtime, tool.id, args, language, harness_language, option_flags)
         call = pin_key(kwargs)
+        if guard is not None:
+            try:
+                refused = guard()
+            except Exception:
+                refused = GUARD_FAILED_TEXT
+            if refused is not None:
+                if pins is not None and call is not None:
+                    pins.take(call)
+                return {"action": "block", "message": refused or GUARD_FAILED_TEXT}
+        target = resolve_target(runtime, tool.id, args, language, harness_language, option_flags)
         if target.refused:
             if pins is not None and call is not None:
                 pins.take(call)
@@ -331,17 +342,20 @@ def register_approval(
     tools: list[ToolInfo],
     language: str | None = None,
     option_flags: list[str] | None = None,
+    guard: Guard | None = None,
 ) -> None:
     """Hold every non-read call of ``tools`` for approval, with the card in ``language`` (the plugin's setting).
 
     Two hooks, in this order, since Hermes runs them in registration order: the approval hook
     stashes the pin of what the card shows, then the pin hook gives it to the call.
+    A ``guard`` refusal blocks before approval is asked.
     """
     pins = PinStash()
     ctx.register_hook(
         HOOK_NAME,
         make_hook(
-            runtime, tools, surface=lambda: session_surface(ctx), language=language, pins=pins, option_flags=option_flags
+            runtime, tools, surface=lambda: session_surface(ctx), language=language, pins=pins,
+            option_flags=option_flags, guard=guard,
         ),
     )
     ctx.register_hook(HOOK_NAME, make_pin_hook(tools, pins))
