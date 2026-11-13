@@ -18,6 +18,7 @@ describe("tool options", () => {
 
   test("the options come from the command line of the server", async () => {
     const profile = {
+      name: "demo-tools",
       envPrefix: "DEMO",
       toolsets: { names: ["alpha"], defaults: ["alpha"] },
       options: { [NOTE_OPTION]: "text" } as const,

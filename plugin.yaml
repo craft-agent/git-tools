@@ -9,6 +9,9 @@ provides_tools:
   - git_commit_read
   - git_commit_stage
   - git_commit_verify
+  - git_grant_create
+  - git_grant_read
+  - git_grant_revoke
   - git_push_read
   - git_push_send
   - git_rebase_read
