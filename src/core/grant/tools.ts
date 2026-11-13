@@ -3,7 +3,7 @@ import { z } from "zod"
 import { MAX_VALUE_LENGTH } from "../describe"
 import { ToolError } from "../errors"
 import { confirmWrite, defineTool, type CallFact, type ToolContext, type ToolSpec } from "../tool"
-import { exemptFromGrants, type GrantContext } from "./guard"
+import { askPersonOnly, exemptFromGrants, type GrantContext } from "./guard"
 import { grantBounds, grantTargets, MAX_GRANT_DAYS, MAX_GRANT_RATE, type Grant } from "./model"
 import { addGrant, noKeyError, readGrants, removeGrant } from "./store"
 import { readUsage, usedIn } from "./usage"
@@ -277,5 +277,5 @@ export function grantTools(specs: readonly ToolSpec[], prefix: string): ToolSpec
       },
     }),
   )
-  return [create, read, revoke]
+  return [askPersonOnly(create), read, revoke]
 }

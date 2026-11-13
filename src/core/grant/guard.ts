@@ -27,6 +27,19 @@ export function isExemptFromGrants(spec: object): boolean {
   return EXEMPT.has(spec)
 }
 
+const PERSON_ONLY = new WeakSet<object>()
+
+/** Marks a spec that only a person's answer to its own prompt may run: no standing answer, grant or unattended run covers it. */
+export function askPersonOnly<T extends object>(spec: T): T {
+  PERSON_ONLY.add(spec)
+  return spec
+}
+
+/** Whether `askPersonOnly` marked the spec. */
+export function isPersonOnly(spec: object): boolean {
+  return PERSON_ONLY.has(spec)
+}
+
 function usageOptions(grants: GrantContext): UsageOptions {
   return { dir: grants.dir, key: grants.key, now: grants.now ?? (() => new Date()) }
 }
@@ -55,7 +68,7 @@ async function measureCall(
  * in `check` mode nothing is written and `seq` is 0.
  */
 export async function grantCheck(
-  spec: ToolSpec,
+  spec: Pick<ToolSpec, "id" | "class" | "input" | "targets" | "bounds" | "measure">,
   args: Record<string, unknown>,
   ctx: ToolContext,
   mode: "check" | "record",

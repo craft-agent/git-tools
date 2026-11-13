@@ -4,6 +4,7 @@ import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { z } from "zod"
 import { defineTool, invoke, type CallDescription, type ToolContext } from "../tool"
+import { askPersonOnly, isPersonOnly } from "./guard"
 import { MAX_GRANT_DAYS, MAX_GRANT_RATE } from "./model"
 import { readGrants } from "./store"
 import { grantTools } from "./tools"
@@ -54,6 +55,20 @@ test("only non-read tools with bounds are grantable, with declarations in the de
   expect(create!.description).toContain("attach (allow): Whether files may be attached")
   expect(create!.description).toContain("types (oneOf): The kinds of note; values: daily, weekly")
   expect(create!.bounds).toBeUndefined()
+})
+
+test("only creating a grant is marked for a person's own answer", () => {
+  const [, read, revoke] = grantTools([bounded], "demo")
+  expect(isPersonOnly(create!)).toBe(true)
+  expect(isPersonOnly(read!)).toBe(false)
+  expect(isPersonOnly(revoke!)).toBe(false)
+  expect(isPersonOnly(bounded)).toBe(false)
+})
+
+test("askPersonOnly marks the spec itself and returns it", () => {
+  const marked = askPersonOnly({ ...bounded })
+  expect(isPersonOnly(marked)).toBe(true)
+  expect(isPersonOnly({ ...marked })).toBe(false)
 })
 
 test("unattended creation is refused before confirmation", async () => {

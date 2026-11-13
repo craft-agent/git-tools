@@ -1,4 +1,11 @@
-export { exemptFromGrants, grantCheck, isExemptFromGrants, type GrantContext } from "./guard"
+export {
+  askPersonOnly,
+  exemptFromGrants,
+  grantCheck,
+  isExemptFromGrants,
+  isPersonOnly,
+  type GrantContext,
+} from "./guard"
 export { GRANTS_TOOLSET, grantTools } from "./tools"
 export { grantRefusal, matchGrant, measureOf, type GrantCall, type GrantMatch } from "./match"
 export {
