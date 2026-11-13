@@ -353,6 +353,97 @@ Every entry point takes the same settings:
   keyed by name, and one that is not given is absent: a neutral default means
   unset, and the tool then does nothing extra. A tool reads an option when it
   runs, so a change applies on the next call.
+- **`unattended`** says that no person can answer a question, as in a
+  scheduled job, CI or a headless run; **`grants_dir`** is the `path` where
+  grants and their use are kept. See "Writes no one is there to approve".
+
+## Writes no one is there to approve
+
+When no person can answer, a harness either refuses a write or, with its
+approvals skipped, runs it with no limit at all; a host's allow rule names a
+tool and at most its targets, with no expiry, no count and nothing about what
+the call carries. So a person delegates, in advance, a bounded set of writes,
+and every entry point checks them the same way.
+
+- **A setting says that no one can be asked.** No harness tells a plugin or
+  an MCP server that its questions will go unanswered, and the modes that
+  skip approvals are the ones with no person in the loop, so nothing is
+  inferred from them. `unattended` says it. Off, the default, nothing changes
+  and grants are not read. On, a read runs as before and a write runs only
+  under a live grant that covers it.
+- **A tool declares what a grant can bound.** `bounds` names each bound with
+  its kind: `max` (a whole number the call must stay at or under, such as a
+  text's length in characters), `allow` (whether the call may do one thing,
+  such as attach a file) or `oneOf` (the values the call may use, such as
+  DNS record types). `measure(args, context)` gives the call's value for
+  each: a number, a boolean, or one or more of the declared values. A tool
+  that declares `bounds`, even none, can run under a grant; a tool without
+  `bounds` never does, since nothing says what a grant over it would limit.
+  A tool declares at most six bounds and a grant's values must fit a fact (200
+  characters), so the consent screen shows every one.
+  A bound is a fact about the call, computed the same way every time, never
+  the model's account of it, and it is checked whole, never cut to a budget
+  as a prompt's facts are.
+- **A grant** names one tool, the targets it may write to (named ones only,
+  never `*`), a value for every bound the tool declares, a rate in calls per
+  hour and an expiry of at most 90 days. A call is covered when its tool
+  matches, every target it resolves is among the grant's, every measured
+  value is within its bound (at or under a `max`, `false` or allowed for an
+  `allow`, every value among a `oneOf`'s), the grant has not expired, and
+  fewer calls than the rate ran under it in the last 60 minutes. A bound the
+  grant leaves out, or a measure that fails or returns another shape, covers
+  nothing: an unset bound would be no bound. Where several grants cover a
+  call, the one with the fewest targets is used, then the one that expires
+  first. A call counts against its grant's rate whether it succeeds or fails.
+- **Grants restrict; the host still allows.** `invoke` checks the grant
+  after the gate and before `execute`, so the MCP server and the command
+  line's `run` enforce it too, and the native plugins and the Hermes
+  plugin's `target` check it before they ask, refusing without a question.
+  The harness's own permission still decides whether the call reaches the
+  package at all (an allow rule, an allowed-tools list, an approve mode), so
+  a grant means the same in every harness and never lets a call through
+  that the host would stop.
+- **A refusal says why.** It is `forbidden`, with `details.reason`.
+  `not_bounded` (the tool declares no `bounds`), `no_key` and `tampered` (a
+  grant or the log fails its MAC) refuse every call. Otherwise each grant
+  that names the tool is checked in order, `expired`, `target` (a target
+  outside the grant, or one that cannot be told), `bound` (named in
+  `details.bound`) and `rate`, and the reason is the one of the grant that
+  passed the most checks; `no_grant` when none names the tool. The message
+  says what a person would change: a new grant, or waiting for the rate.
+- **A person delegates; the agent only asks.** `<prefix>_grant_create`
+  takes the tool, the targets, the bounds, the rate, the days it lasts and a
+  reason. It is administrative, and its prompt is the consent screen: the
+  headline names the tool, the facts the rate, the expiry and every bound,
+  the targets stand as targets and the reason as text, and the pin makes the
+  grant exactly what the prompt showed. Widening or extending one is a new
+  grant. `<prefix>_grant_read` lists the grants and their use, and
+  `<prefix>_grant_revoke` removes one. They form the `grants` toolset, off by
+  default.
+- **Only a person's answer creates a grant.** A grant that the agent could
+  give itself would bound nothing. `grant_create` is refused while
+  `unattended` is on, declares no `bounds` so no grant covers it, and every
+  entry point keeps a standing answer from covering it: the OpenCode plugin
+  makes its permission `ask` with nothing to save, the MCP server marks it
+  `requiresUserInteraction` and asks through form elicitation where the
+  client offers it, whatever `confirm` says, and the Hermes plugin gives each
+  call a rule key of its own. A harness run with every approval skipped asks
+  about nothing, and no package can tell; the README says so for each
+  harness. Revoking only narrows, so `grant_revoke` runs while `unattended`
+  is on without a grant.
+- **Grants and their use are signed with a key the host supplies.** The
+  variable `<envPrefix>_GRANT_KEY` (at least 32 characters; a variable only,
+  never a flag or a plugin option, so it stays out of configuration files)
+  keys an HMAC-SHA256 over each grant and over a chained log of every call
+  made under one: the grant, the tool, the targets, the measured values, a
+  digest of the arguments, when it started and how it ended. A grant or a
+  log edited outside the package fails its MAC, and nothing runs under any
+  grant until a person revokes the grant that fails (`grant_read` marks it)
+  or, for the log, clears the directory. Without the
+  key, while `unattended` is on, no write runs and no grant can be created.
+  The files are written under a lock and replaced whole, since several
+  processes may run calls at once. An earlier copy put back whole, MACs
+  included, is not detected; the expiry bounds what it can bring back.
 
 ## Skills
 
@@ -400,6 +491,11 @@ Every entry point takes the same settings:
   points also run it before they ask (see "Write classes"). It is cheap, it
   reads only what it needs to decide, and its message says no more about
   the target than the arguments already do.
+- A write tool may declare `bounds` and `measure(args, context)`, which say
+  what a grant over it limits and what this call's values are (see "Writes
+  no one is there to approve"). `defineTool` refuses a `measure` without
+  `bounds`, a bound of an unknown kind, a `oneOf` with no values and more than
+  six bounds.
 - `execute(args, context)` gets the working directory, an abort signal, an
   optional `ownDir` (the directory the tools are installed in, never the
   working tree), the values of the package's own settings as `options` (see
