@@ -251,7 +251,8 @@ Off by default. Delegates bounded writes for jobs where no person can answer.
 | `git_grant_read`   | list grants and their use, or read the usage log         | read           |
 | `git_grant_revoke` | remove a grant so no more calls run under it             | overwrite      |
 
-A write tool becomes grantable by declaring `bounds` and giving
+Every write tool can be granted for its targets, calls per hour and expiry.
+A tool adds what a grant can also limit by declaring `bounds` and giving
 `measure(args, context)` in its spec; see the
 [conventions](docs/conventions.md#writes-no-one-is-there-to-approve).
 No tool of this package declares `bounds` yet.
@@ -326,15 +327,19 @@ it; the server then refuses it.
 
 ## Writes no one is there to approve
 
-A grant limits a job's writes by tool, named targets, bounds, calls per hour
-and expiry. It never overrides the host's permissions. The
+A grant limits a job's writes to one tool, for at most 90 days. The person
+decides the rest: the targets (named ones, or `*` for any), the bounds the
+tool declares (one left out is no limit) and the calls per hour (left out,
+any number). Every call made under a grant is logged. A grant never
+overrides the host's permissions. The
 [conventions](docs/conventions.md#writes-no-one-is-there-to-approve) give the
 contract.
 
 1. In a session where a person answers, supply the key described under
    [Settings](#settings), turn on the `grants` toolset alongside the job's
    toolset, and ask the agent to delegate. It calls `git_grant_create`;
-   the prompt shows the tool, targets, rate, days, every bound and the reason.
+   the prompt shows the tool, targets, rate, days, every bound the tool
+   declares (`no limit` for one left out) and the reason.
    Approve once.
 2. Set the same key and `unattended` for the job only, for example
    `GIT_TOOLS_UNATTENDED=true`. Otherwise grants are not checked.
@@ -371,7 +376,8 @@ What lets a write reach the package when no one can answer, for example
 - A run with every approval skipped (Hermes `-z` or `--yolo`, an
   always-approve mode, an explicit `allow` for `git_grant_create`, or a
   global OpenCode V1 `allow`) shows no prompt. A grant created there is not a
-  person's answer: create grants only where the harness asks.
+  person's answer, and it can be as wide as any target, no bound and no rate
+  for 90 days: create grants only where the harness asks.
 - An earlier copy of the grants directory put back whole is not detected.
   Expiry, at most 90 days, bounds what it can restore.
 - Anyone who can read the key can sign grants. Keep it where the agent's
