@@ -18,9 +18,14 @@ export {
   MAX_GRANT_RATE,
   RATE_WINDOW_MS,
   grantBounds,
+  grantRefusal,
   grantTargets,
+  matchGrant,
+  measureOf,
   type Grant,
   type GrantBoundValue,
+  type GrantCall,
+  type GrantMatch,
   type GrantRefusal,
 } from "./grant"
 export { isWithin } from "./paths"
