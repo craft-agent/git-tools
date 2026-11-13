@@ -4,7 +4,7 @@ import { PROJECT_PROFILE } from "./profile"
 import {
   forwardedVariables,
   parseSettings,
-  parseToolOptions,
+  parseTargetSettings,
   parseToolSettings,
   settingsFromOptions,
   settingVariables,
@@ -33,7 +33,7 @@ describe("the options of git-tools", () => {
       expect(parseSettings([flag, ` ${value} `], {}).options).toEqual(options)
       expect(parseSettings([`${flag}=${value}`], {}).options).toEqual(options)
       expect(parseToolSettings([flag, value], {}).options).toEqual(options)
-      expect(parseToolOptions([flag, value], {})).toEqual(options)
+      expect(parseTargetSettings([flag, value], {}).options).toEqual(options)
     })
 
     test("is read from its variable, trimmed, and a flag wins over it", () => {
