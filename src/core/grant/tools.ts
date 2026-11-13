@@ -2,9 +2,10 @@ import { randomBytes } from "node:crypto"
 import { z } from "zod"
 import { MAX_VALUE_LENGTH } from "../describe"
 import { ToolError } from "../errors"
+import { ANY_TARGET } from "../targets"
 import { confirmWrite, defineTool, type CallFact, type ToolContext, type ToolSpec } from "../tool"
-import { askPersonOnly, exemptFromGrants, type GrantContext } from "./guard"
-import { grantBounds, grantTargets, MAX_GRANT_DAYS, MAX_GRANT_RATE, type Grant } from "./model"
+import { askPersonOnly, exemptFromGrants, isExemptFromGrants, isPersonOnly, type GrantContext } from "./guard"
+import { grantBounds, grantTargets, MAX_GRANT_DAYS, type Grant } from "./model"
 import { addGrant, noKeyError, readGrants, removeGrant } from "./store"
 import { readUsage, usedIn } from "./usage"
 
@@ -22,7 +23,7 @@ const grantFields = {
   tool: z.string(),
   targets: z.array(z.string()),
   bounds: boundsSchema,
-  rate: z.number(),
+  rate: z.number().nullable(),
   expires_at: z.string(),
 }
 const grantOutput = z.object(grantFields)
@@ -41,17 +42,28 @@ const logEntry = z.discriminatedUnion("kind", [
 
 type BoundValue = Grant["bounds"][string]
 
-/** One bound's fact value in the prompt, as a template and its values. */
-function boundValue(name: string, limit: BoundValue): { text: string; values: Record<string, string | number> } {
+/** One bound's fact value in the prompt, as a template and its values; a bound the grant leaves out is no limit. */
+function boundValue(
+  name: string,
+  limit: BoundValue | undefined,
+): { text: string; values: Record<string, string | number> } {
+  if (limit === undefined) return { text: "{name} no limit", values: { name } }
   if (typeof limit === "number") return { text: "{name} up to {limit}", values: { name, limit } }
   if (typeof limit === "boolean") return { text: limit ? "{name} allowed" : "{name} not allowed", values: { name } }
   return { text: "{name} one of {values}", values: { name, values: limit.join(", ") } }
 }
 
 /** One bound's fact value with its values filled in, as the prompt and the confirmation message word it. */
-function boundText(name: string, limit: BoundValue): string {
+function boundText(name: string, limit: BoundValue | undefined): string {
   const { text, values } = boundValue(name, limit)
   return text.replace(/\{(\w+)\}/g, (_match, key: string) => String(values[key]))
+}
+
+/** Every bound the tool declares, in name order, with the grant's value or `undefined` where the grant leaves it out. */
+function boundEntries(spec: ToolSpec, bounds: Grant["bounds"]): [string, BoundValue | undefined][] {
+  return Object.keys(spec.bounds ?? {})
+    .sort()
+    .map((name) => [name, Object.hasOwn(bounds, name) ? bounds[name] : undefined])
 }
 
 function grantContext(ctx: ToolContext): GrantContext {
@@ -65,7 +77,7 @@ function grantContext(ctx: ToolContext): GrantContext {
 
 /** The grant tools for a package's own tools: `<prefix>_grant_create`, `<prefix>_grant_read` and `<prefix>_grant_revoke`. */
 export function grantTools(specs: readonly ToolSpec[], prefix: string): ToolSpec[] {
-  const grantable = specs.filter((spec) => spec.class !== "read" && spec.bounds !== undefined)
+  const grantable = specs.filter((spec) => spec.class !== "read" && !isPersonOnly(spec) && !isExemptFromGrants(spec))
   const ids = grantable.map((spec) => spec.id)
   function grantedTool(id: string): ToolSpec {
     const spec = grantable.find((spec) => spec.id === id)
@@ -78,18 +90,18 @@ export function grantTools(specs: readonly ToolSpec[], prefix: string): ToolSpec
     return spec
   }
   const declarations = grantable.map((spec) => {
-    const bounds = Object.entries(spec.bounds!).map(
+    const bounds = Object.entries(spec.bounds ?? {}).map(
       ([name, bound]) =>
         `${name} (${bound.kind}): ${bound.description}${bound.kind === "oneOf" ? `; values: ${bound.values.join(", ")}` : ""}`,
     )
-    return `${spec.id}: ${bounds.length > 0 ? bounds.join("; ") : "no bounds"}.`
+    return `${spec.id}: ${bounds.length > 0 ? bounds.join("; ") : "no bounds: a grant limits its targets, rate and expiry"}.`
   })
   const create = defineTool({
     id: `${prefix}_grant_create`,
     title: "Delegate writes for when no one is asked",
     intent: "About to delegate writes for when no one is asked",
     description: [
-      "Ask the person to let one tool write, while no one can be asked, only to the named targets, within a value for each of the tool's bounds, at most rate calls an hour, for days days.",
+      `Ask the person to let one tool write, while no one can be asked, to the named targets, or with targets ["${ANY_TARGET}"] to any target, within the bounds the person chooses to set (a bound left out is no limit), at most rate calls an hour, or any number when rate is left out, for days days (at most ${MAX_GRANT_DAYS}).`,
       "Runs only when the person approves it, never while no one can be asked; widening or extending is a new grant.",
       ...declarations,
       ...(ids.length === 0 ? ["No tool can be granted."] : []),
@@ -102,14 +114,14 @@ export function grantTools(specs: readonly ToolSpec[], prefix: string): ToolSpec
         .array(z.string())
         .min(1)
         .describe(
-          "The targets the tool may write to, as its approval prompt names them: named ones only, never a pattern.",
+          `The targets the tool may write to, as its approval prompt names them, or ["${ANY_TARGET}"] alone for any target.`,
         ),
       bounds: boundsSchema
         .default({})
         .describe(
-          "A value for every bound the tool declares: a whole number for a max, true or false for an allow, a list of values for a oneOf.",
+          "A value for each bound to limit: a whole number for a max, true or false for an allow, a list of values for a oneOf; a bound left out is no limit.",
         ),
-      rate: z.number().int().min(1).max(MAX_GRANT_RATE).describe("The most calls an hour."),
+      rate: z.number().int().min(1).optional().describe("The most calls an hour; left out, any number."),
       days: z.number().int().min(1).max(MAX_GRANT_DAYS).describe("The number of days the grant lasts."),
       reason: z
         .string()
@@ -131,7 +143,7 @@ export function grantTools(specs: readonly ToolSpec[], prefix: string): ToolSpec
       }
       const spec = grantedTool(args.tool)
       grantTargets(args.targets)
-      const bounds = grantBounds(spec.bounds!, args.bounds, args.tool)
+      const bounds = grantBounds(spec.bounds ?? {}, args.bounds, args.tool)
       for (const name of Object.keys(bounds)) {
         if (boundText(name, bounds[name]!).length > MAX_VALUE_LENGTH) {
           throw new ToolError(
@@ -143,25 +155,29 @@ export function grantTools(specs: readonly ToolSpec[], prefix: string): ToolSpec
     },
     targets: (args) => grantTargets(args.targets),
     describe(args) {
-      const bounds = grantBounds(grantedTool(args.tool).bounds!, args.bounds, args.tool)
+      const spec = grantedTool(args.tool)
+      const bounds = grantBounds(spec.bounds ?? {}, args.bounds, args.tool)
       const facts: CallFact[] = [
         {
           label: "Rate",
-          value: {
-            text: args.rate === 1 ? "{rate} call an hour" : "{rate} calls an hour",
-            values: { rate: args.rate },
-          },
+          value:
+            args.rate === undefined
+              ? { text: "No limit" }
+              : {
+                  text: args.rate === 1 ? "{rate} call an hour" : "{rate} calls an hour",
+                  values: { rate: args.rate },
+                },
         },
         {
           label: "Lasts",
           value: { text: args.days === 1 ? "{days} day" : "{days} days", values: { days: args.days } },
         },
+        ...boundEntries(spec, bounds).map(([name, limit]) => ({ label: "Bound", value: boundValue(name, limit) })),
       ]
-      for (const name of Object.keys(bounds).sort()) {
-        facts.push({ label: "Bound", value: boundValue(name, bounds[name]!) })
-      }
       return {
-        headline: { text: "About to let {tool} write while no one is asked", values: { tool: args.tool } },
+        headline: grantTargets(args.targets).includes(ANY_TARGET)
+          ? { text: "About to let {tool} write anywhere while no one is asked", values: { tool: args.tool } }
+          : { text: "About to let {tool} write while no one is asked", values: { tool: args.tool } },
         facts,
         text: { label: "Reason", body: args.reason },
       }
@@ -169,14 +185,15 @@ export function grantTools(specs: readonly ToolSpec[], prefix: string): ToolSpec
     async execute(args, ctx) {
       const grants = grantContext(ctx)
       const targets = grantTargets(args.targets)
-      const bounds = grantBounds(grantedTool(args.tool).bounds!, args.bounds, args.tool)
-      const limits = Object.keys(bounds)
-        .sort()
-        .map((name) => boundText(name, bounds[name]!))
+      const spec = grantedTool(args.tool)
+      const bounds = grantBounds(spec.bounds ?? {}, args.bounds, args.tool)
+      const limits = boundEntries(spec, bounds).map(([name, limit]) => boundText(name, limit))
+      const where = targets.includes(ANY_TARGET) ? "any target" : targets.join(", ")
+      const calls = args.rate === undefined ? "any number of calls" : `${args.rate} calls an hour`
       await confirmWrite(
         create,
         ctx,
-        `Let ${args.tool} write to ${targets.join(", ")} while no one is asked, ${args.rate} calls an hour, for ${args.days} days${limits.length > 0 ? `, ${limits.join("; ")}` : ""}: ${args.reason}`,
+        `Let ${args.tool} write to ${where} while no one is asked, ${calls}, for ${args.days} days${limits.length > 0 ? `, ${limits.join("; ")}` : ""}: ${args.reason}`,
       )
       if (!grants.key) throw noKeyError()
       const now = (grants.now ?? (() => new Date()))()
@@ -185,7 +202,7 @@ export function grantTools(specs: readonly ToolSpec[], prefix: string): ToolSpec
         tool: args.tool,
         targets,
         bounds,
-        rate: args.rate,
+        rate: args.rate ?? null,
         created_at: now.toISOString(),
         expires_at: new Date(now.getTime() + args.days * DAY_MS).toISOString(),
         reason: args.reason,

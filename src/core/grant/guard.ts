@@ -62,7 +62,7 @@ async function measureCall(
  * Decides whether a call may run while no one can be asked. Returns `undefined`
  * when nothing needs deciding: grants are off, the tool reads, or it is exempt.
  * Otherwise the call must be covered by a live grant, or this throws the
- * `forbidden` refusal (`not_bounded` first, before any file is read). In
+ * `forbidden` refusal (`person_only` first, before any file is read). In
  * `record` mode the covering grant's use is logged, in the same locked step as
  * the rate it counts against, and its `seq` is what `finishGrantUse` closes;
  * in `check` mode nothing is written and `seq` is 0.
@@ -74,8 +74,9 @@ export async function grantCheck(
   mode: "check" | "record",
 ): Promise<GrantUse | undefined> {
   const grants = ctx.grants
-  if (!grants?.unattended || spec.class === "read" || isExemptFromGrants(spec)) return undefined
-  if (spec.bounds === undefined) throw grantRefusal("not_bounded", spec.id)
+  if (!grants?.unattended || spec.class === "read") return undefined
+  if (isPersonOnly(spec)) throw grantRefusal("person_only", spec.id)
+  if (isExemptFromGrants(spec)) return undefined
 
   const call = {
     spec: { id: spec.id, bounds: spec.bounds },

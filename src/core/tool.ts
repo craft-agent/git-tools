@@ -116,7 +116,7 @@ export type ToolSpec<I extends z.ZodObject<any> = z.ZodObject<any>, O extends z.
    * of target, and the text the call carries under the tool's own label.
    */
   describe?(args: z.output<I>, ctx: ToolContext): CallDescription | Promise<CallDescription>
-  /** What a grant over this tool can limit; a tool without it never runs under a grant. An empty set lets a grant limit only targets, rate and expiry. */
+  /** What a grant over this tool can limit beyond its targets, rate and expiry; a grant over a tool without it limits those three alone. */
   bounds?: ToolBounds
   /** This call's value for each bound, computed from what the call carries, never from the model's account of it. */
   measure?(args: z.output<I>, ctx: ToolContext): CallMeasure | Promise<CallMeasure>

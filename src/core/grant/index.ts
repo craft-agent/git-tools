@@ -10,7 +10,6 @@ export { GRANTS_TOOLSET, grantTools } from "./tools"
 export { grantRefusal, matchGrant, measureOf, type GrantCall, type GrantMatch } from "./match"
 export {
   MAX_GRANT_DAYS,
-  MAX_GRANT_RATE,
   RATE_WINDOW_MS,
   grantBounds,
   grantTargets,

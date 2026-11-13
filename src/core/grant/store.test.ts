@@ -69,6 +69,22 @@ describe("the grant store", () => {
     expect(file.grants[0].mac).toMatch(/^[0-9a-f]{64}$/)
   })
 
+  test("a rate is a whole number of at least 1 or null; any other signed rate fails as a bad shape", async () => {
+    await addGrant(options, grant({ id: "g1", rate: null, targets: ["*"], bounds: {} }))
+    await addGrant(options, grant({ id: "g2", rate: 1 }))
+    for (const [id, rate] of [
+      ["g3", 0],
+      ["g4", 1.5],
+      ["g5", -1],
+      ["g6", "5"],
+    ] as const) {
+      await addGrant(options, grant({ id, rate: rate as never }))
+    }
+    const { grants, failed } = await readGrants(options)
+    expect(grants).toEqual([grant({ id: "g1", rate: null, targets: ["*"], bounds: {} }), grant({ id: "g2", rate: 1 })])
+    expect(failed).toEqual(["g3", "g4", "g5", "g6"])
+  })
+
   test("a grant edited in any field fails its MAC, and only it is left out", async () => {
     await addGrant(options, grant({ id: "g1" }))
     await addGrant(options, grant({ id: "g2" }))

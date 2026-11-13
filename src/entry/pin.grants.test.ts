@@ -13,7 +13,7 @@ import {
   type ToolContext,
   type ToolSpec,
 } from "../core"
-import { exemptFromGrants } from "../core/grant/guard"
+import { askPersonOnly, exemptFromGrants } from "../core/grant/guard"
 import { addGrant } from "../core/grant/store"
 import { approvalOf } from "./pin"
 
@@ -155,9 +155,19 @@ describe("approvalOf while no one can be asked", () => {
     expect(await exists(grants.dir)).toBe(false)
   })
 
-  test("refuses a tool that declares no bounds as not_bounded", async () => {
+  test("refuses a person-only tool as person_only, without reading a grant", async () => {
+    const spec = askPersonOnly(fixture().spec)
+    expect((await approvalOf(spec, ARGS, context())).refused?.details).toMatchObject({ reason: "person_only" })
+    expect(await exists(grants.dir)).toBe(false)
+  })
+
+  test("gives the normal approval to a tool that declares no bounds under a grant naming it", async () => {
     const { spec } = fixture({ bounds: undefined, measure: undefined })
-    expect((await approvalOf(spec, ARGS, context())).refused?.details).toMatchObject({ reason: "not_bounded" })
+    expect((await approvalOf(spec, ARGS, context())).refused?.details).toMatchObject({ reason: "no_grant" })
+    await addGrant(grants, grant({ bounds: {}, rate: null }))
+    const approval = await approvalOf(spec, ARGS, context())
+    expect(approval.refused).toBeUndefined()
+    expect(approval.pin).toMatch(PIN_PATTERN)
   })
 
   test("turns a failure it cannot explain into an internal_error refusal, keeping the cause", async () => {

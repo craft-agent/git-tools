@@ -139,9 +139,9 @@ describe("V1 grants while unattended", () => {
     expect(asked).toEqual([])
   })
 
-  test("refuses a person-only tool as not bounded, without asking", async () => {
+  test("refuses a person-only tool as person_only, without asking", async () => {
     const { asked, call } = await setUp()
-    expect((await call(PERSON_ONLY_ID)).reason).toBe("not_bounded")
+    expect((await call(PERSON_ONLY_ID)).reason).toBe("person_only")
     expect(asked).toEqual([])
   })
 })

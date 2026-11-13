@@ -41,17 +41,6 @@ function refusal(grants: Grant[], theCall?: GrantCall, used?: Record<string, num
 }
 
 describe("matchGrant: refusals", () => {
-  test("a tool without bounds is not_bounded, whatever the grants", () => {
-    const result = matchGrant({ call: call(), bounds: undefined, grants: [grant()], now: NOW, used: () => 0 })
-    expect(result.covered).toBe(false)
-    if (result.covered) return
-    expect(result.error.code).toBe("forbidden")
-    expect(result.error.details).toEqual({ reason: "not_bounded", tool: TOOL })
-    expect(result.error.message).toBe(
-      `${TOOL} cannot run while no one can be asked: it declares no bounds a grant could hold.`,
-    )
-  })
-
   test("no grant for the tool is no_grant, also when grants name other tools", () => {
     for (const grants of [[], [grant({ tool: "demo_other_create" })]]) {
       const error = refusal(grants)
@@ -84,7 +73,7 @@ describe("matchGrant: refusals", () => {
     const error = refusal([grant()], call({ targets }))
     expect(error.details).toEqual({ reason: "target", tool: TOOL, grant: "g1" })
     expect(error.message).toBe(
-      `No grant for ${TOOL} covers every target of this call; a person can delegate one that names them.`,
+      `No grant for ${TOOL} covers every target of this call; a person can delegate one that names them, or one for any target.`,
     )
   })
 
@@ -113,7 +102,7 @@ describe("matchGrant: bounds", () => {
     const error = refusal([grant()], call({ measure: undefined }))
     expect(error.details).toEqual({ reason: "bound", tool: TOOL, grant: "g1" })
     expect(error.message).toBe(
-      `This call to ${TOOL} could not be measured against the grant's bounds; a person can delegate a grant for a tool that can measure it.`,
+      `This call to ${TOOL} could not be measured against the grant's bounds; a person can delegate a grant that leaves the bounds out.`,
     )
   })
 
@@ -142,10 +131,11 @@ describe("matchGrant: bounds", () => {
     ).toBe(true)
   })
 
-  test("a bound the grant leaves out covers nothing, even for a false allow", () => {
+  test("a bound the grant leaves out is no limit, whatever the call measures", () => {
     const { attach: _attach, ...rest } = grant().bounds
-    const error = refusal([grant({ bounds: rest })])
-    expect(error.details).toEqual({ reason: "bound", tool: TOOL, grant: "g1", bound: "attach" })
+    expect(
+      match([grant({ bounds: rest })], call({ measure: { text_length: 10, attach: true, type: "A" } })).covered,
+    ).toBe(true)
   })
 
   test("the first failing bound in name order is the one named", () => {
@@ -177,6 +167,13 @@ describe("grantRefusal", () => {
     expect(tampered.message).toBe(
       "The grants were changed outside the package, so nothing runs under them; a person can revoke the grant that fails, or clear the grants.",
     )
+  })
+
+  test("person_only says that only a person's own answer runs the tool", () => {
+    const error = grantRefusal("person_only", TOOL)
+    expect(error.code).toBe("forbidden")
+    expect(error.details).toEqual({ reason: "person_only", tool: TOOL })
+    expect(error.message).toBe(`${TOOL} runs only on a person's own answer, never under a grant.`)
   })
 
   test("a given message replaces the default and details carry only what applies", () => {

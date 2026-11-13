@@ -16,7 +16,6 @@ export {
 export {
   MAX_GRANT_DAYS,
   GRANTS_TOOLSET,
-  MAX_GRANT_RATE,
   RATE_WINDOW_MS,
   askPersonOnly,
   grantBounds,

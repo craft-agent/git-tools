@@ -19,16 +19,17 @@ export type GrantMatch = { covered: true; grant: Grant } | { covered: false; err
 type RefusalExtra = { grant?: string; bound?: string; message?: string }
 
 const DEFAULT_MESSAGES: Record<GrantRefusal, (tool: string, extra: RefusalExtra) => string> = {
-  not_bounded: (tool) => `${tool} cannot run while no one can be asked: it declares no bounds a grant could hold.`,
+  person_only: (tool) => `${tool} runs only on a person's own answer, never under a grant.`,
   no_key: (tool) => `${tool} cannot run while no one can be asked: no grant key is set.`,
   tampered: () =>
     "The grants were changed outside the package, so nothing runs under them; a person can revoke the grant that fails, or clear the grants.",
   no_grant: (tool) => `No grant lets ${tool} run while no one can be asked; a person can delegate it with a grant.`,
   expired: (tool) => `The grant for ${tool} has expired; a person can delegate it again.`,
-  target: (tool) => `No grant for ${tool} covers every target of this call; a person can delegate one that names them.`,
+  target: (tool) =>
+    `No grant for ${tool} covers every target of this call; a person can delegate one that names them, or one for any target.`,
   bound: (tool, extra) =>
     extra.bound === undefined
-      ? `This call to ${tool} could not be measured against the grant's bounds; a person can delegate a grant for a tool that can measure it.`
+      ? `This call to ${tool} could not be measured against the grant's bounds; a person can delegate a grant that leaves the bounds out.`
       : `This call to ${tool} goes past the grant's ${extra.bound} bound; a person can delegate a wider grant.`,
   rate: (tool) => `The grant for ${tool} allows no more calls this hour; wait, or a person can delegate a higher rate.`,
 }
@@ -105,6 +106,10 @@ function withinBound(spec: BoundSpec, measured: MeasuredValue, limit: unknown): 
   }
 }
 
+function coversAnyTarget(grant: Grant): boolean {
+  return grant.targets.length === 1 && grant.targets[0] === ANY_TARGET
+}
+
 const CHECKS: readonly Check[] = [
   ({ call, grant, now }) => {
     const expiresAt = Date.parse(grant.expires_at)
@@ -116,23 +121,26 @@ const CHECKS: readonly Check[] = [
     }
   },
   ({ call, grant }) => {
+    if (coversAnyTarget(grant)) return
     const covered =
       call.targets.length > 0 && call.targets.every((target) => target !== ANY_TARGET && grant.targets.includes(target))
     if (!covered) return grantRefusal("target", call.tool, { grant: grant.id })
   },
   ({ call, bounds, grant }) => {
+    const names = Object.keys(grant.bounds).sort()
+    if (names.length === 0) return
     const measure = call.measure
     if (measure === undefined) return grantRefusal("bound", call.tool, { grant: grant.id })
-    for (const name of Object.keys(bounds).sort()) {
-      const measured = measure[name]
-      const hasBound = Object.hasOwn(grant.bounds, name)
-      if (measured === undefined || !hasBound || !withinBound(bounds[name]!, measured, grant.bounds[name])) {
+    for (const name of names) {
+      const spec = Object.hasOwn(bounds, name) ? bounds[name] : undefined
+      const measured = Object.hasOwn(measure, name) ? measure[name] : undefined
+      if (spec === undefined || measured === undefined || !withinBound(spec, measured, grant.bounds[name])) {
         return grantRefusal("bound", call.tool, { grant: grant.id, bound: name })
       }
     }
   },
   ({ call, grant, used }) => {
-    if (used(grant.id) >= grant.rate) {
+    if (grant.rate !== null && used(grant.id) >= grant.rate) {
       return grantRefusal("rate", call.tool, {
         grant: grant.id,
         message: `The grant for ${call.tool} allows ${grant.rate} calls an hour, and they are used; wait, or a person can delegate a higher rate.`,
@@ -143,7 +151,9 @@ const CHECKS: readonly Check[] = [
 
 function compareCovering(a: Grant, b: Grant): number {
   return (
+    Number(coversAnyTarget(a)) - Number(coversAnyTarget(b)) ||
     a.targets.length - b.targets.length ||
+    Object.keys(b.bounds).length - Object.keys(a.bounds).length ||
     Date.parse(a.expires_at) - Date.parse(b.expires_at) ||
     (a.id < b.id ? -1 : a.id > b.id ? 1 : 0)
   )
@@ -152,23 +162,26 @@ function compareCovering(a: Grant, b: Grant): number {
 /**
  * Finds the grant that covers a call, or says why none does. Each grant that
  * names the tool is checked for expiry, targets, bounds and rate, in that
- * order, and its reason is the first check it fails. Among the grants that
- * pass every check, the one with the fewest targets is used, then the one that
- * expires first, then the smallest id. Otherwise the refusal is the reason of
- * the grant that passed the most checks, the earlier one on a tie. A tool with
- * no declared `bounds` and a tool no grant names are refused outright.
+ * order, and its reason is the first check it fails. A grant for any target
+ * (`*` alone) passes the target check for every call, and only the bounds a
+ * grant sets are checked. Among the grants that pass every check, one that
+ * names its targets is used before a `*` one, then the one with the fewest
+ * targets, then the one that sets the most bounds, then the one that expires
+ * first, then the smallest id. Otherwise the refusal is the reason of the
+ * grant that passed the most checks, the earlier one on a tie, or `no_grant`
+ * when no grant names the tool.
  */
 export function matchGrant(options: {
   call: GrantCall
-  /** The tool's declaration. */
+  /** The tool's declaration; undefined when it declares none. */
   bounds: ToolBounds | undefined
   grants: readonly Grant[]
   now: Date
   /** How many calls ran under a grant in the last `RATE_WINDOW_MS`. */
   used(grantId: string): number
 }): GrantMatch {
-  const { call, bounds, grants, now, used } = options
-  if (bounds === undefined) return { covered: false, error: grantRefusal("not_bounded", call.tool) }
+  const { call, grants, now, used } = options
+  const bounds = options.bounds ?? {}
 
   let covering: Grant | undefined
   let closest: { passed: number; error: ToolError } | undefined

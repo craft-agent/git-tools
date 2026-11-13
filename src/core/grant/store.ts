@@ -39,7 +39,7 @@ const grantSchema = z.object({
   tool: z.string(),
   targets: z.array(z.string()),
   bounds: z.record(z.string(), z.union([z.number(), z.boolean(), z.array(z.string())])),
-  rate: z.number(),
+  rate: z.number().int().min(1).nullable(),
   created_at: z.string(),
   expires_at: z.string(),
   reason: z.string(),

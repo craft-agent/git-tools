@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test"
 import { isToolError } from "../errors"
 import type { ToolBounds } from "../tool"
-import { MAX_GRANT_DAYS, MAX_GRANT_RATE, RATE_WINDOW_MS, grantBounds, grantTargets } from "./model"
+import { MAX_GRANT_DAYS, RATE_WINDOW_MS, grantBounds, grantTargets } from "./model"
 
 const TOOL = "demo_note_create"
 const bounds: ToolBounds = {
@@ -27,7 +27,6 @@ function refused(run: () => unknown): Error {
 describe("limits", () => {
   test("hold the contract's numbers", () => {
     expect(MAX_GRANT_DAYS).toBe(90)
-    expect(MAX_GRANT_RATE).toBe(1000)
     expect(RATE_WINDOW_MS).toBe(3_600_000)
   })
 })
@@ -55,11 +54,15 @@ describe("grantBounds", () => {
     expect(refused(() => grantBounds(bounds, values, TOOL)).message).toContain("must be an object")
   })
 
-  test("refuses a missing bound, naming it", () => {
+  test("returns only the bounds given: a bound left out is no limit", () => {
     const { attach: _attach, ...rest } = valid
-    expect(refused(() => grantBounds(bounds, rest, TOOL)).message).toBe(
-      `The bound "attach" of ${TOOL} must be given, since an unset bound would be no bound.`,
-    )
+    expect(grantBounds(bounds, rest, TOOL)).toEqual({ text_length: 100, type: ["A", "MX"] })
+    expect(grantBounds(bounds, {}, TOOL)).toEqual({})
+    expect(Object.hasOwn(grantBounds(bounds, { attach: false }, TOOL), "text_length")).toBe(false)
+  })
+
+  test("still checks a bound that is given", () => {
+    expect(refused(() => grantBounds(bounds, { attach: "no" }, TOOL)).message).toContain('The bound "attach"')
   })
 
   test("refuses an undeclared bound, naming it and the declared ones", () => {
@@ -107,10 +110,14 @@ describe("grantTargets", () => {
     expect(refused(() => grantTargets(targets)).message).toContain("non-empty list")
   })
 
-  test.each([[[""]], [["  "]], [[1]], [[null]], [["/a", "/b/*"]], [["/a?"]], [["*"]]])(
-    "refuses the target in %j",
+  test.each([[["*"]], [["*", "*"]]])("accepts %j as any target", (targets) => {
+    expect(grantTargets(targets)).toEqual(["*"])
+  })
+
+  test.each([[[""]], [["  "]], [[1]], [[null]], [["/a", "/b/*"]], [["/a?"]], [["*", "/a"]], [["/a", "*"]], [["**"]]])(
+    "refuses the target in %j, saying a grant names its targets or * alone",
     (targets) => {
-      expect(refused(() => grantTargets(targets)).message).toContain("Every target of a grant")
+      expect(refused(() => grantTargets(targets)).message).toContain("A grant names its targets, or * alone")
     },
   )
 })

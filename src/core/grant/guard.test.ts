@@ -5,7 +5,7 @@ import { join } from "node:path"
 import { z } from "zod"
 import { ToolError, isToolError } from "../errors"
 import { defineTool, invoke, type ToolContext, type ToolSpec } from "../tool"
-import { exemptFromGrants, grantCheck, isExemptFromGrants, type GrantContext } from "./guard"
+import { askPersonOnly, exemptFromGrants, grantCheck, isExemptFromGrants, type GrantContext } from "./guard"
 import type { Grant } from "./model"
 import { addGrant, type GrantStoreOptions } from "./store"
 import { readUsage } from "./usage"
@@ -129,9 +129,13 @@ describe("invoke while unattended", () => {
     expect(runs).toBe(0)
   })
 
-  test("a tool without bounds is forbidden as not_bounded before any file is touched", async () => {
-    const error = await thrown(invoke(noteTool({ bounds: undefined, measure: undefined }), ARGS, context()))
-    expect(refusal(error)).toEqual(["forbidden", "not_bounded"])
+  test("a person-only spec is forbidden as person_only before any file is touched, even without a key", async () => {
+    const tool = askPersonOnly(noteTool())
+    for (const key of [KEY, undefined]) {
+      const error = await thrown(invoke(tool, ARGS, context({ key })))
+      expect(isToolError(error) && error.details).toEqual({ reason: "person_only", tool: TOOL })
+    }
+    expect(refusal(await thrown(grantCheck(tool, ARGS, context(), "check")))).toEqual(["forbidden", "person_only"])
     expect(runs).toBe(0)
     expect(await exists(store.dir)).toBe(false)
   })

@@ -5,7 +5,7 @@ import { join } from "node:path"
 import { z } from "zod"
 import { defineTool, invoke, type CallDescription, type ToolContext } from "../tool"
 import { askPersonOnly, isPersonOnly } from "./guard"
-import { MAX_GRANT_DAYS, MAX_GRANT_RATE } from "./model"
+import { MAX_GRANT_DAYS } from "./model"
 import { readGrants } from "./store"
 import { grantTools } from "./tools"
 
@@ -49,8 +49,8 @@ afterEach(async () => {
   await rm(dir, { recursive: true, force: true })
 })
 
-test("only non-read tools with bounds are grantable, with declarations in the description", () => {
-  expect(create!.input.shape.tool.options).toEqual([bounded.id])
+test("only non-read tools are grantable, with declarations in the description", () => {
+  expect(create!.input.shape.tool.options).toEqual([bounded.id, unbounded.id])
   expect(create!.description).toContain("size (max): The longest text")
   expect(create!.description).toContain("attach (allow): Whether files may be attached")
   expect(create!.description).toContain("types (oneOf): The kinds of note; values: daily, weekly")
@@ -86,7 +86,7 @@ test("unattended creation is refused before confirmation", async () => {
 })
 
 test("the gate refuses ungrantable tools, even without schema validation", async () => {
-  for (const tool of [unbounded.id, reader.id, "demo_unknown_create"]) {
+  for (const tool of [reader.id, "demo_unknown_create"]) {
     await expect(Promise.resolve().then(() => create!.gate!({ ...ARGS, tool }, ctx))).rejects.toMatchObject({
       code: "invalid_argument",
       message: expect.stringContaining(bounded.id),
@@ -100,11 +100,10 @@ test("the gate refuses ungrantable tools, even without schema validation", async
 })
 
 test("invalid targets and bounds are refused", async () => {
-  for (const targets of [[], ["*"], ["a?"], [" "]]) {
+  for (const targets of [[], ["*", "a"], ["a*"], ["a?"], [" "]]) {
     await expect(invoke(create!, { ...ARGS, targets }, ctx)).rejects.toMatchObject({ code: "invalid_argument" })
   }
   for (const bounds of [
-    {},
     { ...ARGS.bounds, extra: 1 },
     { ...ARGS.bounds, size: 1.5 },
     { ...ARGS.bounds, attach: 1 },
@@ -117,7 +116,7 @@ test("invalid targets and bounds are refused", async () => {
 test("strict input enforces rate, duration and reason limits", async () => {
   for (const change of [
     { rate: 0 },
-    { rate: MAX_GRANT_RATE + 1 },
+    { rate: 1.5 },
     { days: 0 },
     { days: MAX_GRANT_DAYS + 1 },
     { days: 1.5 },
