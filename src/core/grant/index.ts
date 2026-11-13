@@ -1,4 +1,5 @@
 export { exemptFromGrants, grantCheck, isExemptFromGrants, type GrantContext } from "./guard"
+export { GRANTS_TOOLSET, grantTools } from "./tools"
 export { grantRefusal, matchGrant, measureOf, type GrantCall, type GrantMatch } from "./match"
 export {
   MAX_GRANT_DAYS,
