@@ -1,5 +1,6 @@
 import { z } from "zod"
 import { ToolError, isAbortError, isToolError } from "./errors"
+import { finishGrantUse, grantCheck, type GrantContext } from "./grant/guard"
 
 /** The toolsets of a package: every name, in the order `all` lists them, and the ones on when a setting names none. */
 export type Toolsets = { names: readonly string[]; defaults: readonly string[] }
@@ -69,6 +70,8 @@ export type ToolContext = {
   signal?: AbortSignal
   /** Asks the person to approve; absent when the harness's own approval already covers the call. */
   confirm?(request: ConfirmRequest): Promise<boolean>
+  /** Grants, for a call no person can be asked about; absent or not `unattended`, nothing changes. */
+  grants?: GrantContext
 }
 
 /** What a grant over a tool can limit: a whole-number ceiling, a yes/no, or a set of allowed values. */
@@ -335,7 +338,8 @@ function describeResult(result: unknown): string {
 /**
  * Runs a tool the way every entry point does: validates the raw arguments
  * as strict (`invalid_argument` on a bad or unknown one), runs the tool's
- * `gate` when it has one, executes, and validates the result against the
+ * `gate` when it has one, checks the grant a write needs while no one can be
+ * asked (`ctx.grants`), executes, and validates the result against the
  * output schema. A result that does not match is a bug in the tool; it throws
  * `internal_error` carrying the raw result, so whatever the call already
  * created stays visible. Errors from `gate` and `execute` pass through
@@ -353,16 +357,25 @@ export async function invoke<I extends z.ZodObject<any>, O extends z.ZodObject<a
     })
   }
   await spec.gate?.(args.data as z.output<I>, ctx)
-  const result = await spec.execute(args.data as z.output<I>, ctx)
-  const output = spec.output.safeParse(result)
-  if (!output.success) {
-    throw new ToolError(
-      "internal_error",
-      `${spec.id} returned a result that does not match its output schema (${describeIssues(output.error)}). The call may have gone through; its result was: ${describeResult(result)}`,
-      { cause: output.error },
-    )
+  const use = await grantCheck(spec, args.data, ctx, "record")
+  let outcome = "ok"
+  try {
+    const result = await spec.execute(args.data as z.output<I>, ctx)
+    const output = spec.output.safeParse(result)
+    if (!output.success) {
+      throw new ToolError(
+        "internal_error",
+        `${spec.id} returned a result that does not match its output schema (${describeIssues(output.error)}). The call may have gone through; its result was: ${describeResult(result)}`,
+        { cause: output.error },
+      )
+    }
+    return output.data
+  } catch (error) {
+    outcome = isToolError(error) ? error.code : "internal_error"
+    throw error
+  } finally {
+    if (use) await finishGrantUse(use, ctx, outcome)
   }
-  return output.data
 }
 
 export function inputJsonSchema(spec: Pick<ToolSpec, "input">): z.core.JSONSchema.BaseSchema {
