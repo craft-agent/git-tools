@@ -11,13 +11,13 @@ Five tools in the `commit` toolset, which is on by default. Some hosts show
 them under a longer name (a server or plugin prefix before it); the part
 ending in the name below is the tool meant here.
 
-| Tool                | Does                                                            | Asks before it runs    |
-| ------------------- | --------------------------------------------------------------- | ---------------------- |
-| `git_commit_read`   | the checks before a commit: `lint`, `secrets`, `hunks`, `amend` | no, it changes nothing |
-| `git_commit_stage`  | stages the hunks a listing named                                | yes                    |
-| `git_commit_create` | commits what is staged, or a fixup of an earlier commit         | yes                    |
-| `git_commit_amend`  | replaces HEAD with the staged changes and a message             | yes                    |
-| `git_commit_verify` | runs a command at each commit of the branch                     | yes, always            |
+| Tool                | Does                                                            | Asks before it runs                          |
+| ------------------- | --------------------------------------------------------------- | -------------------------------------------- |
+| `git_commit_read`   | the checks before a commit: `lint`, `secrets`, `hunks`, `amend` | no, it changes nothing                       |
+| `git_commit_stage`  | stages the hunks a listing named                                | yes                                          |
+| `git_commit_create` | commits what is staged, or a fixup of an earlier commit         | yes                                          |
+| `git_commit_amend`  | replaces HEAD with the staged changes and a message             | yes                                          |
+| `git_commit_verify` | runs a command at each commit of the branch                     | yes, always (unattended: only under a grant) |
 
 Every call works on the repository that holds the working directory; the
 result's `root` is its top level, and paths are relative to it. An argument of
