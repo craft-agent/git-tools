@@ -12,6 +12,11 @@ function sorted(value: unknown): unknown {
   return Object.fromEntries(entries.map(([key, entry]) => [key, sorted(entry)]))
 }
 
+/** The JSON of a value with every object's keys sorted recursively and arrays in order, so equal values always give the same text. */
+export function canonicalJson(value: unknown): string {
+  return JSON.stringify(sorted(value))
+}
+
 /**
  * The pin of an approval: the lowercase hex SHA-256 of the canonical JSON (keys
  * sorted recursively, arrays in order) of what the call writes to and its
@@ -21,7 +26,5 @@ function sorted(value: unknown): unknown {
  * change of any resource, headline, fact, text or pin does.
  */
 export function pinOf(resources: string[], description: CallDescription): string {
-  return createHash("sha256")
-    .update(JSON.stringify(sorted({ resources, description })))
-    .digest("hex")
+  return createHash("sha256").update(canonicalJson({ resources, description })).digest("hex")
 }
