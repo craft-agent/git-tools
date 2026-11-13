@@ -49,8 +49,7 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "typecheck": "tsc -p tsconfig.json && tsc -p tsconfig.core.json",
-    "postinstall": "node -e \"const fs=require('fs');if(fs.existsSync('.git')&&fs.existsSync('node_modules/@craftsamo/repo-kit'))require('child_process').execFileSync('repo-kit',['agents','sync'],{stdio:'inherit'})\"",
-    "prepare": "node -e \"const fs=require('fs');if(fs.existsSync('.git')&&fs.existsSync('node_modules/husky'))require('child_process').execFileSync('husky',{stdio:'inherit'})\""
+    "prepare": "node -e \"const fs=require('fs'),{execFileSync}=require('child_process');if(fs.existsSync('.git')){if(fs.existsSync('node_modules/husky'))execFileSync('husky',{stdio:'inherit'});if(fs.existsSync('node_modules/@craftsamo/repo-kit'))execFileSync('repo-kit',['agents','sync'],{stdio:'inherit'})}\""
   },
   "devDependencies": {
     "@craftsamo/repo-kit": "^1.4.0",
