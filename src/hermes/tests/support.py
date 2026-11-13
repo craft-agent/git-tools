@@ -66,6 +66,7 @@ approval, listing, plugin, project, runtime, settings, skills, tools = (
 
 
 card = importlib.import_module(f"{ROOT_NAME}.{IMPL}.card")
+required = importlib.import_module(f"{ROOT_NAME}.{IMPL}.required")
 
 JAPANESE_CHARACTERS = "（ほか {count} 文字）"
 JAPANESE = card.Words("詳細", "対象", "（ほか {count} 件）", JAPANESE_CHARACTERS, JAPANESE_CHARACTERS)
@@ -111,11 +112,20 @@ LISTING = [
 class StubContext:
     """Records what ``register`` adds, as Hermes' plugin context would take it."""
 
-    def __init__(self, config: dict[str, Any] | None = None) -> None:
+    def __init__(self, config: dict[str, Any] | None = None, loaded: set[str] | None = None) -> None:
         self.config = config or {}
         self.tools: dict[str, dict[str, Any]] = {}
         self.hooks: list[tuple[str, Any]] = []
         self.skills: list[tuple[str, Path, str]] = []
+        if loaded is not None:
+            self.loaded = loaded
+            self.has_plugin_calls: list[str] = []
+
+            def has_plugin(name: str) -> bool:
+                self.has_plugin_calls.append(name)
+                return name in self.loaded
+
+            self.has_plugin = has_plugin
 
     def get_config(self, key: str, default: Any = None) -> Any:
         return self.config.get(key, default)

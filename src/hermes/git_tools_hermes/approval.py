@@ -34,6 +34,12 @@ PIN_PATTERN = re.compile(r"[0-9a-f]{64}")
 #: How many pins the stash keeps; the oldest goes when a new one comes in beyond this.
 PIN_STASH_LIMIT = 256
 
+#: A per-call check that returns the refusal text of a call to block, or ``None`` to let it go on.
+Guard = Callable[[], str | None]
+
+#: The refusal when a guard itself raises: a call that cannot be checked is not let through.
+GUARD_FAILED_TEXT = "forbidden: the required plugins could not be checked"
+
 
 @dataclass(frozen=True)
 class Target:
