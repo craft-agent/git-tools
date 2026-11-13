@@ -159,6 +159,26 @@ class LanguageSettingTest(unittest.TestCase):
         self.assertEqual(settings.settings_flags(StubContext({"language": "ja"})), [])
 
 
+class RequirePluginsSettingTest(unittest.TestCase):
+    def test_absent_and_empty_values_give_no_names(self) -> None:
+        for config in ({}, {"require_plugins": None}, {"require_plugins": []}):
+            with self.subTest(config=config):
+                self.assertEqual(settings.require_plugins_setting(StubContext(config)), [])
+
+    def test_names_are_trimmed_deduplicated_and_blanks_dropped(self) -> None:
+        ctx = StubContext({"require_plugins": [" guard ", "", "other", "guard", " \t", " other "]})
+        self.assertEqual(settings.require_plugins_setting(ctx), ["guard", "other"])
+
+    def test_wrong_types_are_refused(self) -> None:
+        for value in ("guard", True, 1, {}, ["guard", 1], [None]):
+            with self.subTest(value=value), self.assertRaises(settings.SettingsError) as error:
+                settings.require_plugins_setting(StubContext({"require_plugins": value}))
+            self.assertEqual(str(error.exception), 'setting "require_plugins" must be a list of names')
+
+    def test_it_is_no_flag_of_list_or_run(self) -> None:
+        self.assertEqual(settings.settings_flags(StubContext({"require_plugins": ["guard"]})), [])
+
+
 class EmojiSettingTest(unittest.TestCase):
     def test_no_setting_returns_a_copy_of_the_package_defaults(self) -> None:
         for defaults in ({}, {"things": "🧩", "widgets": "🔀"}):

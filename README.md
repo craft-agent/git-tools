@@ -140,6 +140,22 @@ The plugin runs the Node it found when Hermes started. If a version manager
 removes that version while Hermes runs, a call looks for Node again; when it
 finds none, restart Hermes from a shell where `node` runs.
 
+When the package's writes depend on another Hermes plugin, such as a guard
+that blocks writes no one is there to approve, name it in `require_plugins`.
+Hermes keeps loading this plugin when that one fails to import or register,
+and treats a manifest's `requires_plugins` as advisory. With the setting,
+while a named plugin is not loaded, every write is refused before it is
+approved, even under `--yolo`, `approvals.mode: off` or a remembered answer,
+naming the plugin that is missing. Reads still run.
+
+```yaml
+plugins:
+  entries:
+    git-tools:
+      settings:
+        require_plugins: [write-guard]
+```
+
 ### Any other MCP host
 
 Add the server to the host's MCP configuration. Flags go in `args`:
@@ -404,6 +420,7 @@ variable, and an option or setting wins over the variable too.
 | `confirm`              | `--confirm`              | `GIT_TOOLS_CONFIRM`              | MCP server only: `harness` (default) or `elicitation`, as the conventions say                                           |
 | `language`             | `--language`             | `GIT_TOOLS_LANGUAGE`             | native plugins only: the approval prompt's language, such as `ja`                                                       |
 | `emoji`                | —                        | —                                | Hermes only: the emoji shown beside each toolset, by toolset name (`""` for none)                                       |
+| `require_plugins`      | —                        | —                                | Hermes only: the plugins that must be loaded; while one is not, every write is refused before it is approved            |
 | `published_text_rules` | `--published-text-rules` | `GIT_TOOLS_PUBLISHED_TEXT_RULES` | the path of a JSON file of published-text rules (see the push toolset); unset, nothing is checked                       |
 | `worktree_root`        | `--worktree-root`        | `GIT_TOOLS_WORKTREE_ROOT`        | the path where task worktrees go; unset, `~/worktrees`                                                                  |
 

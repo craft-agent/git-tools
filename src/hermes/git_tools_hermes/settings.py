@@ -33,6 +33,20 @@ def language_setting(ctx: PluginContext) -> str | None:
     return (value.strip() or None) if isinstance(value, str) else None
 
 
+def require_plugins_setting(ctx: PluginContext) -> list[str]:
+    """The required plugin names, stripped and unique in their first order; none when absent.
+
+    A wrong type is refused: ignoring it would loosen what the person asked for.
+    It is no flag of ``settings_flags``.
+    """
+    value = ctx.get_config("require_plugins")
+    if value is None:
+        return []
+    if not isinstance(value, list) or not all(isinstance(item, str) for item in value):
+        raise SettingsError('setting "require_plugins" must be a list of names')
+    return list(dict.fromkeys(name for item in value if (name := item.strip())))
+
+
 def emoji_setting(ctx: PluginContext, defaults: Mapping[str, str] | None = None) -> dict[str, str]:
     """The emoji per toolset: ``defaults`` (``project.TOOLSET_EMOJI``) with string entries of ``emoji`` merged over it.
 

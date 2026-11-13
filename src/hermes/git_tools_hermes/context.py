@@ -11,6 +11,7 @@ class PluginContext(Protocol):
     """What ``register(ctx)`` is handed; Hermes' ``PluginContext`` provides all of it.
 
     ``session_surface()`` is read when present (see ``approval.session_surface``).
+    ``has_plugin(name)`` is read when present to check required plugins (see ``required.missing_plugins``).
     """
 
     def get_config(self, key: str, default: Any = None) -> Any:
