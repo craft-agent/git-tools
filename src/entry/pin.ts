@@ -8,11 +8,11 @@ import {
   type Translator,
 } from "../core"
 import { DESCRIBE_TIMEOUT_MS, shownDescription, timedCallDescription, type ShownDescription } from "./description"
-import { gateRefusal } from "./gate"
+import { gateRefusal, uncoveredRefusal } from "./gate"
 import { permissionResources } from "./permission"
 
-/** What a tool needs for its approval: its schema, its gate, its targets and its describer. */
-type ApprovalSpec = Pick<ToolSpec, "input" | "gate" | "targets" | "describe">
+/** What a tool needs for its approval: its schema, its gate, its targets, its describer and what a grant over it checks (`id`, `class`, `bounds`, `measure`). */
+type ApprovalSpec = Pick<ToolSpec, "id" | "class" | "input" | "gate" | "targets" | "describe" | "bounds" | "measure">
 
 /** What an approval is drawn from, or the refusal of the tool's gate, which no approval may override. */
 export type Approval =
@@ -36,6 +36,8 @@ function resolveCall(
  * description before the prompt cuts it. A call whose prompt shows no
  * description has no pin. When the tool's gate refuses the call, the answer
  * is `{ refused }` alone: nothing is resolved, and the caller must not ask.
+ * So is the answer for a write that no live grant covers while no one can be
+ * asked (`ctx.grants.unattended`): there is no one to ask.
  */
 export async function approvalOf(
   spec: ApprovalSpec,
@@ -44,7 +46,7 @@ export async function approvalOf(
   timeoutMs: number = DESCRIBE_TIMEOUT_MS,
   t: Translator = ENGLISH,
 ): Promise<Approval> {
-  const refused = await gateRefusal(spec, args, ctx)
+  const refused = (await gateRefusal(spec, args, ctx)) ?? (await uncoveredRefusal(spec, args, ctx))
   if (refused) return { refused }
   const [resources, raw] = await resolveCall(spec, args, ctx, timeoutMs)
   if (raw === undefined) return { resources }
@@ -61,7 +63,7 @@ export async function approvalOf(
  * resolved for it. A cancellation is rethrown, never turned into `stale`.
  */
 export async function checkPin(
-  spec: Pick<ToolSpec, "id"> & ApprovalSpec,
+  spec: ApprovalSpec,
   args: unknown,
   ctx: ToolContext,
   pin: string | undefined,
