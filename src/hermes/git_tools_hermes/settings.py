@@ -86,7 +86,7 @@ def option_flags(ctx: PluginContext, options: Mapping[str, str | dict[str, objec
 
 
 def settings_flags(ctx: PluginContext) -> list[str]:
-    """Read ``toolsets``, ``read_only``, ``tools`` and ``exclude_tools`` and return the flags that say the same.
+    """Read the selection, grant and package settings and return the flags that say the same.
 
     A setting that is absent gives no flag, so the command line's own defaults
     (and ``GIT_TOOLS_*`` variables) apply. A wrong type is refused rather
@@ -114,4 +114,9 @@ def settings_flags(ctx: PluginContext) -> list[str]:
         if value is not None and (names := _names(key, value)):
             flags += [flag, names]
 
-    return [*flags, *option_flags(ctx)]
+    return [*flags, *option_flags(ctx), *grant_flags(ctx)]
+
+
+def grant_flags(ctx: PluginContext) -> list[str]:
+    """The grant settings shared by ``target`` and ``run``, using the boolean and path option rules."""
+    return option_flags(ctx, {"unattended": "boolean", "grants_dir": "path"})

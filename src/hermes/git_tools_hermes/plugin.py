@@ -9,7 +9,7 @@ from .context import PluginContext
 from .listing import list_tools
 from . import project
 from .runtime import Unavailable, locate_runtime
-from .settings import SettingsError, emoji_setting, language_setting, option_flags, settings_flags
+from .settings import SettingsError, emoji_setting, grant_flags, language_setting, option_flags, settings_flags
 from .skills import register_skills
 from .tools import register_tools
 
@@ -34,5 +34,5 @@ def register(ctx: PluginContext) -> None:
         return
 
     register_tools(ctx, runtime, tools, flags, emoji_setting(ctx))
-    register_approval(ctx, runtime, tools, language_setting(ctx), option_flags(ctx))
+    register_approval(ctx, runtime, tools, language_setting(ctx), [*option_flags(ctx), *grant_flags(ctx)])
     register_skills(ctx, runtime.skills_dir, {tool.toolset for tool in tools})
