@@ -639,8 +639,9 @@ changes a rule above, it says so. The discussion behind them is on
 | Checking each commit                           | administrative    | runs a command the caller names, which can do anything                         |
 | Pushing                                        | administrative    | publishes: others see it and CI runs                                           |
 
-- **Local history rewrites are `overwrite`, not `administrative`.** They ask
-  in every harness and a person can still allow them; `administrative` would
+- **Local history rewrites are `overwrite`, not `administrative`.** In an
+  attended run they ask in every harness and a person can still allow them,
+  and unattended a grant can cover them like any write; `administrative` would
   make a client ask even under an allow rule, stopping the everyday fold of a
   fixup. A rewrite of pushed commits stays local until it is pushed, and
   pushing is `administrative`.

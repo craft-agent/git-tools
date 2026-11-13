@@ -11,10 +11,10 @@ Two tools in the `push` toolset, which is off by default (a consumer turns it
 on). Some hosts show them under a longer name (a server or plugin prefix
 before it); the part ending in the name below is the tool meant here.
 
-| Tool            | Does                                             | Asks before it runs    |
-| --------------- | ------------------------------------------------ | ---------------------- |
-| `git_push_read` | `preview`: what pushing the branches would send  | no, it changes nothing |
-| `git_push_send` | pushes exactly what a preview returned as `send` | yes, every time        |
+| Tool            | Does                                             | Asks before it runs                              |
+| --------------- | ------------------------------------------------ | ------------------------------------------------ |
+| `git_push_read` | `preview`: what pushing the branches would send  | no, it changes nothing                           |
+| `git_push_send` | pushes exactly what a preview returned as `send` | yes, every time (unattended: only under a grant) |
 
 Pushing publishes: others see the commits and CI runs. Push only when the
 user asked for it, or when their workflow says so.
