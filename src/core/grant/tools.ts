@@ -1,5 +1,6 @@
 import { randomBytes } from "node:crypto"
 import { z } from "zod"
+import { MAX_VALUE_LENGTH } from "../describe"
 import { ToolError } from "../errors"
 import { confirmWrite, defineTool, type CallFact, type ToolContext, type ToolSpec } from "../tool"
 import { exemptFromGrants, type GrantContext } from "./guard"
@@ -37,6 +38,21 @@ const logEntry = z.discriminatedUnion("kind", [
   }),
   z.object({ ...logFields, kind: z.literal("end"), start: z.number().int(), outcome: z.string() }),
 ])
+
+type BoundValue = Grant["bounds"][string]
+
+/** One bound's fact value in the prompt, as a template and its values. */
+function boundValue(name: string, limit: BoundValue): { text: string; values: Record<string, string | number> } {
+  if (typeof limit === "number") return { text: "{name} up to {limit}", values: { name, limit } }
+  if (typeof limit === "boolean") return { text: limit ? "{name} allowed" : "{name} not allowed", values: { name } }
+  return { text: "{name} one of {values}", values: { name, values: limit.join(", ") } }
+}
+
+/** One bound's fact value with its values filled in, as the prompt and the confirmation message word it. */
+function boundText(name: string, limit: BoundValue): string {
+  const { text, values } = boundValue(name, limit)
+  return text.replace(/\{(\w+)\}/g, (_match, key: string) => String(values[key]))
+}
 
 function grantContext(ctx: ToolContext): GrantContext {
   if (!ctx.grants) {
@@ -115,7 +131,15 @@ export function grantTools(specs: readonly ToolSpec[], prefix: string): ToolSpec
       }
       const spec = grantedTool(args.tool)
       grantTargets(args.targets)
-      grantBounds(spec.bounds!, args.bounds, args.tool)
+      const bounds = grantBounds(spec.bounds!, args.bounds, args.tool)
+      for (const name of Object.keys(bounds)) {
+        if (boundText(name, bounds[name]!).length > MAX_VALUE_LENGTH) {
+          throw new ToolError(
+            "invalid_argument",
+            `The bound ${name} lists too many values to show the person in full (over ${MAX_VALUE_LENGTH} characters); grant fewer values.`,
+          )
+        }
+      }
     },
     targets: (args) => grantTargets(args.targets),
     describe(args) {
@@ -134,16 +158,7 @@ export function grantTools(specs: readonly ToolSpec[], prefix: string): ToolSpec
         },
       ]
       for (const name of Object.keys(bounds).sort()) {
-        const limit = bounds[name]!
-        facts.push({
-          label: "Bound",
-          value:
-            typeof limit === "number"
-              ? { text: "{name} up to {limit}", values: { name, limit } }
-              : typeof limit === "boolean"
-                ? { text: limit ? "{name} allowed" : "{name} not allowed", values: { name } }
-                : { text: "{name} one of {values}", values: { name, values: limit.join(", ") } },
-        })
+        facts.push({ label: "Bound", value: boundValue(name, bounds[name]!) })
       }
       return {
         headline: { text: "About to let {tool} write while no one is asked", values: { tool: args.tool } },
@@ -154,10 +169,14 @@ export function grantTools(specs: readonly ToolSpec[], prefix: string): ToolSpec
     async execute(args, ctx) {
       const grants = grantContext(ctx)
       const targets = grantTargets(args.targets)
+      const bounds = grantBounds(grantedTool(args.tool).bounds!, args.bounds, args.tool)
+      const limits = Object.keys(bounds)
+        .sort()
+        .map((name) => boundText(name, bounds[name]!))
       await confirmWrite(
         create,
         ctx,
-        `Let ${args.tool} write to ${targets.join(", ")} while no one is asked, ${args.rate} calls an hour, for ${args.days} days: ${args.reason}`,
+        `Let ${args.tool} write to ${targets.join(", ")} while no one is asked, ${args.rate} calls an hour, for ${args.days} days${limits.length > 0 ? `, ${limits.join("; ")}` : ""}: ${args.reason}`,
       )
       if (!grants.key) throw noKeyError()
       const now = (grants.now ?? (() => new Date()))()
@@ -165,7 +184,7 @@ export function grantTools(specs: readonly ToolSpec[], prefix: string): ToolSpec
         id: `grant_${randomBytes(GRANT_ID_BYTES).toString("hex")}`,
         tool: args.tool,
         targets,
-        bounds: grantBounds(grantedTool(args.tool).bounds!, args.bounds, args.tool),
+        bounds,
         rate: args.rate,
         created_at: now.toISOString(),
         expires_at: new Date(now.getTime() + args.days * DAY_MS).toISOString(),

@@ -163,9 +163,29 @@ test("execute confirms and stores a normalized signed grant with the supplied cl
   expect(requests).toEqual([
     {
       tool: create!.id,
-      message: `Let ${bounded.id} write to /work/a, /work/b while no one is asked, 2 calls an hour, for 3 days: daily notes`,
+      message: `Let ${bounded.id} write to /work/a, /work/b while no one is asked, 2 calls an hour, for 3 days, attach not allowed; size up to 20; types one of daily, weekly: daily notes`,
     },
   ])
+})
+
+test("a grant whose filled bound value is over 200 characters is refused", async () => {
+  const values = Array.from({ length: 30 }, (_, index) => `value${String(index).padStart(2, "0")}`)
+  const tool = defineTool({
+    ...bounded,
+    bounds: { kinds: { kind: "oneOf", description: "The kinds", values } },
+    measure: () => ({ kinds: "value00" }),
+  })
+  const [many] = grantTools([tool], "demo")
+  const args = { ...ARGS, bounds: { kinds: values } }
+  await expect(invoke(many!, args, ctx)).rejects.toMatchObject({
+    code: "invalid_argument",
+    message: expect.stringContaining("grant fewer values"),
+  })
+  expect(await readGrants(ctx.grants!)).toEqual({ grants: [], failed: [] })
+  ctx.confirm = async () => true
+  expect((await invoke(many!, { ...args, bounds: { kinds: values.slice(0, 10) } }, ctx)).bounds).toEqual({
+    kinds: values.slice(0, 10),
+  })
 })
 
 test("a declined confirmation creates nothing", async () => {
