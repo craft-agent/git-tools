@@ -329,6 +329,21 @@ Every entry point takes the same settings:
   mapping, an entry whose value is not a string, and a name that is no toolset
   are ignored rather than refused: the setting only changes what is shown, so a
   typo must not take every tool away.
+- **`require_plugins`** names the Hermes plugins the Hermes plugin's writes
+  depend on, such as a guard whose `pre_tool_call` block keeps writes from
+  running unattended. Hermes drops a plugin that fails to import or register
+  and loads the rest, and treats a manifest's `requires_plugins` as advisory,
+  so a guard can vanish with nothing to say so. While any named plugin is not
+  loaded (`ctx.has_plugin` says no, or cannot be asked), every call of a tool
+  that is not a read is refused before its approval is asked, so neither YOLO,
+  an approvals mode of `off` nor a remembered answer lets it run, and again
+  before it runs. The refusal is `forbidden` with `details.reason`
+  `missing_plugin` and `details.plugins` the names missing. Reads run as
+  before. The check runs on every call, not at registration, since the order
+  in which Hermes loads two plugins is not the plugins' to fix. Unset or
+  empty, nothing is checked. A value that is not a list of names is refused,
+  like a wrong `read_only`, and the plugin then registers nothing: ignoring it
+  would loosen what the person asked for. No other entry point has it.
 - **Options** are the package's own settings, the ones the tools themselves
   read, listed in `options` in `src/project.ts` (and `OPTIONS` in the Hermes
   plugin's `project.py`), each mapping a snake_case name to its type (`text`,
