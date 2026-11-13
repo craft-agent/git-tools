@@ -19,6 +19,7 @@ import {
   withReadLock,
   writeAtomic,
   type GrantStoreOptions,
+  type HeldLock,
 } from "./store"
 
 const USAGE_FILE = "usage.jsonl"
@@ -56,8 +57,8 @@ const headSchema = z.object({ count: z.number().int().min(0), last: z.string(), 
 /** One line of the log: a call that began under a grant, or how it ended. */
 export type UsageEntry = z.infer<typeof entrySchema>
 
-/** The store, and the time the entry is made at. */
-export type UsageOptions = GrantStoreOptions & { now: Date }
+/** The store, and the clock; it is read inside the lock, after the state is read, so a decision and its entry carry the time they were made at. */
+export type UsageOptions = GrantStoreOptions & { now: () => Date }
 
 /** What `authorizeCall` needs to know of a call. */
 export type UsageCall = {
@@ -128,34 +129,53 @@ function verifyHead(key: Buffer, text: string, entries: readonly UsageEntry[]): 
  * `prev` and `mac` verifies, and the head's MAC verifies with a count the log
  * reaches and a `last` that is the MAC of that line. Lines past the head are
  * accepted, since a call that died between appending and writing the head
- * leaves them, signed. A missing log with a missing head is empty; one without
- * the other, or any failure, is `forbidden` as tampered.
+ * leaves them, signed. A missing log with a missing head is empty, and so is a
+ * missing or empty log under a signed head of `count: 0`, which is what a call
+ * that died before its first line leaves; a log without a head, or any
+ * failure, is `forbidden` as tampered.
  */
 async function readLog(options: GrantStoreOptions): Promise<UsageEntry[]> {
   const { dir } = options
   const key = requireKey(options)
   const [log, head] = await Promise.all([readText(join(dir, USAGE_FILE)), readText(join(dir, HEAD_FILE))])
-  if (log === undefined && head === undefined) return []
-  if (log === undefined || head === undefined) throw tamperedError()
-  const entries = verifiedEntries(key, log)
+  if (head === undefined) {
+    if (log === undefined) return []
+    throw tamperedError()
+  }
+  const entries = verifiedEntries(key, log ?? "")
   verifyHead(key, head, entries)
   return entries
 }
 
-/** Appends a signed line and moves the head to it; the caller holds the lock and has just read the log. */
+/** Writes the head, signed, as the log's `count` lines ending in `last`. */
+async function writeHead(options: GrantStoreOptions, count: number, last: string, lock: HeldLock): Promise<void> {
+  const head = { count, last }
+  await writeAtomic(
+    join(options.dir, HEAD_FILE),
+    `${canonicalJson({ ...head, mac: macOf(requireKey(options), head) })}\n`,
+    lock,
+  )
+}
+
+/**
+ * Appends a signed line and moves the head to it; the caller holds the lock and
+ * has just read the log. An empty log gets its head first, so that a call that
+ * dies after the line is appended leaves a head and a log, never a log alone.
+ */
 async function appendEntry(
   options: GrantStoreOptions,
   entries: readonly UsageEntry[],
   body: z.infer<typeof startSchema> | z.infer<typeof endSchema>,
+  lock: HeldLock,
 ): Promise<number> {
-  const { dir } = options
   const key = requireKey(options)
   const seq = entries.length + 1
+  if (entries.length === 0) await writeHead(options, 0, NO_MAC, lock)
   const unsigned = { ...body, seq, prev: entries.at(-1)?.mac ?? NO_MAC }
   const entry = { ...unsigned, mac: macOf(key, unsigned) }
-  await appendFile(join(dir, USAGE_FILE), `${canonicalJson(entry)}\n`, { mode: FILE_MODE })
-  const head = { count: seq, last: entry.mac }
-  await writeAtomic(join(dir, HEAD_FILE), `${canonicalJson({ ...head, mac: macOf(key, head) })}\n`)
+  await lock.assertHeld()
+  await appendFile(join(options.dir, USAGE_FILE), `${canonicalJson(entry)}\n`, { mode: FILE_MODE })
+  await writeHead(options, seq, entry.mac, lock)
   return seq
 }
 
@@ -172,18 +192,20 @@ async function readState(options: GrantStoreOptions, tool: string) {
   }
 }
 
+/** Decides on the state just read, at the time the clock gives after reading it; returns that time for the line that records the start. */
 async function decide(options: UsageOptions, call: UsageCall) {
   const { spec, targets, measure } = call
   const { grants, entries } = await readState(options, spec.id)
+  const now = options.now()
   const match = matchGrant({
     call: { tool: spec.id, targets, measure },
     bounds: spec.bounds,
     grants,
-    now: options.now,
-    used: (id) => usedIn(entries, id, options.now),
+    now,
+    used: (id) => usedIn(entries, id, now),
   })
   if (!match.covered) throw match.error
-  return { grant: match.grant, entries }
+  return { grant: match.grant, entries, now }
 }
 
 /**
@@ -205,17 +227,22 @@ export async function checkCall(options: UsageOptions, call: UsageCall): Promise
  */
 export async function authorizeCall(options: UsageOptions, call: UsageCall): Promise<GrantUse> {
   if (options.key === undefined) throw grantRefusal("no_key", call.spec.id)
-  return withLock(options.dir, async () => {
-    const { grant, entries } = await decide(options, call)
-    const seq = await appendEntry(options, entries, {
-      kind: "start",
-      grant: grant.id,
-      tool: call.spec.id,
-      targets: [...call.targets],
-      measure: call.measure ?? {},
-      args: createHash("sha256").update(canonicalJson(call.args)).digest("hex"),
-      at: options.now.toISOString(),
-    })
+  return withLock(options.dir, async (lock) => {
+    const { grant, entries, now } = await decide(options, call)
+    const seq = await appendEntry(
+      options,
+      entries,
+      {
+        kind: "start",
+        grant: grant.id,
+        tool: call.spec.id,
+        targets: [...call.targets],
+        measure: call.measure ?? {},
+        args: createHash("sha256").update(canonicalJson(call.args)).digest("hex"),
+        at: now.toISOString(),
+      },
+      lock,
+    )
     return { grant, seq }
   })
 }
@@ -227,9 +254,9 @@ export async function authorizeCall(options: UsageOptions, call: UsageCall): Pro
  */
 export async function finishCall(options: UsageOptions, seq: number, outcome: string): Promise<void> {
   requireKey(options)
-  await withLock(options.dir, async () => {
+  await withLock(options.dir, async (lock) => {
     const entries = await readLog(options)
-    await appendEntry(options, entries, { kind: "end", start: seq, outcome, at: options.now.toISOString() })
+    await appendEntry(options, entries, { kind: "end", start: seq, outcome, at: options.now().toISOString() }, lock)
   })
 }
 

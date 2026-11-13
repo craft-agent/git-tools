@@ -1,5 +1,5 @@
 import { createHmac, randomBytes, timingSafeEqual } from "node:crypto"
-import { mkdir, open, readFile, rename, rm, stat, writeFile } from "node:fs/promises"
+import { link, mkdir, open, readFile, rename, rm, stat, writeFile } from "node:fs/promises"
 import { join } from "node:path"
 import { setTimeout as sleep } from "node:timers/promises"
 import { z } from "zod"
@@ -26,6 +26,7 @@ const FILE_MODE = 0o600
 const GRANTS_FILE = "grants.json"
 const LOCK_FILE = "lock"
 const TEMP_FILE_RANDOM_BYTES = 4
+const LOCK_TOKEN_BYTES = 16
 
 const LOCK_TIMEOUT_MS = 5000
 /** A lock older than this was left by a call that died. */
@@ -75,11 +76,18 @@ export function macMatches(key: Buffer, value: unknown, mac: unknown): boolean {
   return expected.length === given.length && timingSafeEqual(expected, given)
 }
 
-/** Writes a file whole: to a temporary file beside it, then renamed over it. */
-export async function writeAtomic(path: string, text: string): Promise<void> {
+/** The lock a call holds; a write made under it first asks `assertHeld`, so a call whose lock was taken over never writes. */
+export type HeldLock = {
+  /** Throws `internal_error` when the lock file no longer holds this call's token. */
+  assertHeld: () => Promise<void>
+}
+
+/** Writes a file whole: to a temporary file beside it, then, with the lock still held, renamed over it. */
+export async function writeAtomic(path: string, text: string, lock: HeldLock): Promise<void> {
   const temporary = `${path}.${process.pid}.${randomBytes(TEMP_FILE_RANDOM_BYTES).toString("hex")}.tmp`
   try {
     await writeFile(temporary, text, { mode: FILE_MODE })
+    await lock.assertHeld()
     await rename(temporary, path)
   } catch (error) {
     await rm(temporary, { force: true })
@@ -92,8 +100,8 @@ export function hasSystemCode(error: unknown, code: string): boolean {
   return error instanceof Error && "code" in error && error.code === code
 }
 
-/** Takes the lock file; false when another call holds it. */
-async function takeLock(path: string): Promise<boolean> {
+/** Takes the lock file, writing the call's token into it; false when another call holds it. */
+async function takeLock(path: string, token: string): Promise<boolean> {
   let handle
   try {
     handle = await open(path, "wx", FILE_MODE)
@@ -102,7 +110,7 @@ async function takeLock(path: string): Promise<boolean> {
     throw error
   }
   try {
-    await handle.writeFile(`${process.pid} ${new Date().toISOString()}\n`)
+    await handle.writeFile(`${JSON.stringify({ token, pid: process.pid, at: new Date().toISOString() })}\n`)
   } catch (error) {
     await rm(path, { force: true })
     throw error
@@ -112,30 +120,74 @@ async function takeLock(path: string): Promise<boolean> {
   return true
 }
 
-/** Removes a lock a dead call left behind; true when it did, so the caller retries at once. */
-async function removeStaleLock(path: string): Promise<boolean> {
+/** Whether the lock file holds this token: false when it is gone, unreadable as a lock or another call's. */
+async function holdsLock(path: string, token: string): Promise<boolean> {
+  try {
+    const content: unknown = JSON.parse(await readFile(path, "utf8"))
+    return isRecord(content) && content.token === token
+  } catch (error) {
+    if (error instanceof SyntaxError || hasSystemCode(error, "ENOENT")) return false
+    throw error
+  }
+}
+
+function lostLockError(dir: string): ToolError {
+  return new ToolError(
+    "internal_error",
+    `The grants lock in ${dir} was lost: it went stale and another call took it over. Nothing was written.`,
+  )
+}
+
+/**
+ * Clears a lock a dead or stalled call left behind; true when the caller
+ * should retry at once. The stale file is first renamed to a name of this
+ * call's own, which only one of several waiters can do. If what was renamed
+ * turns out to be fresh (a new owner took the lock between the check and the
+ * rename), it is linked back when `lock` is still absent and dropped otherwise;
+ * either way its owner finds its token missing before its next write.
+ */
+async function reclaimStaleLock(path: string, token: string): Promise<boolean> {
   try {
     if (Date.now() - (await stat(path)).mtimeMs <= LOCK_STALE_MS) return false
   } catch (error) {
     if (hasSystemCode(error, "ENOENT")) return true
     throw error
   }
-  await rm(path, { force: true })
+  const claimed = `${path}.${token}.stale`
+  try {
+    await rename(path, claimed)
+  } catch (error) {
+    if (hasSystemCode(error, "ENOENT")) return true
+    throw error
+  }
+  try {
+    if (Date.now() - (await stat(claimed)).mtimeMs <= LOCK_STALE_MS) {
+      await link(claimed, path).catch((error: unknown) => {
+        if (!hasSystemCode(error, "EEXIST")) throw error
+      })
+    }
+  } finally {
+    await rm(claimed, { force: true })
+  }
   return true
 }
 
 /**
  * Runs `fn` while holding the directory's lock, so that calls from several
- * processes change the files one at a time. A call that finds the lock taken
- * retries for 5 seconds, and takes over a lock file more than 30 seconds old.
- * The lock is always released.
+ * processes change the files one at a time. The lock file holds a random token
+ * of this call. A call that finds the lock taken retries for 5 seconds, and
+ * takes over a lock file more than 30 seconds old; `fn` gets the lock and must
+ * pass it to every write, which then fails with `internal_error` if the lock
+ * was taken over meanwhile. The lock is released only if it still holds this
+ * call's token.
  */
-export async function withLock<T>(dir: string, fn: () => Promise<T>): Promise<T> {
+export async function withLock<T>(dir: string, fn: (lock: HeldLock) => Promise<T>): Promise<T> {
   await mkdir(dir, { recursive: true, mode: DIR_MODE })
   const path = join(dir, LOCK_FILE)
+  const token = randomBytes(LOCK_TOKEN_BYTES).toString("hex")
   const deadline = Date.now() + LOCK_TIMEOUT_MS
-  while (!(await takeLock(path))) {
-    if (await removeStaleLock(path)) continue
+  while (!(await takeLock(path, token))) {
+    if (await reclaimStaleLock(path, token)) continue
     if (Date.now() >= deadline) {
       throw new ToolError(
         "internal_error",
@@ -144,10 +196,15 @@ export async function withLock<T>(dir: string, fn: () => Promise<T>): Promise<T>
     }
     await sleep(LOCK_RETRY_MIN_MS + Math.random() * LOCK_RETRY_JITTER_MS)
   }
+  const lock: HeldLock = {
+    assertHeld: async () => {
+      if (!(await holdsLock(path, token))) throw lostLockError(dir)
+    },
+  }
   try {
-    return await fn()
+    return await fn(lock)
   } finally {
-    await rm(path, { force: true })
+    if (await holdsLock(path, token)) await rm(path, { force: true })
   }
 }
 
@@ -185,8 +242,8 @@ async function readEntries(dir: string): Promise<unknown[]> {
   return file.grants
 }
 
-async function writeEntries(dir: string, grants: unknown[]): Promise<void> {
-  await writeAtomic(join(dir, GRANTS_FILE), `${JSON.stringify({ version: GRANTS_VERSION, grants }, null, 2)}\n`)
+async function writeEntries(dir: string, grants: unknown[], lock: HeldLock): Promise<void> {
+  await writeAtomic(join(dir, GRANTS_FILE), `${JSON.stringify({ version: GRANTS_VERSION, grants }, null, 2)}\n`, lock)
 }
 
 function entryId(entry: unknown): string | undefined {
@@ -223,9 +280,9 @@ export async function readGrants(options: GrantStoreOptions): Promise<{ grants: 
 export async function addGrant(options: GrantStoreOptions, grant: Grant): Promise<void> {
   const { dir } = options
   const key = requireKey(options)
-  await withLock(dir, async () => {
+  await withLock(dir, async (lock) => {
     const entries = await readEntries(dir)
-    await writeEntries(dir, [...entries, { ...grant, mac: macOf(key, grant) }])
+    await writeEntries(dir, [...entries, { ...grant, mac: macOf(key, grant) }], lock)
   })
 }
 
@@ -236,11 +293,11 @@ export async function addGrant(options: GrantStoreOptions, grant: Grant): Promis
  */
 export async function removeGrant(options: GrantStoreOptions, id: string): Promise<boolean> {
   const { dir } = options
-  return withLock(dir, async () => {
+  return withLock(dir, async (lock) => {
     const entries = await readEntries(dir)
     const kept = entries.filter((entry) => entryId(entry) !== id)
     if (kept.length === entries.length) return false
-    await writeEntries(dir, kept)
+    await writeEntries(dir, kept, lock)
     return true
   })
 }

@@ -28,7 +28,7 @@ export function isExemptFromGrants(spec: object): boolean {
 }
 
 function usageOptions(grants: GrantContext): UsageOptions {
-  return { dir: grants.dir, key: grants.key, now: (grants.now ?? (() => new Date()))() }
+  return { dir: grants.dir, key: grants.key, now: grants.now ?? (() => new Date()) }
 }
 
 /** The tool's own measure of the call, or `undefined` when it fails or is not the shape the bounds declare; a cancellation is rethrown. */
