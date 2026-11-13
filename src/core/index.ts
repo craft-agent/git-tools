@@ -13,6 +13,16 @@ export {
   resetGitCheck,
   type GitOptions,
 } from "./git"
+export {
+  MAX_GRANT_DAYS,
+  MAX_GRANT_RATE,
+  RATE_WINDOW_MS,
+  grantBounds,
+  grantTargets,
+  type Grant,
+  type GrantBoundValue,
+  type GrantRefusal,
+} from "./grant"
 export { isWithin } from "./paths"
 export { ANY_TARGET, writeTargets } from "./targets"
 export {

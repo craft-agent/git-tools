@@ -5,7 +5,7 @@ import type { ToolContext, ToolSpec } from "./tool"
 export const ANY_TARGET = "*"
 
 /** The wildcards of a harness's permission patterns; a target holding one would grant more than it names. */
-const PATTERN_CHARACTERS = /[*?]/
+export const PATTERN_CHARACTERS = /[*?]/
 
 /** A target as given, or `*` when it is not a usable name: not text, blank, or holding a wildcard. */
 function targetName(target: unknown): string {

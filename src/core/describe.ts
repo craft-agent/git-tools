@@ -53,7 +53,7 @@ export function templatePlaceholders(text: string): Set<string> | undefined {
 }
 
 /** Whether a value is a plain object: not an array, a date or a class instance. */
-function isRecord(value: unknown): value is Record<string, unknown> {
+export function isRecord(value: unknown): value is Record<string, unknown> {
   if (typeof value !== "object" || value === null) return false
   const prototype = Object.getPrototypeOf(value)
   return prototype === Object.prototype || prototype === null
