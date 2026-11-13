@@ -12,7 +12,9 @@ type Gate = NonNullable<ToolSpec["gate"]>
 /** A fixture that counts how often its gate, targets and describer run. */
 function fixture(gate?: Gate) {
   const calls = { gate: 0, targets: 0, describe: 0 }
-  const spec: Pick<ToolSpec, "input" | "gate" | "targets" | "describe"> = {
+  const spec: Pick<ToolSpec, "id" | "class" | "input" | "gate" | "targets" | "describe"> = {
+    id: "example_note_create",
+    class: "add",
     input,
     gate:
       gate &&
@@ -153,7 +155,7 @@ describe("checkPin with a gate", () => {
   test("throws the refusal before resolving anything, pin or none", async () => {
     for (const pin of [undefined, "0".repeat(64)]) {
       const { spec, calls } = fixture(refuse(failure))
-      const error = await checkPin({ id: "example_note_create", ...spec }, {}, CTX, pin).then(
+      const error = await checkPin(spec, {}, CTX, pin).then(
         () => undefined,
         (caught: unknown) => caught,
       )
@@ -164,7 +166,7 @@ describe("checkPin with a gate", () => {
 
   test("a gate that returns leaves the pin check as it was", async () => {
     const { spec, calls } = fixture(() => {})
-    await expect(checkPin({ id: "example_note_create", ...spec }, {}, CTX, undefined)).resolves.toBeUndefined()
+    await expect(checkPin(spec, {}, CTX, undefined)).resolves.toBeUndefined()
     expect(calls).toEqual({ gate: 1, targets: 0, describe: 0 })
   })
 })

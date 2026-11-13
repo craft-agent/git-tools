@@ -2,7 +2,16 @@ import { mkdtempSync, realpathSync, rmSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { z } from "zod"
-import { ToolError, defineTool, isWithin, type ToolSpec, type Translations, type WriteClass } from "../core"
+import {
+  ToolError,
+  askPersonOnly,
+  defineTool,
+  isWithin,
+  type Grant,
+  type ToolSpec,
+  type Translations,
+  type WriteClass,
+} from "../core"
 import { NOTE_OPTION } from "../entry/options.testing"
 import type { EntryProfile } from "../entry/profile"
 
@@ -10,6 +19,7 @@ import type { EntryProfile } from "../entry/profile"
 
 /** The profile the test plugins are built with: `alpha` is on by default, `beta` is not. */
 export const PROFILE: EntryProfile = {
+  name: "demo-tools",
   envPrefix: "DEMO",
   toolsets: { names: ["alpha", "beta"], defaults: ["alpha"] },
   options: { [NOTE_OPTION]: "text" },
@@ -180,6 +190,43 @@ export function gatedSpecs(events: string[]): ToolSpec[] {
   return [
     defineTool({ ...fixture(GATED_READ_ID, "alpha", "read", events), gate }),
     defineTool({ ...fixture(GATED_ADD_ID, "alpha", "add", events), gate }),
+  ]
+}
+
+export const BOUNDED_ID = "demo_thing_post"
+export const PERSON_ONLY_ID = "demo_grant_create"
+
+/** The grant key of the grant tests: the variable of the test profile's prefix holds it. */
+export const GRANT_KEY = "k".repeat(32)
+
+const HOUR_MS = 3_600_000
+const DAY_MS = 24 * HOUR_MS
+
+/** A grant for the bounded fixture over `north`, alive now: a `count` of at most 5, three calls an hour, for a day. */
+export function boundedGrant(): Grant {
+  const now = Date.now()
+  return {
+    id: "g1",
+    tool: BOUNDED_ID,
+    targets: ["north"],
+    bounds: { count: 5 },
+    rate: 3,
+    created_at: new Date(now - HOUR_MS).toISOString(),
+    expires_at: new Date(now + DAY_MS).toISOString(),
+    reason: "tests",
+  }
+}
+
+/** A read tool, an add tool of `alpha` bounded by its `count`, and a person-only tool of `alpha` that declares no bounds. */
+export function grantSpecs(events: string[]): ToolSpec[] {
+  return [
+    fixture(READ_ID, "alpha", "read", events),
+    defineTool({
+      ...fixture(BOUNDED_ID, "alpha", "add", events),
+      bounds: { count: { kind: "max", description: "The largest count" } },
+      measure: (args) => ({ count: typeof args.count === "number" ? args.count : 0 }),
+    }),
+    askPersonOnly(fixture(PERSON_ONLY_ID, "alpha", "administrative", events)),
   ]
 }
 

@@ -10,6 +10,7 @@ import {
   inputJsonSchema,
   invoke,
   isAbortError,
+  isPersonOnly,
   isToolError,
   outputJsonSchema,
   selectTools,
@@ -67,7 +68,9 @@ function describeTool(spec: ToolSpec): Tool {
  * whatever transport is connected. Each call runs in the client's working
  * directory from call metadata, else roots, else the fallback. With
  * `confirm: "elicitation"` an administrative tool asks
- * through a form where the client offers one.
+ * through a form where the client offers one; a person-only tool does so
+ * whatever `confirm` says. Every call carries `settings.grants`, so a write
+ * runs while `unattended` only under a grant that covers it.
  */
 export function createServer(specs: ToolSpec[], settings: EntrySettings, options: ServerOptions = {}): Server {
   const log = options.log ?? ((entry: string) => process.stderr.write(`${entry}\n`))
@@ -86,11 +89,13 @@ export function createServer(specs: ToolSpec[], settings: EntrySettings, options
     const spec = selected.get(request.params.name)
     if (!spec) return errorResult("invalid_argument", `Unknown tool "${request.params.name}".`)
     try {
-      const confirm = settings.confirm === "elicitation" ? elicitationConfirm(server, extra.signal) : undefined
+      const confirm =
+        settings.confirm === "elicitation" || isPersonOnly(spec) ? elicitationConfirm(server, extra.signal) : undefined
       const ctx: ToolContext = {
         cwd: await workingDir(extra.signal, request.params._meta),
         ownDir: options.ownDir,
         options: settings.options,
+        grants: settings.grants,
         signal: extra.signal,
         ...(confirm && { confirm }),
       }

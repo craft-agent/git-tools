@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test"
 import { PROJECT } from "../project"
 import type { EntryProfile } from "./profile"
 import { forwardedVariables, parseSettings, parseToolSettings, settingVariables } from "./settings"
-import { failure, profile } from "./settings.testing"
+import { DEFAULT_GRANTS, failure, profile } from "./settings.testing"
 
 const parse = (argv: string[], env: Record<string, string | undefined> = {}) => parseSettings(argv, env, profile)
 const parseTool = (argv: string[], env: Record<string, string | undefined> = {}) =>
@@ -16,6 +16,8 @@ describe("settingVariables", () => {
       "DEMO_TOOLS",
       "DEMO_EXCLUDE_TOOLS",
       "DEMO_CONFIRM",
+      "DEMO_UNATTENDED",
+      "DEMO_GRANTS_DIR",
       "DEMO_NOTE_TEXT",
     ])
   })
@@ -28,18 +30,26 @@ describe("settingVariables", () => {
 })
 
 describe("forwardedVariables", () => {
-  test("lists the settings' variables, then the tool variables", () => {
-    expect(forwardedVariables(profile, ["XDG_STATE_HOME"])).toEqual([...settingVariables(profile), "XDG_STATE_HOME"])
+  test("lists the settings' variables, the grant key's, then the tool variables", () => {
+    expect(forwardedVariables(profile, ["XDG_STATE_HOME"])).toEqual([
+      ...settingVariables(profile),
+      "DEMO_GRANT_KEY",
+      "XDG_STATE_HOME",
+    ])
   })
 
   test("uses the package's own prefix and toolVariables by default", () => {
-    expect(forwardedVariables()).toEqual([...settingVariables(), ...PROJECT.toolVariables])
+    expect(forwardedVariables()).toEqual([
+      ...settingVariables(),
+      `${PROJECT.envPrefix}_GRANT_KEY`,
+      ...PROJECT.toolVariables,
+    ])
   })
 })
 
 describe("parseSettings", () => {
   test("defaults to the harness confirming and no other setting", () => {
-    expect(parse([])).toEqual({ confirm: "harness", options: {} })
+    expect(parse([])).toEqual({ confirm: "harness", options: {}, grants: DEFAULT_GRANTS })
   })
 
   test("reads each flag", () => {
@@ -62,6 +72,7 @@ describe("parseSettings", () => {
       exclude_tools: ["demo_thing_merge"],
       confirm: "elicitation",
       options: {},
+      grants: DEFAULT_GRANTS,
     })
   })
 
@@ -75,6 +86,7 @@ describe("parseSettings", () => {
       read_only: true,
       confirm: "elicitation",
       options: {},
+      grants: DEFAULT_GRANTS,
     })
   })
 
@@ -94,6 +106,7 @@ describe("parseSettings", () => {
       exclude_tools: ["y", "z"],
       confirm: "elicitation",
       options: {},
+      grants: DEFAULT_GRANTS,
     })
   })
 
@@ -145,11 +158,16 @@ describe("parseSettings", () => {
       confirm: "harness",
       read_only: true,
       options: {},
+      grants: DEFAULT_GRANTS,
     })
   })
 
   test("an empty environment variable counts as unset", () => {
-    expect(parse([], { DEMO_TOOLSETS: "", DEMO_CONFIRM: " " })).toEqual({ confirm: "harness", options: {} })
+    expect(parse([], { DEMO_TOOLSETS: "", DEMO_CONFIRM: " " })).toEqual({
+      confirm: "harness",
+      options: {},
+      grants: DEFAULT_GRANTS,
+    })
   })
 
   test("drops empty list items", () => {
@@ -194,7 +212,7 @@ describe("parseSettings", () => {
   })
 
   test("with no toolsets defined, a named toolset is rejected and the message says so", () => {
-    const none: EntryProfile = { envPrefix: "DEMO", toolsets: { names: [], defaults: [] } }
+    const none: EntryProfile = { name: "demo-tools", envPrefix: "DEMO", toolsets: { names: [], defaults: [] } }
     expect(failure(() => parseSettings(["--toolsets", "alpha"], {}, none)).message).toContain("no toolsets are defined")
     expect(parseSettings(["--toolsets", "all"], {}, none).toolsets).toBe("all")
   })
@@ -202,13 +220,14 @@ describe("parseSettings", () => {
 
 describe("parseToolSettings", () => {
   test("reads the tool settings and gives no confirm setting", () => {
-    expect(parseTool([])).toEqual({ options: {} })
+    expect(parseTool([])).toEqual({ options: {}, grants: DEFAULT_GRANTS })
     expect(parseTool(["--toolsets=gamma", "--read-only", "--tools", "a"], { DEMO_EXCLUDE_TOOLS: "b" })).toEqual({
       toolsets: ["gamma"],
       read_only: true,
       tools: ["a"],
       exclude_tools: ["b"],
       options: {},
+      grants: DEFAULT_GRANTS,
     })
   })
 
@@ -218,6 +237,6 @@ describe("parseToolSettings", () => {
   })
 
   test("ignores DEMO_CONFIRM, even a bad one", () => {
-    expect(parseTool([], { DEMO_CONFIRM: "ask" })).toEqual({ options: {} })
+    expect(parseTool([], { DEMO_CONFIRM: "ask" })).toEqual({ options: {}, grants: DEFAULT_GRANTS })
   })
 })

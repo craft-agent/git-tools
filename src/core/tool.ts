@@ -1,5 +1,6 @@
 import { z } from "zod"
 import { ToolError, isAbortError, isToolError } from "./errors"
+import { finishGrantUse, grantCheck, type GrantContext } from "./grant/guard"
 
 /** The toolsets of a package: every name, in the order `all` lists them, and the ones on when a setting names none. */
 export type Toolsets = { names: readonly string[]; defaults: readonly string[] }
@@ -69,7 +70,24 @@ export type ToolContext = {
   signal?: AbortSignal
   /** Asks the person to approve; absent when the harness's own approval already covers the call. */
   confirm?(request: ConfirmRequest): Promise<boolean>
+  /** Grants, for a call no person can be asked about; absent or not `unattended`, nothing changes. */
+  grants?: GrantContext
 }
+
+/** What a grant over a tool can limit: a whole-number ceiling, a yes/no, or a set of allowed values. */
+export type BoundSpec =
+  | { kind: "max"; description: string }
+  | { kind: "allow"; description: string }
+  | { kind: "oneOf"; values: readonly string[]; description: string }
+
+/** The bounds a tool declares, by name. */
+export type ToolBounds = Readonly<Record<string, BoundSpec>>
+
+/** A call's value for one bound: a number for `max`, a boolean for `allow`, one or more values for `oneOf`. */
+export type MeasuredValue = number | boolean | string | readonly string[]
+
+/** A call's value for every bound its tool declares, by name. */
+export type CallMeasure = Readonly<Record<string, MeasuredValue>>
 
 export type ToolSpec<I extends z.ZodObject<any> = z.ZodObject<any>, O extends z.ZodObject<any> = z.ZodObject<any>> = {
   /** `<prefix>_<domain>_<verb>`; a public interface, so it never changes once published. */
@@ -98,6 +116,10 @@ export type ToolSpec<I extends z.ZodObject<any> = z.ZodObject<any>, O extends z.
    * of target, and the text the call carries under the tool's own label.
    */
   describe?(args: z.output<I>, ctx: ToolContext): CallDescription | Promise<CallDescription>
+  /** What a grant over this tool can limit beyond its targets, rate and expiry; a grant over a tool without it limits those three alone. */
+  bounds?: ToolBounds
+  /** This call's value for each bound, computed from what the call carries, never from the model's account of it. */
+  measure?(args: z.output<I>, ctx: ToolContext): CallMeasure | Promise<CallMeasure>
   input: I
   output: O
   execute(args: z.output<I>, ctx: ToolContext): Promise<z.input<O>>
@@ -109,12 +131,68 @@ export const REQUIRES_USER_INTERACTION = "anthropic/requiresUserInteraction"
 const TOOL_ID_PATTERN = /^[a-z]+(?:_[a-z]+){2,}$/
 const MAX_TOOL_ID_LENGTH = 40
 const READ_TOOL_SUFFIX = "_read"
+const BOUND_NAME_PATTERN = /^[a-z][a-z0-9_]*$/
+const MAX_BOUND_NAME_LENGTH = 40
+const BOUND_KINDS: readonly BoundSpec["kind"][] = ["max", "allow", "oneOf"]
+/** The most bounds a tool declares: a grant's prompt shows one fact per bound beside its rate and days, within the facts a prompt keeps. */
+export const MAX_BOUNDS = 6
+
+function checkBounds(spec: Pick<ToolSpec, "id" | "class" | "bounds" | "measure">): void {
+  const { id, bounds } = spec
+  if (bounds === undefined) {
+    if (spec.measure !== undefined) {
+      throw new Error(`Tool "${id}" gives a measure without bounds; declare the bounds it measures, even none.`)
+    }
+    return
+  }
+  if (spec.class === "read") {
+    throw new Error(`Tool "${id}" is a read tool, which runs without a grant, so it must not declare bounds.`)
+  }
+  const names = Object.keys(bounds)
+  if (names.length > MAX_BOUNDS) {
+    throw new Error(
+      `Tool "${id}" declares ${names.length} bounds; declare at most ${MAX_BOUNDS}, because a grant's prompt must show every bound.`,
+    )
+  }
+  if (names.length > 0 && spec.measure === undefined) {
+    throw new Error(`Tool "${id}" declares bounds, so it must give a measure that computes them.`)
+  }
+  for (const name of names) {
+    const bound = bounds[name]!
+    if (!BOUND_NAME_PATTERN.test(name) || name.length > MAX_BOUND_NAME_LENGTH) {
+      throw new Error(
+        `Tool "${id}" names the bound "${name}"; a bound name is lowercase letters, digits and _, starts with a letter and has at most ${MAX_BOUND_NAME_LENGTH} characters.`,
+      )
+    }
+    if (!BOUND_KINDS.includes(bound.kind)) {
+      throw new Error(
+        `Bound "${name}" of tool "${id}" has the kind "${String(bound.kind)}"; use ${BOUND_KINDS.join(", ")}.`,
+      )
+    }
+    if (typeof bound.description !== "string" || bound.description.trim() === "") {
+      throw new Error(`Bound "${name}" of tool "${id}" must give a description that is not blank.`)
+    }
+    if (bound.kind === "oneOf") {
+      const values: readonly unknown[] = bound.values
+      if (!Array.isArray(values) || values.length === 0) {
+        throw new Error(`Bound "${name}" of tool "${id}" must list the values a call may use.`)
+      }
+      if (values.some((value) => typeof value !== "string" || value.trim() === "")) {
+        throw new Error(`Bound "${name}" of tool "${id}" must list values that are not blank.`)
+      }
+      if (new Set(values).size !== values.length) {
+        throw new Error(`Bound "${name}" of tool "${id}" lists a value more than once.`)
+      }
+    }
+  }
+}
 
 /**
  * Returns the spec after checking what a type cannot: the ID's shape and
- * length, that a read tool is named `_read`, and that the output schema is an
- * object (a tool returns its data as a plain object). The ID's prefix is the
- * package's to check.
+ * length, that a read tool is named `_read`, that the output schema is an
+ * object (a tool returns its data as a plain object), and that declared
+ * `bounds` and `measure` fit each other and the write class. The ID's prefix
+ * is the package's to check.
  */
 export function defineTool<I extends z.ZodObject<any>, O extends z.ZodObject<any>>(
   spec: ToolSpec<I, O>,
@@ -137,6 +215,7 @@ export function defineTool<I extends z.ZodObject<any>, O extends z.ZodObject<any
   if (spec.intent !== undefined && /[{}]/.test(spec.intent)) {
     throw new Error(`Tool "${spec.id}" must give an intent without braces: it carries no values.`)
   }
+  checkBounds(spec)
   return spec
 }
 
@@ -259,7 +338,8 @@ function describeResult(result: unknown): string {
 /**
  * Runs a tool the way every entry point does: validates the raw arguments
  * as strict (`invalid_argument` on a bad or unknown one), runs the tool's
- * `gate` when it has one, executes, and validates the result against the
+ * `gate` when it has one, checks the grant a write needs while no one can be
+ * asked (`ctx.grants`), executes, and validates the result against the
  * output schema. A result that does not match is a bug in the tool; it throws
  * `internal_error` carrying the raw result, so whatever the call already
  * created stays visible. Errors from `gate` and `execute` pass through
@@ -277,16 +357,25 @@ export async function invoke<I extends z.ZodObject<any>, O extends z.ZodObject<a
     })
   }
   await spec.gate?.(args.data as z.output<I>, ctx)
-  const result = await spec.execute(args.data as z.output<I>, ctx)
-  const output = spec.output.safeParse(result)
-  if (!output.success) {
-    throw new ToolError(
-      "internal_error",
-      `${spec.id} returned a result that does not match its output schema (${describeIssues(output.error)}). The call may have gone through; its result was: ${describeResult(result)}`,
-      { cause: output.error },
-    )
+  const use = await grantCheck(spec, args.data, ctx, "record")
+  let outcome = "ok"
+  try {
+    const result = await spec.execute(args.data as z.output<I>, ctx)
+    const output = spec.output.safeParse(result)
+    if (!output.success) {
+      throw new ToolError(
+        "internal_error",
+        `${spec.id} returned a result that does not match its output schema (${describeIssues(output.error)}). The call may have gone through; its result was: ${describeResult(result)}`,
+        { cause: output.error },
+      )
+    }
+    return output.data
+  } catch (error) {
+    outcome = isToolError(error) ? error.code : "internal_error"
+    throw error
+  } finally {
+    if (use) await finishGrantUse(use, ctx, outcome)
   }
-  return output.data
 }
 
 export function inputJsonSchema(spec: Pick<ToolSpec, "input">): z.core.JSONSchema.BaseSchema {

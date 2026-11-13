@@ -45,6 +45,15 @@ export type V2Skill = {
   content: string
 }
 
+/** What a permission rule gives an action: let it run, ask the person, or refuse it. */
+export type PermissionEffect = "allow" | "ask" | "deny"
+
+/** A V2 permission evaluation: the action asked about and the effect the rules gave it so far, which a hook may change. */
+export type V2PermissionEvaluation = {
+  action: string
+  effect: PermissionEffect
+}
+
 /** Mirrors the V2 `ctx.tool.transform` and `ctx.skill.transform` registration, reduced to `add`. */
 export type V2Transform<Item> = (callback: (editor: { add(item: Item): void }) => void) => Promise<unknown>
 
@@ -74,6 +83,8 @@ export type V2Context = {
   }
   permission: {
     assert(input: V2PermissionRequest): Promise<void>
+    /** The `evaluate` hook, which no installed `@opencode-ai/plugin` types yet; a host without it leaves the rules as they are. */
+    hook?(name: "evaluate", fn: (event: V2PermissionEvaluation) => void | Promise<void>): Promise<unknown> | void
   }
   tool: { transform: V2Transform<V2Tool> }
   skill: { transform: V2Transform<V2Skill> }
@@ -107,9 +118,19 @@ export type V1Tool = {
   execute(args: unknown, context: V1ToolContext): Promise<string>
 }
 
-/** Mirrors the hooks a V1 `server` returns (`@opencode-ai/plugin`), reduced to `tool`. */
+/**
+ * Mirrors the config a V1 `config` hook receives (`@opencode-ai/plugin`),
+ * reduced to `permission`: one action for every tool, or an action (or a
+ * pattern-to-action record) per tool id.
+ */
+export type V1Config = {
+  permission?: string | Record<string, unknown>
+}
+
+/** Mirrors the hooks a V1 `server` returns (`@opencode-ai/plugin`), reduced to `tool` and `config`. */
 export type V1Hooks = {
   tool: Record<string, V1Tool>
+  config?: (config: V1Config) => Promise<void>
 }
 
 /** Mirrors V1's `PluginModule` (`@opencode-ai/plugin`) and the V2 plugin (`id`, `setup`) in one module. */

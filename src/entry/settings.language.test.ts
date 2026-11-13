@@ -7,7 +7,7 @@ import {
   settingsFromOptions,
   settingVariables,
 } from "./settings"
-import { failure, profile } from "./settings.testing"
+import { DEFAULT_GRANTS, failure, profile } from "./settings.testing"
 
 const fromOptions = (options: Record<string, unknown> | undefined, env: Record<string, string | undefined> = {}) =>
   settingsFromOptions(options, env, profile)
@@ -21,9 +21,9 @@ describe("languageVariable", () => {
 
 describe("settingsFromOptions language", () => {
   test("reads the option trimmed, and treats blank as unset", () => {
-    expect(fromOptions({ language: "ja" })).toEqual({ language: "ja", options: {} })
+    expect(fromOptions({ language: "ja" })).toEqual({ language: "ja", options: {}, grants: DEFAULT_GRANTS })
     expect(fromOptions({ language: " ja-JP " }).language).toBe("ja-JP")
-    expect(fromOptions({ language: "  " })).toEqual({ options: {} })
+    expect(fromOptions({ language: "  " })).toEqual({ options: {}, grants: DEFAULT_GRANTS })
     expect(fromOptions({ language: "xx-unknown" }).language).toBe("xx-unknown")
   })
 
@@ -34,7 +34,7 @@ describe("settingsFromOptions language", () => {
 
   test("falls back to the environment, and an option wins over it", () => {
     expect(fromOptions({}, { DEMO_LANGUAGE: " fr " }).language).toBe("fr")
-    expect(fromOptions({}, { DEMO_LANGUAGE: " " })).toEqual({ options: {} })
+    expect(fromOptions({}, { DEMO_LANGUAGE: " " })).toEqual({ options: {}, grants: DEFAULT_GRANTS })
     expect(fromOptions({ language: "ja" }, { DEMO_LANGUAGE: "fr" }).language).toBe("ja")
   })
 
@@ -51,8 +51,8 @@ describe("the command-line parsers", () => {
 
   test("ignore the language variable", () => {
     const env = { DEMO_LANGUAGE: "ja" }
-    expect(parseSettings([], env, profile)).toEqual({ confirm: "harness", options: {} })
-    expect(parseToolSettings([], env, profile)).toEqual({ options: {} })
+    expect(parseSettings([], env, profile)).toEqual({ confirm: "harness", options: {}, grants: DEFAULT_GRANTS })
+    expect(parseToolSettings([], env, profile)).toEqual({ options: {}, grants: DEFAULT_GRANTS })
   })
 })
 

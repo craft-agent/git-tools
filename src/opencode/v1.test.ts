@@ -2,7 +2,7 @@ import { tool as hostTool } from "@opencode-ai/plugin"
 import { afterEach, describe, expect, test } from "bun:test"
 import { z } from "zod"
 import { defineTool } from "../core"
-import { ALL_TOOLS } from "../tools"
+import { PACKAGE_TOOLS } from "../entry/tools"
 import { ADD_ID, ADMIN_ID, FAILING_ID, LABEL_ID, PROFILE, READ_ID, fixtureSpecs, tempDir } from "./testing"
 import type { V1AskRequest, V1ToolContext } from "./types"
 import { createV1Server } from "./v1"
@@ -299,8 +299,8 @@ describe("V1 permission for the package's own tools", () => {
         throw STOP
       },
     }
-    const { tool } = await createV1Server(ALL_TOOLS, { env: {} })({}, { toolsets: "all" })
-    for (const spec of ALL_TOOLS.filter((candidate) => candidate.class !== "read")) {
+    const { tool } = await createV1Server(PACKAGE_TOOLS, { env: {} })({}, { toolsets: "all" })
+    for (const spec of PACKAGE_TOOLS.filter((candidate) => candidate.class !== "read")) {
       await expect(tool[spec.id]!.execute({}, context)).rejects.toBe(STOP)
     }
   })

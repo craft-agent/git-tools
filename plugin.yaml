@@ -9,6 +9,9 @@ provides_tools:
   - git_commit_read
   - git_commit_stage
   - git_commit_verify
+  - git_grant_create
+  - git_grant_read
+  - git_grant_revoke
   - git_push_read
   - git_push_send
   - git_rebase_read
@@ -27,6 +30,12 @@ config_schema:
   read_only:
     type: bool
     description: Registers no tool that writes. Wins over every other setting.
+  unattended:
+    type: bool
+    description: "No person can answer: writes run only under a grant that covers them."
+  grants_dir:
+    type: str
+    description: Where grants and their use are kept; default under the user's state directory.
   tools:
     type: list
     description: Single tools to add by id, whatever their toolset.

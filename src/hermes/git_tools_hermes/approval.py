@@ -42,6 +42,7 @@ class Target:
     A ``title`` or ``intent`` of ``None`` is the tool's registered one, or none, and the ``words`` default to English.
     A ``pin`` of ``None`` is none given (or a malformed one); it comes only with a description.
     A ``refused`` text is the error the model sees when no approval may let the call run; ``None`` is not refused.
+    A ``person_only`` call needs a fresh answer, never a remembered approval.
     """
 
     resources: list[str]
@@ -51,6 +52,7 @@ class Target:
     intent: str | None = None
     pin: str | None = None
     refused: str | None = None
+    person_only: bool = False
 
 
 def error_text(error: Any) -> str | None:
@@ -198,9 +200,10 @@ def resolve_target(
         intent = card.parse_line(document.get("intent"))
         words = card.parse_words(document.get("words"))
         pin = parse_pin(document.get("pin"))
+        person_only = document.get("person_only") is True
         if isinstance(resources, list) and resources and all(isinstance(item, str) and item for item in resources):
-            return Target(resources, description, title, words, intent, pin)
-        return Target([ANY_RESOURCE], description, title, words, intent, pin)
+            return Target(resources, description, title, words, intent, pin, person_only=person_only)
+        return Target([ANY_RESOURCE], description, title, words, intent, pin, person_only=person_only)
     except Exception:  # an approval is asked for either way; only its resources are lost
         return Target([ANY_RESOURCE], None)
 
@@ -269,7 +272,7 @@ def make_hook(
                 pins.take(call)
         resources = target.resources
         key = rule_key(tool.id, resources)
-        if ANY_RESOURCE in resources:
+        if target.person_only or ANY_RESOURCE in resources:
             # Hermes falls back to the bare tool name for a missing rule_key, which an "always" would turn into a
             # grant for every resource; a key no later call repeats leaves nothing reusable.
             key = f"{key}:once-{uuid.uuid4().hex}"

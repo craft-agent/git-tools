@@ -5,7 +5,7 @@ import type { EntryProfile } from "./profile"
 import {
   forwardedVariables,
   parseSettings,
-  parseToolOptions,
+  parseTargetSettings,
   parseToolSettings,
   settingsFromOptions,
   settingVariables,
@@ -85,19 +85,19 @@ describe("command-line tool options", () => {
   })
 })
 
-describe("parseToolOptions", () => {
+describe("parseTargetSettings", () => {
   test("reads all four kinds from flags or the environment, with flags winning", () => {
-    expect(parseToolOptions(flags, {}, typedProfile)).toEqual(flagOptions)
-    expect(parseToolOptions([], env, typedProfile)).toEqual(envOptions)
-    expect(parseToolOptions(flags, env, typedProfile)).toEqual(flagOptions)
-    expect(parseToolOptions([], {}, typedProfile)).toEqual({})
-    expect(parseToolOptions([], {})).toEqual({})
+    expect(parseTargetSettings(flags, {}, typedProfile).options).toEqual(flagOptions)
+    expect(parseTargetSettings([], env, typedProfile).options).toEqual(envOptions)
+    expect(parseTargetSettings(flags, env, typedProfile).options).toEqual(flagOptions)
+    expect(parseTargetSettings([], {}, typedProfile).options).toEqual({})
+    expect(parseTargetSettings([], {}).options).toEqual({})
   })
 
   test.each(["--toolsets=alpha", "--confirm=harness", "--read-only", "--tools=a", "--exclude-tools=a", "--nope"])(
     "rejects the non-tool-option flag %s",
     (flag) => {
-      expect(failure(() => parseToolOptions([flag], {}, typedProfile)).message).toContain(flag.split("=")[0]!)
+      expect(failure(() => parseTargetSettings([flag], {}, typedProfile)).message).toContain(flag.split("=")[0]!)
     },
   )
 })
@@ -372,6 +372,7 @@ describe("tool option variables", () => {
     expect(settingVariables(typedProfile)).toEqual([...settingVariables({ ...profile, options: {} }), ...variables])
     expect(forwardedVariables(typedProfile, ["XDG_STATE_HOME"])).toEqual([
       ...settingVariables(typedProfile),
+      "DEMO_GRANT_KEY",
       "XDG_STATE_HOME",
     ])
   })

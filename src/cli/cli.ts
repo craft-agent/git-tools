@@ -3,6 +3,7 @@ import {
   inputJsonSchema,
   invoke,
   isAbortError,
+  isPersonOnly,
   isToolError,
   outputJsonSchema,
   PIN_PATTERN,
@@ -10,14 +11,13 @@ import {
   ToolError,
   type ErrorCode,
   type ErrorDetails,
-  type ToolOptions,
   type ToolSpec,
   type Translations,
 } from "../core"
 import { errorBody } from "../entry/errors"
 import { approvalOf, checkPin } from "../entry/pin"
 import { PROJECT_PROFILE, type EntryProfile } from "../entry/profile"
-import { parseToolOptions, parseToolSettings, promptLanguage } from "../entry/settings"
+import { parseTargetSettings, parseToolSettings, promptLanguage, type ToolEntrySettings } from "../entry/settings"
 import { visible } from "../entry/visible"
 import { promptTranslator, promptWords } from "../entry/words"
 import { PROJECT } from "../project"
@@ -57,10 +57,13 @@ export type CliIo = {
   translations?: Translations
 }
 
+/** What a call's context takes from the command line: the package's own settings and the grants' context. */
+type CallSettings = Pick<ToolEntrySettings, "options" | "grants">
+
 type Command =
   | { name: "list"; selected: ToolSpec[] }
-  | { name: "run"; toolId: string; cwd: string; pin: string | undefined; selected: ToolSpec[]; options: ToolOptions }
-  | { name: "target"; toolId: string; cwd: string; language: string | undefined; options: ToolOptions }
+  | ({ name: "run"; toolId: string; cwd: string; pin: string | undefined; selected: ToolSpec[] } & CallSettings)
+  | ({ name: "target"; toolId: string; cwd: string; language: string | undefined } & CallSettings)
 
 function usageError(message: string): ToolError {
   return new ToolError("invalid_argument", message)
@@ -90,7 +93,11 @@ function parseCommand(argv: string[], io: Pick<CliIo, "specs" | "env" | "profile
   const profile = io.profile ?? PROJECT_PROFILE
   const select = (flags: string[]) => {
     const settings = parseToolSettings(flags, io.env, profile)
-    return { selected: selectTools(io.specs, settings, profile.toolsets), options: settings.options }
+    return {
+      selected: selectTools(io.specs, settings, profile.toolsets),
+      options: settings.options,
+      grants: settings.grants,
+    }
   }
   const [name, ...args] = argv
   if (name === "list") {
@@ -115,7 +122,7 @@ function parseCommand(argv: string[], io: Pick<CliIo, "specs" | "env" | "profile
       toolId,
       cwd,
       language: promptLanguage(language, io.env, harnessLanguage, profile),
-      options: parseToolOptions(toolOptions, io.env, profile),
+      ...parseTargetSettings(toolOptions, io.env, profile),
     }
   }
   const { value: pin, rest: selection } = takeFlag(rest, PIN_FLAG)
@@ -164,7 +171,13 @@ async function runTool(command: Extract<Command, { name: "run" }>, io: CliIo): P
   if (!spec) return writeError(io, "invalid_argument", `Unknown tool "${command.toolId}".`)
   try {
     const args = await readArguments(io)
-    const ctx = { cwd: command.cwd, ownDir: io.ownDir, options: command.options, signal: io.signal }
+    const ctx = {
+      cwd: command.cwd,
+      ownDir: io.ownDir,
+      options: command.options,
+      grants: command.grants,
+      signal: io.signal,
+    }
     await checkPin(spec, args, ctx, command.pin, io.describeTimeoutMs)
     const result = await invoke(spec, args, ctx)
     writeJson(io, { result })
@@ -186,6 +199,7 @@ async function targetOf(command: Extract<Command, { name: "target" }>, io: CliIo
       cwd: command.cwd,
       ownDir: io.ownDir,
       options: command.options,
+      grants: command.grants,
       signal: io.signal,
     }
     const t = promptTranslator(io.translations ?? {}, command.language)
@@ -203,6 +217,7 @@ async function targetOf(command: Extract<Command, { name: "target" }>, io: CliIo
       words: promptWords(t),
       ...(description !== undefined && { description }),
       ...(pin !== undefined && { pin }),
+      ...(isPersonOnly(spec) && { person_only: true }),
     })
     return EXIT_OK
   } catch (error) {
@@ -236,7 +251,12 @@ function errorDetail(error: unknown): string {
  * language) of that description and the resources when there is a description.
  * A call the tool's gate refuses is answered with `{"refused": {"code", "message", "details"?}}`
  * alone and `EXIT_OK`: nothing may let it run, so the caller blocks it without
- * asking. `run` runs the gate too, and fails with its code.
+ * asking. `run` runs the gate too, and fails with its code. While `--unattended`
+ * (or `<envPrefix>_UNATTENDED`) says that no one can be asked, a write that no
+ * grant in `--grants-dir` covers is refused the same way (`forbidden`, with
+ * `details.reason`) by both `run` and `target`, and `target` adds
+ * `"person_only": true` for a tool only a person's own answer may run, which
+ * no standing answer covers.
  * `target` takes `--language <tag>`, else `<envPrefix>_LANGUAGE`, else `--harness-language <tag>` (the harness's own
  * display language) as the prompt language; none, or one without a table,
  * keeps English. `list`, `run` and `target` also take the package's tool options,

@@ -1,6 +1,6 @@
 import { packageRoot } from "../entry/package-root"
 import { PROJECT } from "../project"
-import { ALL_TOOLS } from "../tools"
+import { PACKAGE_TOOLS } from "../entry/tools"
 import { ALL_TRANSLATIONS } from "../words"
 import { EXIT_FAILED, runCli } from "./cli"
 
@@ -20,7 +20,7 @@ async function main(): Promise<void> {
 
   const argv = process.argv.slice(2)
   process.exitCode = await runCli(argv, {
-    specs: ALL_TOOLS,
+    specs: PACKAGE_TOOLS,
     translations: ALL_TRANSLATIONS,
     env: process.env,
     ownDir: packageRoot(import.meta.url),

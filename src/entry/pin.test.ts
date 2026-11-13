@@ -41,10 +41,11 @@ function fixture(state: State) {
   }
   return {
     id: ID,
+    class: "add",
     input,
     targets: () => [state.area],
     describe: state.describe === "none" ? undefined : describeNow,
-  } as Pick<ToolSpec, "id" | "input" | "targets" | "describe">
+  } as Pick<ToolSpec, "id" | "class" | "input" | "targets" | "describe">
 }
 
 const fresh = (): State => ({ size: 42, hash: "abc", area: "/work/todo.md", describe: "answer" })

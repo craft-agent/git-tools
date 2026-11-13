@@ -2,6 +2,7 @@ import { homedir } from "node:os"
 import { isAbsolute, join, resolve as resolvePath, sep } from "node:path"
 import {
   ToolError,
+  type GrantContext,
   type OptionSpec,
   type OptionType,
   type ToolOptions,
@@ -15,15 +16,24 @@ import { PROJECT_PROFILE, type EntryProfile } from "./profile"
 /** Who asks the person before an administrative tool acts: the harness, or the tool through the client's form. */
 export type ConfirmMode = "harness" | "elicitation"
 
-/** The tool settings, who confirms, and the values of the package's own settings (`options`, possibly empty). */
-export type EntrySettings = ToolSettings & { confirm: ConfirmMode; options: ToolOptions }
+/** The tool settings, the values of the package's own settings (`options`, possibly empty) and the grants' context. */
+export type ToolEntrySettings = ToolSettings & { options: ToolOptions; grants: GrantContext }
+
+/** The tool settings, who confirms, the values of the package's own settings and the grants' context. */
+export type EntrySettings = ToolEntrySettings & { confirm: ConfirmMode }
 
 const CONFIRM_MODES: readonly ConfirmMode[] = ["harness", "elicitation"]
 const ALL_TOOLSETS = "all"
 const TRUE_VALUES: readonly string[] = ["1", "true"]
 const FALSE_VALUES: readonly string[] = ["0", "false"]
+const GRANT_KEY_SUFFIX = "GRANT_KEY"
+const MIN_GRANT_KEY_LENGTH = 32
+const GRANTS_DIR_NAME = "grants"
 
-type OptionName = "toolsets" | "read_only" | "tools" | "exclude_tools" | "confirm"
+type OptionName = "toolsets" | "read_only" | "tools" | "exclude_tools" | "confirm" | "unattended" | "grants_dir"
+
+const GRANT_OPTION_NAMES = ["unattended", "grants_dir"] as const satisfies readonly OptionName[]
+type GrantOptionName = (typeof GRANT_OPTION_NAMES)[number]
 
 /** A setting's command-line flag and the end of its environment variable, which follows the profile's prefix; a boolean flag takes no value. */
 type Option = { flag: string; envSuffix: string; boolean?: true }
@@ -34,6 +44,8 @@ const OPTIONS: Record<OptionName, Option> = {
   tools: { flag: "--tools", envSuffix: "TOOLS" },
   exclude_tools: { flag: "--exclude-tools", envSuffix: "EXCLUDE_TOOLS" },
   confirm: { flag: "--confirm", envSuffix: "CONFIRM" },
+  unattended: { flag: "--unattended", envSuffix: "UNATTENDED", boolean: true },
+  grants_dir: { flag: "--grants-dir", envSuffix: "GRANTS_DIR" },
 }
 
 function profileOptions(profile: EntryProfile): NonNullable<EntryProfile["options"]> {
@@ -61,12 +73,17 @@ export function settingVariables(profile: EntryProfile = PROJECT_PROFILE): strin
   return Object.keys(settingOptions(profile)).map((name) => envName(name, profile))
 }
 
-/** The environment variables a harness that forwards only named variables must pass the server: the settings' variables, then the package's `toolVariables`. */
+/** The environment variable of the grant key, which is never a flag or a plugin option: `<envPrefix>_GRANT_KEY`. */
+export function grantKeyVariable(profile: EntryProfile = PROJECT_PROFILE): string {
+  return `${profile.envPrefix}_${GRANT_KEY_SUFFIX}`
+}
+
+/** The environment variables a harness that forwards only named variables must pass the server: the settings' variables, the grant key's, then the package's `toolVariables`. */
 export function forwardedVariables(
   profile: EntryProfile = PROJECT_PROFILE,
   toolVariables: readonly string[] = PROJECT.toolVariables,
 ): string[] {
-  return [...settingVariables(profile), ...toolVariables]
+  return [...settingVariables(profile), grantKeyVariable(profile), ...toolVariables]
 }
 
 function readFlags(argv: string[], profile: EntryProfile): Record<string, string> {
@@ -149,9 +166,14 @@ type SettingText = { text: string; source: string }
 
 type Environment = Record<string, string | undefined>
 
-/** The path a `path` setting names: `~` stands for the home directory (`env.HOME` when absolute, else the user's), the result must be absolute and is normalized. */
+/** The home directory: `env.HOME` when absolute, else the user's. */
+function homeOf(env: Environment): string {
+  return env.HOME !== undefined && isAbsolute(env.HOME) ? env.HOME : homedir()
+}
+
+/** The path a `path` setting names: `~` stands for the home directory, the result must be absolute and is normalized. */
 function absolutePath(text: string, source: string, env: Environment): string {
-  const home = env.HOME !== undefined && isAbsolute(env.HOME) ? env.HOME : homedir()
+  const home = homeOf(env)
   const expanded =
     text === "~" || text.startsWith("~/") || text.startsWith(`~${sep}`) ? join(home, text.slice(1)) : text
   if (!isAbsolute(expanded)) throw new ToolError("invalid_argument", `${source} must be an absolute path.`)
@@ -160,6 +182,19 @@ function absolutePath(text: string, source: string, env: Environment): string {
 
 function absolutePaths(items: string[], source: string, env: Environment): string[] | undefined {
   return items.length > 0 ? items.map((item) => absolutePath(item, source, env)) : undefined
+}
+
+/** The path a setting given as text names; blank is unset. */
+function pathText(given: SettingText, env: Environment): string | undefined {
+  const text = nonBlank(given.text)
+  return text === undefined ? undefined : absolutePath(text, given.source, env)
+}
+
+/** The path a plugin option names; blank is unset. */
+function pathOption(name: string, value: unknown, env: Environment): string | undefined {
+  if (typeof value !== "string") throw optionError(name, "an absolute path")
+  const text = nonBlank(value)
+  return text === undefined ? undefined : absolutePath(text, `Option "${name}"`, env)
 }
 
 function envText(
@@ -246,10 +281,8 @@ function parseTypedText(kind: OptionType, given: SettingText, env: Environment):
       const items = splitList(given.text)
       return items.length > 0 ? items : undefined
     }
-    case "path": {
-      const text = nonBlank(given.text)
-      return text === undefined ? undefined : absolutePath(text, given.source, env)
-    }
+    case "path":
+      return pathText(given, env)
     case "paths":
       return absolutePaths(splitList(given.text), given.source, env)
   }
@@ -276,18 +309,78 @@ function optionsFrom(
   return options
 }
 
-export function parseToolOptions(
+/** The grant key from `<envPrefix>_GRANT_KEY`; unset or blank is no key, and one under 32 characters is `invalid_argument` that never quotes it. */
+function grantKey(env: Environment, profile: EntryProfile): Buffer | undefined {
+  const variable = grantKeyVariable(profile)
+  const value = env[variable]
+  if (value === undefined || value.trim() === "") return undefined
+  if (value.length < MIN_GRANT_KEY_LENGTH) {
+    throw new ToolError("invalid_argument", `${variable} must be at least ${MIN_GRANT_KEY_LENGTH} characters.`)
+  }
+  return Buffer.from(value, "utf8")
+}
+
+/** Where grants are kept unless a setting says: `<XDG_STATE_HOME>/<name>/grants` when that variable is absolute, else under `<home>/.local/state`. */
+function defaultGrantsDir(env: Environment, profile: EntryProfile): string {
+  const state = env.XDG_STATE_HOME
+  const stateHome = state !== undefined && isAbsolute(state) ? state : join(homeOf(env), ".local", "state")
+  return join(stateHome, profile.name, GRANTS_DIR_NAME)
+}
+
+/** The grants' context from the `unattended` and `grants_dir` settings, as parsed (`undefined` when unset), and the environment's key. */
+function grantContext(
+  unattended: boolean | undefined,
+  dir: string | undefined,
+  env: Environment,
+  profile: EntryProfile,
+): GrantContext {
+  return {
+    unattended: unattended ?? false,
+    dir: dir ?? defaultGrantsDir(env, profile),
+    key: grantKey(env, profile),
+  }
+}
+
+/** The setting `name` as a flag gave it, else as its environment variable does; a blank variable counts as unset. */
+function settingText(
+  name: OptionName,
+  flags: Record<string, string>,
+  env: Environment,
+  profile: EntryProfile,
+): SettingText | undefined {
+  return flags[name] !== undefined ? { text: flags[name], source: OPTIONS[name].flag } : envText(name, env, profile)
+}
+
+function grantsFromText(flags: Record<string, string>, env: Environment, profile: EntryProfile): GrantContext {
+  const unattended = settingText("unattended", flags, env, profile)
+  const dir = settingText("grants_dir", flags, env, profile)
+  return grantContext(
+    unattended && parseBoolean(unattended.text, unattended.source),
+    dir && pathText(dir, env),
+    env,
+    profile,
+  )
+}
+
+/**
+ * Reads the values of the package's own settings and the grants' context from
+ * the command line and environment of a command that takes no other setting
+ * (`target`): any other flag is `invalid_argument`.
+ */
+export function parseTargetSettings(
   argv: string[],
   env: Record<string, string | undefined>,
   profile: EntryProfile = PROJECT_PROFILE,
-): ToolOptions {
+): Pick<ToolEntrySettings, "options" | "grants"> {
   const flags = readFlags(argv, profile)
   const known = profileOptions(profile)
-  const other = Object.keys(flags).find((name) => !(name in known))
+  const other = Object.keys(flags).find(
+    (name) => !(name in known) && !GRANT_OPTION_NAMES.some((grant) => grant === name),
+  )
   if (other !== undefined) {
     throw new ToolError("invalid_argument", `Unknown option "${settingOptions(profile)[other]!.flag}".`)
   }
-  return optionsFrom(flags, env, profile)
+  return { options: optionsFrom(flags, env, profile), grants: grantsFromText(flags, env, profile) }
 }
 
 /**
@@ -302,10 +395,13 @@ export function parseSettings(
   profile: EntryProfile = PROJECT_PROFILE,
 ): EntrySettings {
   const flags = readFlags(argv, profile)
-  const value = (name: OptionName): SettingText | undefined =>
-    flags[name] !== undefined ? { text: flags[name], source: OPTIONS[name].flag } : envText(name, env, profile)
+  const value = (name: OptionName) => settingText(name, flags, env, profile)
 
-  const settings: EntrySettings = { confirm: "harness", options: optionsFrom(flags, env, profile) }
+  const settings: EntrySettings = {
+    confirm: "harness",
+    options: optionsFrom(flags, env, profile),
+    grants: grantsFromText(flags, env, profile),
+  }
   const toolsets = value("toolsets")
   if (toolsets) settings.toolsets = checkToolsets(splitList(toolsets.text), toolsets.source, profile.toolsets)
   const readOnly = value("read_only")
@@ -329,7 +425,7 @@ export function parseToolSettings(
   argv: string[],
   env: Record<string, string | undefined>,
   profile: EntryProfile = PROJECT_PROFILE,
-): ToolSettings & { options: ToolOptions } {
+): ToolEntrySettings {
   const { flag } = OPTIONS.confirm
   if (argv.some((arg) => arg === flag || arg.startsWith(`${flag}=`))) {
     throw new ToolError("invalid_argument", `Option ${flag} is not available here.`)
@@ -360,8 +456,8 @@ function toolsetsOption(value: unknown, toolsets: Toolsets): string[] | "all" | 
   return checkToolsets(names, 'option "toolsets"', toolsets)
 }
 
-function booleanOption(value: unknown): boolean {
-  if (typeof value !== "boolean") throw optionError("read_only", "true or false")
+function booleanOption(name: string, value: unknown): boolean {
+  if (typeof value !== "boolean") throw optionError(name, "true or false")
   return value
 }
 
@@ -375,7 +471,7 @@ function listOption(name: "tools" | "exclude_tools"): (value: unknown) => string
 
 const LANGUAGE_OPTION = "language"
 function pluginOptionNames(profile: EntryProfile): readonly string[] {
-  return [...TOOL_OPTION_NAMES, LANGUAGE_OPTION, ...Object.keys(profileOptions(profile))]
+  return [...TOOL_OPTION_NAMES, ...GRANT_OPTION_NAMES, LANGUAGE_OPTION, ...Object.keys(profileOptions(profile))]
 }
 
 /** The environment variable of the `language` setting: `<envPrefix>_LANGUAGE`. */
@@ -383,8 +479,8 @@ export function languageVariable(profile: EntryProfile = PROJECT_PROFILE): strin
   return `${profile.envPrefix}_LANGUAGE`
 }
 
-/** The tool settings, the values of the package's own settings (`options`, possibly empty) and the language of a native plugin's approval prompt, as given (matched later against the package's translations). */
-export type PluginSettings = ToolSettings & { options: ToolOptions; language?: string }
+/** The tool settings, the values of the package's own settings (`options`, possibly empty), the grants' context and the language of a native plugin's approval prompt, as given (matched later against the package's translations). */
+export type PluginSettings = ToolEntrySettings & { language?: string }
 
 function nonBlank(text: string | undefined): string | undefined {
   const trimmed = text?.trim()
@@ -432,11 +528,8 @@ function toolOptionOfType(
       const items = list.map((item) => item.trim()).filter((item) => item !== "")
       return items.length > 0 ? items : undefined
     }
-    case "path": {
-      if (typeof value !== "string") throw optionError(name, "an absolute path")
-      const text = nonBlank(value)
-      return text === undefined ? undefined : absolutePath(text, `Option "${name}"`, env)
-    }
+    case "path":
+      return pathOption(name, value, env)
     case "paths": {
       const list = stringList(value)
       if (!list) throw optionError(name, "a list of absolute paths")
@@ -456,7 +549,8 @@ function toolOptionOfType(
  * `<envPrefix>_LANGUAGE`, blank meaning unset, and is not checked against any
  * list); an option of the wrong type, or one this function does not know, is
  * `invalid_argument` naming it. `confirm` is not an option here: the harness
- * asks.
+ * asks. `unattended` and `grants_dir` are, and the grant key is read from its
+ * variable alone.
  */
 export function settingsFromOptions(
   options: Record<string, unknown> | undefined,
@@ -471,7 +565,7 @@ export function settingsFromOptions(
   }
 
   const resolve = <T>(
-    name: ToolOptionName,
+    name: ToolOptionName | GrantOptionName,
     fromOption: (value: unknown) => T,
     fromText: (text: SettingText) => T,
   ): T | undefined => {
@@ -491,14 +585,28 @@ export function settingsFromOptions(
     }
     if (parsed !== undefined) parsedOptions[name] = parsed
   }
-  const settings: PluginSettings = { options: parsedOptions }
+  const unattended = resolve(
+    "unattended",
+    (value) => booleanOption("unattended", value),
+    ({ text, source }) => parseBoolean(text, source),
+  )
+  const grantsDir = resolve(
+    "grants_dir",
+    (value) => pathOption("grants_dir", value, env),
+    (text) => pathText(text, env),
+  )
+  const settings: PluginSettings = { options: parsedOptions, grants: grantContext(unattended, grantsDir, env, profile) }
   const toolsets = resolve(
     "toolsets",
     (value) => toolsetsOption(value, profile.toolsets),
     ({ text, source }) => checkToolsets(splitList(text), source, profile.toolsets),
   )
   if (toolsets !== undefined) settings.toolsets = toolsets
-  const readOnly = resolve("read_only", booleanOption, ({ text, source }) => parseBoolean(text, source))
+  const readOnly = resolve(
+    "read_only",
+    (value) => booleanOption("read_only", value),
+    ({ text, source }) => parseBoolean(text, source),
+  )
   if (readOnly !== undefined) settings.read_only = readOnly
   const tools = resolve("tools", listOption("tools"), ({ text }) => splitList(text))
   if (tools !== undefined) settings.tools = tools
