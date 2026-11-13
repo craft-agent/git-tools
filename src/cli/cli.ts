@@ -189,7 +189,13 @@ async function targetOf(command: Extract<Command, { name: "target" }>, io: CliIo
       signal: io.signal,
     }
     const t = promptTranslator(io.translations ?? {}, command.language)
-    const { resources, description, pin } = await approvalOf(spec, args, ctx, io.describeTimeoutMs, t)
+    const approval = await approvalOf(spec, args, ctx, io.describeTimeoutMs, t)
+    if (approval.refused) {
+      const { code, message, details } = approval.refused
+      writeJson(io, { refused: errorBody(code, message, details) })
+      return EXIT_OK
+    }
+    const { resources, description, pin } = approval
     writeJson(io, {
       resources,
       title: visible(t.word(spec.title)),
@@ -228,6 +234,9 @@ function errorDetail(error: unknown): string {
  * a cut value or text left out, and `dropped` the number of facts left out
  * past the eighth, each present only when it is above zero), and a `pin` (64 hex digits, independent of the
  * language) of that description and the resources when there is a description.
+ * A call the tool's gate refuses is answered with `{"refused": {"code", "message", "details"?}}`
+ * alone and `EXIT_OK`: nothing may let it run, so the caller blocks it without
+ * asking. `run` runs the gate too, and fails with its code.
  * `target` takes `--language <tag>`, else `<envPrefix>_LANGUAGE`, else `--harness-language <tag>` (the harness's own
  * display language) as the prompt language; none, or one without a table,
  * keeps English. `list`, `run` and `target` also take the package's tool options,

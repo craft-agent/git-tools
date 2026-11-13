@@ -1,4 +1,4 @@
-"""Asking the person before a tool that changes something runs."""
+"""Asking the person before a tool that changes something runs, and blocking a call no approval may let run."""
 
 from __future__ import annotations
 
@@ -41,6 +41,7 @@ class Target:
 
     A ``title`` or ``intent`` of ``None`` is the tool's registered one, or none, and the ``words`` default to English.
     A ``pin`` of ``None`` is none given (or a malformed one); it comes only with a description.
+    A ``refused`` text is the error the model sees when no approval may let the call run; ``None`` is not refused.
     """
 
     resources: list[str]
@@ -49,6 +50,18 @@ class Target:
     words: card.Words = card.ENGLISH_WORDS
     intent: str | None = None
     pin: str | None = None
+    refused: str | None = None
+
+
+def error_text(error: Any) -> str | None:
+    """The ``<code>: <message>`` of an error object, then its details as JSON on their own line; ``None`` without a code and message."""
+    if not isinstance(error, dict) or not isinstance(error.get("code"), str) or not isinstance(error.get("message"), str):
+        return None
+    text = f"{error['code']}: {error['message']}"
+    details = error.get("details")
+    if isinstance(details, dict):
+        text = f"{text}\n" + json.dumps(details, ensure_ascii=False, separators=(",", ":"))
+    return text
 
 
 def parse_pin(value: Any) -> str | None:
@@ -176,6 +189,9 @@ def resolve_target(
         document = json.loads(result.stdout) if result.code == 0 else None
         if not isinstance(document, dict):
             return Target([ANY_RESOURCE], None)
+        refused = document.get("refused")
+        if isinstance(refused, dict) and _non_blank(refused.get("code")) and _non_blank(refused.get("message")):
+            return Target([ANY_RESOURCE], None, refused=error_text(refused))
         resources = document.get("resources")
         description = card.parse_description(document.get("description"))
         title = card.parse_line(document.get("title"))
@@ -225,6 +241,8 @@ def make_hook(
 ) -> Callable[..., dict[str, str] | None]:
     """The ``pre_tool_call`` hook: it sends every call of these tools but a read to the person's approval.
 
+    A call ``target`` refuses is blocked without asking: the model gets the refusal as the tool's error.
+
     Whether a person is there to ask, and what happens when none is, is
     Hermes' own gate to decide. ``language`` is the plugin's ``language``
     setting; ``harness_language`` is read on every call. When ``pins`` is
@@ -239,6 +257,10 @@ def make_hook(
             return None
         target = resolve_target(runtime, tool.id, args, language, harness_language, option_flags)
         call = pin_key(kwargs)
+        if target.refused:
+            if pins is not None and call is not None:
+                pins.take(call)
+            return {"action": "block", "message": target.refused}
         if pins is not None and call is not None:
             # An entry left by a call that never reached the pin hook must not stand for this one.
             if target.pin:

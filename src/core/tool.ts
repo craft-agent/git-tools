@@ -85,6 +85,14 @@ export type ToolSpec<I extends z.ZodObject<any> = z.ZodObject<any>, O extends z.
   /** What the call writes to, as the permission rules of an entry point name it. */
   targets?(args: z.output<I>, ctx: ToolContext): string[] | Promise<string[]>
   /**
+   * Refuses a call that no approval may let run, by throwing a `ToolError`
+   * (usually `not_found` or `forbidden`). It runs before the person is asked
+   * and again before `execute`. It should be cheap, and its message should say
+   * no more about the target than the arguments already do. Returning means
+   * the call may go on.
+   */
+  gate?(args: z.output<I>, ctx: ToolContext): void | Promise<void>
+  /**
    * What the call will do, for the person approving it: a headline template
    * (the intent, else the title, stands without one), facts such as the kind
    * of target, and the text the call carries under the tool's own label.
@@ -250,11 +258,12 @@ function describeResult(result: unknown): string {
 
 /**
  * Runs a tool the way every entry point does: validates the raw arguments
- * as strict (`invalid_argument` on a bad or unknown one), executes, and
- * validates the result against the output schema. A result that does not
- * match is a bug in the tool; it throws `internal_error` carrying the raw
- * result, so whatever the call already created stays visible. Errors from
- * `execute` pass through unchanged.
+ * as strict (`invalid_argument` on a bad or unknown one), runs the tool's
+ * `gate` when it has one, executes, and validates the result against the
+ * output schema. A result that does not match is a bug in the tool; it throws
+ * `internal_error` carrying the raw result, so whatever the call already
+ * created stays visible. Errors from `gate` and `execute` pass through
+ * unchanged.
  */
 export async function invoke<I extends z.ZodObject<any>, O extends z.ZodObject<any>>(
   spec: ToolSpec<I, O>,
@@ -267,6 +276,7 @@ export async function invoke<I extends z.ZodObject<any>, O extends z.ZodObject<a
       cause: args.error,
     })
   }
+  await spec.gate?.(args.data as z.output<I>, ctx)
   const result = await spec.execute(args.data as z.output<I>, ctx)
   const output = spec.output.safeParse(result)
   if (!output.success) {

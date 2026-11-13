@@ -4,6 +4,7 @@ import {
   isToolError,
   selectTools,
   type ToolContext,
+  type ToolError,
   type ToolOptions,
   type ToolSpec,
   type Translations,
@@ -79,6 +80,11 @@ export function selectedTools(
   }
 }
 
+/** A tool error as the `Error` the harness is given: `<code>: <message>`, with `details` as JSON on a line of its own when set. */
+export function harnessError(error: ToolError): Error {
+  return new Error(errorText(error), { cause: error })
+}
+
 /**
  * Runs a tool through core `invoke`, after `checkPin` has found what its
  * approval showed unchanged (a `pin` of `undefined` checks nothing); a tool
@@ -91,6 +97,6 @@ export async function runTool(spec: ToolSpec, args: unknown, ctx: ToolContext, p
     return await invoke(spec, args, ctx)
   } catch (error) {
     if (!isToolError(error)) throw error
-    throw new Error(errorText(error), { cause: error })
+    throw harnessError(error)
   }
 }

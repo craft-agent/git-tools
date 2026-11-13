@@ -100,6 +100,75 @@ describe("invoke", () => {
     expect(ran).toBe(false)
   })
 
+  describe("gate", () => {
+    const gated = (gate: NonNullable<ToolSpec<typeof input, typeof output>["gate"]>, events: string[] = []) =>
+      defineTool({
+        id: "demo_thing_count",
+        title: "Count",
+        description: "d",
+        toolset: "alpha",
+        class: "add",
+        input,
+        output,
+        gate,
+        async execute(args) {
+          events.push("execute")
+          return { total: args.count }
+        },
+      })
+
+    test("runs after the arguments are parsed and before execute, with the parsed args and ctx", async () => {
+      const events: string[] = []
+      const seen: unknown[] = []
+      const spec = gated((args, ctx) => {
+        events.push("gate")
+        seen.push(args, ctx)
+      }, events)
+      expect(await invoke(spec, { count: 4 }, CTX)).toEqual({ total: 4 })
+      expect(events).toEqual(["gate", "execute"])
+      expect(seen).toEqual([{ count: 4 }, CTX])
+    })
+
+    test("a ToolError from it passes through unchanged and execute does not run", async () => {
+      const refusal = new ToolError("forbidden", "Out of reach.")
+      const events: string[] = []
+      const error = await thrown(
+        invoke(
+          gated(async () => {
+            throw refusal
+          }, events),
+          { count: 1 },
+          CTX,
+        ),
+      )
+      expect(error).toBe(refusal)
+      expect(events).toEqual([])
+    })
+
+    test("is not called when the arguments are bad", async () => {
+      const events: string[] = []
+      const error = await thrown(
+        invoke(
+          gated(() => void events.push("gate"), events),
+          { count: "x" },
+          CTX,
+        ),
+      )
+      expect(isToolError(error) && error.code).toBe("invalid_argument")
+      expect(events).toEqual([])
+    })
+
+    test("a tool without a gate runs as before", async () => {
+      expect(
+        await invoke(
+          tool(async (args) => ({ total: args.count })),
+          { count: 2 },
+          CTX,
+        ),
+      ).toEqual({ total: 2 })
+    })
+  })
+
   test("strict parsing does not change the spec's own schema", async () => {
     const spec = tool(async () => ({ total: 1 }))
     await thrown(invoke(spec, { count: 1, extra: true }, CTX))

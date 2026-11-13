@@ -237,6 +237,20 @@ note`). The prompt shows it wherever no headline can stand: a tool without
   longer than 10 s gives the prompt it would have given without one. The
   approval is asked either way, and the targets are never lost with the
   description.
+- **A call no answer may let run is refused before anyone is asked.** Some
+  calls are out of reach whatever the person would say, such as one naming
+  an object the settings keep away from the agent; a prompt for it would
+  show what it names and invite an "allow" that cannot be honored. A tool
+  that can tell such a call from its arguments and settings gives a `gate`
+  (see "The core contract"). Every entry point runs it before the approval
+  and again before `execute`, so a refusal is the call's result, as an
+  error, and no prompt is drawn: a native plugin asks nothing, and the
+  Hermes plugin blocks the call. Unlike `targets` and `describe`, a gate
+  fails closed: one that cannot tell fails the call with `internal_error`.
+  Where the question itself cannot be resolved (the Hermes plugin's `target`
+  fails or times out), the person is asked as before, and the run refuses
+  the call after the answer. An MCP client draws its own prompt before the server sees the call, so
+  there the refusal comes after the client's question, never after the run.
 - **A call runs on what its prompt showed.** What a person approves is what
   was true when the prompt was drawn; between the answer and the run, a file
   the call reads can be rewritten or a target can change kind. So a native
@@ -379,11 +393,18 @@ Every entry point takes the same settings:
   toolset and write class; every entry point derives the same metadata from
   it. A write tool also declares `targets(args, context)`, which names what
   the call writes to.
+- Any tool, read or write, may declare `gate(args, context)`, which throws a
+  `ToolError` (usually `not_found`, worded as for an object that does not
+  exist) for a call no approval may let run, and returns otherwise. `invoke`
+  runs it after the arguments are checked and before `execute`; the entry
+  points also run it before they ask (see "Write classes"). It is cheap, it
+  reads only what it needs to decide, and its message says no more about
+  the target than the arguments already do.
 - `execute(args, context)` gets the working directory, an abort signal, an
   optional `ownDir` (the directory the tools are installed in, never the
   working tree), the values of the package's own settings as `options` (see
-  "Toolsets and settings"; `describe` and `targets` get them too) and an
-  optional `confirm(request) => Promise<boolean>` hook.
+  "Toolsets and settings"; `gate`, `describe` and `targets` get them too) and
+  an optional `confirm(request) => Promise<boolean>` hook.
   Nothing in it names a harness. An entry point supplies `confirm` when the
   `elicitation` setting is on; without it the harness's approval stands, and a
   tool that needs a confirmation treats a missing hook as the harness having
