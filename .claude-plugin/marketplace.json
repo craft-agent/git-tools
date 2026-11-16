@@ -1,6 +1,6 @@
 {
   "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
-  "name": "craft-agent",
+  "name": "git-tools",
   "description": "Plugins by Craft Agent.",
   "owner": {
     "name": "Craft Agent",
