@@ -53,6 +53,7 @@ function measuredValue(bound: BoundSpec, value: unknown): MeasuredValue | undefi
     case "allow":
       return typeof value === "boolean" ? value : undefined
     case "oneOf":
+    case "prefix":
       if (typeof value === "string") return value
       return isMeasuredStrings(value) ? [...value] : undefined
   }
@@ -61,9 +62,9 @@ function measuredValue(bound: BoundSpec, value: unknown): MeasuredValue | undefi
 /**
  * The values a tool's `measure` returned, when their shape is right: a plain
  * object with exactly the declared bounds, a `max` a finite number of at least
- * 0, an `allow` a boolean and a `oneOf` a string or a non-empty list of
- * strings. Anything else is `undefined`, since a measure that cannot be read
- * covers nothing.
+ * 0, an `allow` a boolean and a `oneOf` or `prefix` a string or a non-empty
+ * list of strings. Anything else is `undefined`, since a measure that cannot
+ * be read covers nothing.
  */
 export function measureOf(bounds: ToolBounds, value: unknown): CallMeasure | undefined {
   if (!isRecord(value)) return undefined
@@ -101,6 +102,20 @@ function withinBound(spec: BoundSpec, measured: MeasuredValue, limit: unknown): 
         Array.isArray(values) &&
         Array.isArray(limit) &&
         values.every((value) => typeof value === "string" && limit.includes(value))
+      )
+    }
+    case "prefix": {
+      const values = typeof measured === "string" ? [measured] : measured
+      return (
+        Array.isArray(values) &&
+        Array.isArray(limit) &&
+        values.every(
+          (value) =>
+            typeof value === "string" &&
+            limit.some(
+              (path) => typeof path === "string" && (value === path || value.startsWith(path + spec.separator)),
+            ),
+        )
       )
     }
   }

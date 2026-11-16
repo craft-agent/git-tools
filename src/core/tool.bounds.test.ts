@@ -31,9 +31,29 @@ describe("defineTool: bounds", () => {
       length: max,
       attach: { kind: "allow", description: "Whether it attaches a file" },
       type: { kind: "oneOf", values: ["A", "MX"], description: "The record types" },
+      folder: { kind: "prefix", separator: "/", description: "The folders" },
     } satisfies ToolBounds
-    const given = defineTool({ ...base, bounds, measure: () => ({ length: 1, attach: false, type: "A" }) })
+    const given = defineTool({
+      ...base,
+      bounds,
+      measure: () => ({ length: 1, attach: false, type: "A", folder: "a/b" }),
+    })
     expect(given.bounds).toBe(bounds)
+  })
+
+  test.each(["/", ".", ":"])("accepts the prefix separator %j", (separator) => {
+    expect(() => define({ folder: { kind: "prefix", separator, description: "d" } })).not.toThrow()
+  })
+
+  test.each(["", "//", " ", "*", "?"])("rejects the prefix separator %j", (separator) => {
+    expect(() => define({ folder: { kind: "prefix", separator, description: "d" } })).toThrow(
+      /separator of one character/,
+    )
+  })
+
+  test("rejects a prefix without a separator", () => {
+    const bound = { kind: "prefix", description: "d" } as unknown as BoundSpec
+    expect(() => define({ folder: bound })).toThrow(/separator of one character/)
   })
 
   test("accepts a spec without bounds", () => {

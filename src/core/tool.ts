@@ -1,6 +1,7 @@
 import { z } from "zod"
 import { ToolError, isAbortError, isToolError } from "./errors"
 import { finishGrantUse, grantCheck, type GrantContext } from "./grant/guard"
+import { PATTERN_CHARACTERS } from "./targets"
 
 /** The toolsets of a package: every name, in the order `all` lists them, and the ones on when a setting names none. */
 export type Toolsets = { names: readonly string[]; defaults: readonly string[] }
@@ -74,16 +75,24 @@ export type ToolContext = {
   grants?: GrantContext
 }
 
-/** What a grant over a tool can limit: a whole-number ceiling, a yes/no, or a set of allowed values. */
+/**
+ * What a grant over a tool can limit: a whole-number ceiling, a yes/no, a set
+ * of allowed values, or the paths a value must sit under (a value is under a
+ * path when it equals it or continues it after the one-character `separator`).
+ */
 export type BoundSpec =
   | { kind: "max"; description: string }
   | { kind: "allow"; description: string }
   | { kind: "oneOf"; values: readonly string[]; description: string }
+  | { kind: "prefix"; separator: string; description: string }
 
 /** The bounds a tool declares, by name. */
 export type ToolBounds = Readonly<Record<string, BoundSpec>>
 
-/** A call's value for one bound: a number for `max`, a boolean for `allow`, one or more values for `oneOf`. */
+/**
+ * A call's value for one bound: a number for `max`, a boolean for `allow`, one or more values for `oneOf` or
+ * `prefix`.
+ */
 export type MeasuredValue = number | boolean | string | readonly string[]
 
 /** A call's value for every bound its tool declares, by name. */
@@ -133,7 +142,7 @@ const MAX_TOOL_ID_LENGTH = 40
 const READ_TOOL_SUFFIX = "_read"
 const BOUND_NAME_PATTERN = /^[a-z][a-z0-9_]*$/
 const MAX_BOUND_NAME_LENGTH = 40
-const BOUND_KINDS: readonly BoundSpec["kind"][] = ["max", "allow", "oneOf"]
+const BOUND_KINDS: readonly BoundSpec["kind"][] = ["max", "allow", "oneOf", "prefix"]
 /** The most bounds a tool declares: a grant's prompt shows one fact per bound beside its rate and days, within the facts a prompt keeps. */
 export const MAX_BOUNDS = 6
 
@@ -182,6 +191,19 @@ function checkBounds(spec: Pick<ToolSpec, "id" | "class" | "bounds" | "measure">
       }
       if (new Set(values).size !== values.length) {
         throw new Error(`Bound "${name}" of tool "${id}" lists a value more than once.`)
+      }
+    }
+    if (bound.kind === "prefix") {
+      const separator: unknown = bound.separator
+      if (
+        typeof separator !== "string" ||
+        separator.length !== 1 ||
+        separator.trim() === "" ||
+        PATTERN_CHARACTERS.test(separator)
+      ) {
+        throw new Error(
+          `Bound "${name}" of tool "${id}" must give a separator of one character that is not blank, * or ?.`,
+        )
       }
     }
   }
