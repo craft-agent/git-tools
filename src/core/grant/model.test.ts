@@ -101,6 +101,29 @@ describe("grantBounds", () => {
   })
 })
 
+describe("grantBounds: prefix", () => {
+  const prefixBounds: ToolBounds = { folder: { kind: "prefix", separator: "/", description: "The folders" } }
+
+  test("returns the paths sorted without repeats", () => {
+    expect(grantBounds(prefixBounds, { folder: ["repo/b", "repo/a", "repo/b"] }, TOOL)).toEqual({
+      folder: ["repo/a", "repo/b"],
+    })
+  })
+
+  test("accepts a path that starts with the separator", () => {
+    expect(grantBounds(prefixBounds, { folder: ["/srv"] }, TOOL)).toEqual({ folder: ["/srv"] })
+  })
+
+  test.each([[[]], ["a"], [[""]], [["  "]], [["a*"]], [["a?b"]], [["repo/app/"]], [["/"]], [[1]], [null]])(
+    "refuses %j for a prefix",
+    (value) => {
+      expect(refused(() => grantBounds(prefixBounds, { folder: value }, TOOL)).message).toContain(
+        `The bound "folder" of ${TOOL} must be a non-empty list of paths`,
+      )
+    },
+  )
+})
+
 describe("grantTargets", () => {
   test("returns the targets as given, sorted, without repeats", () => {
     expect(grantTargets(["/b", " /a ", "/b", "/a"])).toEqual([" /a ", "/a", "/b"])

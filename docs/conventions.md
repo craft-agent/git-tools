@@ -401,21 +401,33 @@ and every entry point checks them the same way.
   expiry. `bounds` adds more, naming each bound with its kind: `max` (a whole
   number the call must stay at or under, such as a text's length in
   characters), `allow` (whether the call may do one thing, such as attach a
-  file) or `oneOf` (the values the call may use, such as DNS record types).
+  file), `oneOf` (the values the call may use, such as DNS record types) or
+  `prefix` (the paths the call's values must sit under, such as the folders
+  a file may be written to, for a set of values no tool could list ahead; the
+  tool declares the one character its paths split at, such as `/`).
   `measure(args, context)` gives the call's value for each: a number, a
-  boolean, or one or more of the declared values. A tool declares at most six
-  bounds and a grant's values must fit a fact (200 characters), so the consent
-  screen shows every one. A bound is a fact about the call, computed the same
-  way every time, never the model's account of it, and it is checked whole,
-  never cut to a budget as a prompt's facts are.
+  boolean, or one or more of the declared values or paths. A path is matched
+  as the string `measure` gives, so the tool gives it in the one form its
+  target reads (relative parts resolved, case and suffixes settled); the
+  package reads nothing into it. A tool declares at most six bounds and a
+  grant's values must fit a fact (200 characters), so the consent screen
+  shows every one. A bound is a fact about the call, computed the same way
+  every time, never the model's account of it, and it is checked whole, never
+  cut to a budget as a prompt's facts are.
 - **A grant** names one tool, its targets, a value for the bounds the person
   limits, a rate in calls per hour or none, and an expiry of at most 90 days.
   Its targets are names, or `*` alone for any target, the call's included when
-  it cannot be told; a pattern beside or inside a name is refused. A call is
-  covered when its tool matches, every target it resolves is among the
-  grant's (or the grant's is `*`), every bound the grant sets is met by the
-  measured value (at or under a `max`, `false` or allowed for an `allow`,
-  every value among a `oneOf`'s), the grant has not expired, and, when it sets
+  it cannot be told; a pattern beside or inside a name is refused. Its paths
+  for a `prefix` are compared as given: one that is blank, holds `*` or `?`
+  or ends in the separator is refused, since a pattern grants more than it
+  names and a trailing separator covers nothing the person was shown (so the
+  separator alone cannot be granted). A call is covered when its
+  tool matches, every target it resolves is among the grant's (or the
+  grant's is `*`), every bound the grant sets is met by the measured value
+  (at or under a `max`, `false` or allowed for an `allow`, every value among
+  a `oneOf`'s, every value one of a `prefix`'s paths or under one, the
+  separator right after it, so `a/b` covers `a/b/c` but never `a/bc`, which
+  only shares its characters), the grant has not expired, and, when it sets
   a rate, fewer calls than the rate ran under it in the last 60 minutes. A
   bound the grant leaves out is no limit, and the consent screen says so; a
   measure that fails or returns another shape covers nothing under a grant
@@ -529,8 +541,9 @@ and every entry point checks them the same way.
   what a grant over it can limit beyond its targets, rate and expiry, and
   what this call's values are (see "Writes
   no one is there to approve"). `defineTool` refuses a `measure` without
-  `bounds`, a bound of an unknown kind, a `oneOf` with no values and more than
-  six bounds.
+  `bounds`, a bound of an unknown kind, a `oneOf` with no values, a `prefix`
+  whose separator is not one character (or is blank, `*` or `?`) and more
+  than six bounds.
 - `execute(args, context)` gets the working directory, an abort signal, an
   optional `ownDir` (the directory the tools are installed in, never the
   working tree), the values of the package's own settings as `options` (see

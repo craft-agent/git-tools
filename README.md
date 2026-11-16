@@ -293,7 +293,9 @@ Off by default. Delegates bounded writes for jobs where no person can answer.
 
 Every write tool can be granted for its targets, calls per hour and expiry.
 A tool adds what a grant can also limit by declaring `bounds` and giving
-`measure(args, context)` in its spec; see the
+`measure(args, context)` in its spec: a ceiling (`max`), a yes or no
+(`allow`), values from a list (`oneOf`) or the paths a value must sit under
+(`prefix`); see the
 [conventions](docs/conventions.md#writes-no-one-is-there-to-approve).
 No tool of this package declares `bounds` yet.
 

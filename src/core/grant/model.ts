@@ -3,7 +3,10 @@ import { ToolError } from "../errors"
 import { ANY_TARGET, PATTERN_CHARACTERS } from "../targets"
 import type { ToolBounds } from "../tool"
 
-/** A grant's value for one bound: a ceiling for `max`, whether it is allowed for `allow`, the allowed values for `oneOf`. */
+/**
+ * A grant's value for one bound: a ceiling for `max`, whether it is allowed for `allow`, the allowed values for
+ * `oneOf`, the paths a value must sit under for `prefix`.
+ */
 export type GrantBoundValue = number | boolean | readonly string[]
 
 /** A person's delegation of bounded writes of one tool. */
@@ -39,8 +42,10 @@ function invalidBound(tool: string, name: string, mustBe: string): ToolError {
  * Checks the values a person gives for a new grant against the bounds the tool
  * declares and returns a normalized copy of the ones given (a bound left out is
  * no limit): none undeclared, a `max` a whole number of at least 0, an `allow`
- * a boolean, and a `oneOf` a non-empty list of declared values, sorted without
- * repeats. Anything else is `invalid_argument`.
+ * a boolean, a `oneOf` a non-empty list of declared values, and a `prefix` a
+ * non-empty list of paths (not blank, no `*` or `?`, none ending in the
+ * bound's separator), each list sorted without repeats. Anything else is
+ * `invalid_argument`.
  */
 export function grantBounds(bounds: ToolBounds, values: unknown, tool: string): Record<string, GrantBoundValue> {
   if (!isRecord(values)) {
@@ -71,11 +76,26 @@ export function grantBounds(bounds: ToolBounds, values: unknown, tool: string): 
     } else if (bound.kind === "allow") {
       if (typeof value !== "boolean") throw invalidBound(tool, name, "true or false")
       result[name] = value
-    } else {
+    } else if (bound.kind === "oneOf") {
       const among = `a non-empty list of values among ${bound.values.join(", ")}`
       if (!Array.isArray(value) || value.length === 0) throw invalidBound(tool, name, among)
       if (value.some((item) => typeof item !== "string" || !bound.values.includes(item))) {
         throw invalidBound(tool, name, among)
+      }
+      result[name] = [...new Set<string>(value)].sort()
+    } else {
+      const paths = `a non-empty list of paths that are not blank, hold no * or ? and do not end in ${bound.separator}`
+      if (!Array.isArray(value) || value.length === 0) throw invalidBound(tool, name, paths)
+      if (
+        value.some(
+          (item) =>
+            typeof item !== "string" ||
+            item.trim() === "" ||
+            PATTERN_CHARACTERS.test(item) ||
+            item.endsWith(bound.separator),
+        )
+      ) {
+        throw invalidBound(tool, name, paths)
       }
       result[name] = [...new Set<string>(value)].sort()
     }

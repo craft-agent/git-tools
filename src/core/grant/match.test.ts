@@ -155,6 +155,42 @@ describe("matchGrant: bounds", () => {
   })
 })
 
+describe("matchGrant: prefix bounds", () => {
+  function prefixMatch(separator: string, paths: string[], measured: string | string[]) {
+    return matchGrant({
+      call: call({ measure: { place: measured } }),
+      bounds: { place: { kind: "prefix", separator, description: "The places" } },
+      grants: [grant({ bounds: { place: paths } })],
+      now: NOW,
+      used: () => 0,
+    })
+  }
+
+  test.each([
+    ["a value equal to a path", "repo/app"],
+    ["a value deeper than a path", "repo/app/x/y"],
+    ["several values under different paths", ["repo/app/x", "lib"]],
+  ])("covers %s", (_name, measured) => {
+    expect(prefixMatch("/", ["repo/app", "lib"], measured).covered).toBe(true)
+  })
+
+  test.each([
+    ["a sibling that shares the text", "repo/app-old"],
+    ["a longer name that shares the text", "repo/application"],
+    ["the parent of a path", "repo"],
+    ["a list with one value outside", ["repo/app/x", "repo/other"]],
+  ])("refuses %s, naming the bound", (_name, measured) => {
+    const result = prefixMatch("/", ["repo/app"], measured)
+    if (result.covered) throw new Error("Expected a refusal")
+    expect(result.error.details).toEqual({ reason: "bound", tool: TOOL, grant: "g1", bound: "place" })
+  })
+
+  test("uses the separator the bound declares", () => {
+    expect(prefixMatch(".", ["com.example"], "com.example.app").covered).toBe(true)
+    expect(prefixMatch(".", ["com.example"], "com.examples").covered).toBe(false)
+  })
+})
+
 describe("grantRefusal", () => {
   test("no_key and tampered refuse with their own words", () => {
     const noKey = grantRefusal("no_key", TOOL)

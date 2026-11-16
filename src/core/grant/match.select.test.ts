@@ -165,6 +165,14 @@ describe("measureOf", () => {
     expect(measureOf(declared, value)).toBeUndefined()
   })
 
+  test("reads a prefix as a string or a non-empty list of strings", () => {
+    const folders: ToolBounds = { folder: { kind: "prefix", separator: "/", description: "d" } }
+    expect(measureOf(folders, { folder: "a/b" })).toEqual({ folder: "a/b" })
+    expect(measureOf(folders, { folder: ["a/b", "a/c"] })).toEqual({ folder: ["a/b", "a/c"] })
+    expect(measureOf(folders, { folder: 1 })).toBeUndefined()
+    expect(measureOf(folders, { folder: [] })).toBeUndefined()
+  })
+
   test("returns undefined for keys other than the declared ones, even in equal number", () => {
     expect(measureOf({ length: declared.length! }, { size: 3 })).toBeUndefined()
   })
