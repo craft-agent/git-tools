@@ -1,5 +1,5 @@
 {
-  "name": "craft-agent",
+  "name": "git-tools",
   "interface": {
     "displayName": "Craft Agent"
   },
