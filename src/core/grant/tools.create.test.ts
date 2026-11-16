@@ -202,6 +202,54 @@ test("a grant whose filled bound value is over 200 characters is refused", async
   })
 })
 
+const placed = defineTool({
+  ...bounded,
+  bounds: { paths: { kind: "prefix", separator: "/", description: "The folders" } },
+  measure: () => ({ paths: "a/b" }),
+})
+const [createPlaced] = grantTools([placed], "demo")
+const PLACED_ARGS = { ...ARGS, tool: placed.id, bounds: { paths: ["c", "a/b", "c"] } }
+
+test("a prefix bound is declared with its separator", () => {
+  expect(createPlaced!.description).toContain("paths (prefix): The folders; separator: /")
+})
+
+test("a prefix bound reads as paths in the description, or as no limit when left out", async () => {
+  const described = await createPlaced!.describe!(PLACED_ARGS, ctx)
+  expect(described.facts.slice(2)).toEqual([
+    { label: "Bound", value: { text: "{name} under {values}", values: { name: "paths", values: "a/b, c" } } },
+  ])
+  const open = await createPlaced!.describe!({ ...PLACED_ARGS, bounds: {} }, ctx)
+  expect(open.facts.slice(2)).toEqual([
+    { label: "Bound", value: { text: "{name} no limit", values: { name: "paths" } } },
+  ])
+})
+
+test.each([[["a/b/"]], [["a*"]], [[""]], [[]]])("a prefix bound refuses the paths %j", async (paths) => {
+  await expect(invoke(createPlaced!, { ...PLACED_ARGS, bounds: { paths } }, ctx)).rejects.toMatchObject({
+    code: "invalid_argument",
+  })
+})
+
+test("a prefix bound whose joined paths are over 200 characters is refused", async () => {
+  const paths = Array.from({ length: 30 }, (_, index) => `folder/path${String(index).padStart(2, "0")}`)
+  await expect(invoke(createPlaced!, { ...PLACED_ARGS, bounds: { paths } }, ctx)).rejects.toMatchObject({
+    code: "invalid_argument",
+    message: expect.stringContaining("grant fewer values"),
+  })
+})
+
+test("a prefix bound is stored sorted without repeats and confirmed as paths", async () => {
+  const requests: { message: string }[] = []
+  ctx.confirm = async (request) => {
+    requests.push(request)
+    return true
+  }
+  const result = await invoke(createPlaced!, PLACED_ARGS, ctx)
+  expect(result.bounds).toEqual({ paths: ["a/b", "c"] })
+  expect(requests[0]!.message).toContain("paths under a/b, c")
+})
+
 test("a declined confirmation creates nothing", async () => {
   ctx.confirm = async () => false
   await expect(invoke(create!, ARGS, ctx)).rejects.toMatchObject({ code: "declined" })

@@ -3,7 +3,7 @@ import { z } from "zod"
 import { MAX_VALUE_LENGTH } from "../describe"
 import { ToolError } from "../errors"
 import { ANY_TARGET } from "../targets"
-import { confirmWrite, defineTool, type CallFact, type ToolContext, type ToolSpec } from "../tool"
+import { confirmWrite, defineTool, type BoundSpec, type CallFact, type ToolContext, type ToolSpec } from "../tool"
 import { askPersonOnly, exemptFromGrants, isExemptFromGrants, isPersonOnly, type GrantContext } from "./guard"
 import { grantBounds, grantTargets, MAX_GRANT_DAYS, type Grant } from "./model"
 import { addGrant, noKeyError, readGrants, removeGrant } from "./store"
@@ -45,25 +45,40 @@ type BoundValue = Grant["bounds"][string]
 /** One bound's fact value in the prompt, as a template and its values; a bound the grant leaves out is no limit. */
 function boundValue(
   name: string,
+  bound: BoundSpec,
   limit: BoundValue | undefined,
 ): { text: string; values: Record<string, string | number> } {
   if (limit === undefined) return { text: "{name} no limit", values: { name } }
   if (typeof limit === "number") return { text: "{name} up to {limit}", values: { name, limit } }
   if (typeof limit === "boolean") return { text: limit ? "{name} allowed" : "{name} not allowed", values: { name } }
-  return { text: "{name} one of {values}", values: { name, values: limit.join(", ") } }
+  return {
+    text: bound.kind === "prefix" ? "{name} under {values}" : "{name} one of {values}",
+    values: { name, values: limit.join(", ") },
+  }
 }
 
 /** One bound's fact value with its values filled in, as the prompt and the confirmation message word it. */
-function boundText(name: string, limit: BoundValue | undefined): string {
-  const { text, values } = boundValue(name, limit)
+function boundText(name: string, bound: BoundSpec, limit: BoundValue | undefined): string {
+  const { text, values } = boundValue(name, bound, limit)
   return text.replace(/\{(\w+)\}/g, (_match, key: string) => String(values[key]))
 }
 
-/** Every bound the tool declares, in name order, with the grant's value or `undefined` where the grant leaves it out. */
-function boundEntries(spec: ToolSpec, bounds: Grant["bounds"]): [string, BoundValue | undefined][] {
-  return Object.keys(spec.bounds ?? {})
+/**
+ * Every bound the tool declares, in name order, with its declaration and the grant's value or `undefined` where the
+ * grant leaves it out.
+ */
+function boundEntries(spec: ToolSpec, bounds: Grant["bounds"]): [string, BoundSpec, BoundValue | undefined][] {
+  const declared = spec.bounds ?? {}
+  return Object.keys(declared)
     .sort()
-    .map((name) => [name, Object.hasOwn(bounds, name) ? bounds[name] : undefined])
+    .map((name) => [name, declared[name]!, Object.hasOwn(bounds, name) ? bounds[name] : undefined])
+}
+
+/** What a bound's declaration adds to its description in the tool's text: the allowed values or the separator. */
+function boundDetail(bound: BoundSpec): string {
+  if (bound.kind === "oneOf") return `; values: ${bound.values.join(", ")}`
+  if (bound.kind === "prefix") return `; separator: ${bound.separator}`
+  return ""
 }
 
 function grantContext(ctx: ToolContext): GrantContext {
@@ -91,8 +106,7 @@ export function grantTools(specs: readonly ToolSpec[], prefix: string): ToolSpec
   }
   const declarations = grantable.map((spec) => {
     const bounds = Object.entries(spec.bounds ?? {}).map(
-      ([name, bound]) =>
-        `${name} (${bound.kind}): ${bound.description}${bound.kind === "oneOf" ? `; values: ${bound.values.join(", ")}` : ""}`,
+      ([name, bound]) => `${name} (${bound.kind}): ${bound.description}${boundDetail(bound)}`,
     )
     return `${spec.id}: ${bounds.length > 0 ? bounds.join("; ") : "no bounds: a grant limits its targets, rate and expiry"}.`
   })
@@ -119,7 +133,7 @@ export function grantTools(specs: readonly ToolSpec[], prefix: string): ToolSpec
       bounds: boundsSchema
         .default({})
         .describe(
-          "A value for each bound to limit: a whole number for a max, true or false for an allow, a list of values for a oneOf; a bound left out is no limit.",
+          "A value for each bound to limit: a whole number for a max, true or false for an allow, a list of values for a oneOf, a list of paths for a prefix; a bound left out is no limit.",
         ),
       rate: z.number().int().min(1).optional().describe("The most calls an hour; left out, any number."),
       days: z.number().int().min(1).max(MAX_GRANT_DAYS).describe("The number of days the grant lasts."),
@@ -144,8 +158,8 @@ export function grantTools(specs: readonly ToolSpec[], prefix: string): ToolSpec
       const spec = grantedTool(args.tool)
       grantTargets(args.targets)
       const bounds = grantBounds(spec.bounds ?? {}, args.bounds, args.tool)
-      for (const name of Object.keys(bounds)) {
-        if (boundText(name, bounds[name]!).length > MAX_VALUE_LENGTH) {
+      for (const [name, bound, limit] of boundEntries(spec, bounds)) {
+        if (limit !== undefined && boundText(name, bound, limit).length > MAX_VALUE_LENGTH) {
           throw new ToolError(
             "invalid_argument",
             `The bound ${name} lists too many values to show the person in full (over ${MAX_VALUE_LENGTH} characters); grant fewer values.`,
@@ -172,7 +186,10 @@ export function grantTools(specs: readonly ToolSpec[], prefix: string): ToolSpec
           label: "Lasts",
           value: { text: args.days === 1 ? "{days} day" : "{days} days", values: { days: args.days } },
         },
-        ...boundEntries(spec, bounds).map(([name, limit]) => ({ label: "Bound", value: boundValue(name, limit) })),
+        ...boundEntries(spec, bounds).map(([name, bound, limit]) => ({
+          label: "Bound",
+          value: boundValue(name, bound, limit),
+        })),
       ]
       return {
         headline: grantTargets(args.targets).includes(ANY_TARGET)
@@ -187,7 +204,7 @@ export function grantTools(specs: readonly ToolSpec[], prefix: string): ToolSpec
       const targets = grantTargets(args.targets)
       const spec = grantedTool(args.tool)
       const bounds = grantBounds(spec.bounds ?? {}, args.bounds, args.tool)
-      const limits = boundEntries(spec, bounds).map(([name, limit]) => boundText(name, limit))
+      const limits = boundEntries(spec, bounds).map(([name, bound, limit]) => boundText(name, bound, limit))
       const where = targets.includes(ANY_TARGET) ? "any target" : targets.join(", ")
       const calls = args.rate === undefined ? "any number of calls" : `${args.rate} calls an hour`
       await confirmWrite(
