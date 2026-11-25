@@ -137,7 +137,7 @@ export type ToolSpec<I extends z.ZodObject<any> = z.ZodObject<any>, O extends z.
 /** A client meta key that makes the client ask even under an allow rule. */
 export const REQUIRES_USER_INTERACTION = "anthropic/requiresUserInteraction"
 
-const TOOL_ID_PATTERN = /^[a-z]+(?:_[a-z]+){2,}$/
+const TOOL_ID_PATTERN = /^[a-z][a-z0-9]*(?:_[a-z][a-z0-9]*){2,}$/
 const MAX_TOOL_ID_LENGTH = 40
 const READ_TOOL_SUFFIX = "_read"
 const BOUND_NAME_PATTERN = /^[a-z][a-z0-9_]*$/
@@ -220,7 +220,9 @@ export function defineTool<I extends z.ZodObject<any>, O extends z.ZodObject<any
   spec: ToolSpec<I, O>,
 ): ToolSpec<I, O> {
   if (!TOOL_ID_PATTERN.test(spec.id)) {
-    throw new Error(`Tool id "${spec.id}" must look like <prefix>_<domain>_<verb> in lowercase letters.`)
+    throw new Error(
+      `Tool id "${spec.id}" must look like <prefix>_<domain>_<verb>, each part a lowercase letter followed by lowercase letters and digits.`,
+    )
   }
   if (spec.id.length > MAX_TOOL_ID_LENGTH) {
     throw new Error(`Tool id "${spec.id}" is longer than ${MAX_TOOL_ID_LENGTH} characters.`)
