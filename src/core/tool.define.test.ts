@@ -30,7 +30,15 @@ describe("defineTool", () => {
     expect(defineTool(given)).toBe(given)
   })
 
-  test.each(["demo_thing_create", "demo_thing_item_add", "demo_thing_read", "a_b_c"])("accepts %s", (id) => {
+  test.each([
+    "demo_thing_create",
+    "demo_thing_item_add",
+    "demo_thing_read",
+    "a_b_c",
+    "web3_evm_read",
+    "web3_erc20_send",
+    "demo_thing_create2",
+  ])("accepts %s", (id) => {
     expect(() => defineTool({ ...base, id })).not.toThrow()
   })
 
@@ -39,7 +47,10 @@ describe("defineTool", () => {
     "demo_thing",
     "demo",
     "demo_Thing_create",
-    "demo_thing_create2",
+    "web3_2fa_read",
+    "demo_thing_2fa",
+    "3d_thing_create",
+    "web3_Evm_read",
     "demo__thing_create",
     "demo_thing-create",
     "_demo_thing_create",
